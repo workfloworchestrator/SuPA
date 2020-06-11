@@ -1,0 +1,7 @@
+#!/usr/bin/env sh
+
+PY_INTERPRETER_PATH=$1
+FILE_PATH=$2
+
+${PY_INTERPRETER_PATH} -m black ${FILE_PATH}
+${PY_INTERPRETER_PATH} -m isort ${FILE_PATH}
