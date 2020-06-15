@@ -117,3 +117,6 @@ dmypy.json
 # IDEs
 .idea/
 .vscode/
+
+# Generated protobuf/gRPC code
+src/supa/grpc

@@ -19,10 +19,11 @@ As we don't have an internal Python package repository, we need to check out the
     $ python3.7 -m venv venv
     $ source venv/bin/activate
 
-The virtual environment created by the `venv` module does not always contain the most recent versions of `pip` and
-`setuptools` and `wheel`, tools `SuPA` depends on for its installation. Hence we upgrade those first::
+The virtual environment created by the `venv` module does not always contain the most recent version of `pip`. As we
+are using some newer Python packaging standards (`PEP-518 <https://www.python.org/dev/peps/pep-0518/>`_) it is
+probably a good idea have `pip` updated to its most recent version::
 
-    $ pip install -U pip setuptools wheel
+    $ pip install -U pip
 
 Depending on whether we want to install `SuPA` for deployment or development we either execute::
 
@@ -56,6 +57,14 @@ Some rules:
     - `flake8`
     - `pytest -n auto --cov`
 - Each MR should probably result in a version bump (`VERSION.txt`) and an update to `CHANGES.rst`
+
+Importing new protobuf/gRPC definitions
++++++++++++++++++++++++++++++++++++++++
+
+When new NSI protobuf/gRPC definitions are imported into the `protos` directory one should (re)generated the
+corresponding Python code for it::
+
+    $ python setup.py gen_code
 
 PyCharm
 +++++++
