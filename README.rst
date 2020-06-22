@@ -64,7 +64,12 @@ Importing new protobuf/gRPC definitions
 When new NSI protobuf/gRPC definitions are imported into the `protos` directory one should (re)generated the
 corresponding Python code for it::
 
-    $ python setup.py gen_code
+    $ python setup.py clean gen_code
+
+Cleaing the previously generated code is a good thing thing. We want to ensure that we don't accidently depend on no
+longer used protobuf/gRPC definitions. Hence always run the `gen_code` in conjunction with and prepended by the `clean`
+command.
+
 
 PyCharm
 +++++++
