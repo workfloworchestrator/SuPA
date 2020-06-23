@@ -45,6 +45,39 @@ still needs to activated by means of::
 
     $ pre-commit install
 
+Tips
+++++
+
+Pre-built packages for `grpcio` and `grpcio-tools` might not be available for all platforms. Meaning that these packages
+will be built when `pip` installs `SuPA`. As these packages use a lot of C++ code, building them can take a long
+time.
+
+With a recent enough versions of `pip` and `wheel` installed, `pip` caches the packages it builds. Hence on subsequent
+installs in new or recreated virtual environments it can skip the building part and install the previously built
+packages from the cache. To see `pip`'s cache run::
+
+    pip cache list
+
+However on OS or Python updates, eg from FreeBSD 12.1-p5 to 12.1-p6, or from Python 3.7 to 3.8, `pip` will rebuild the
+packages as their names include the OS name and version down to the patch level and the version of Python used. Eg.
+`grpcio-1.29.0-cp37-cp37m-freebsd_12_1_RELEASE_p5_amd64.whl` will not picked for an installation of FreeBSD 12.1-p6 or
+when used with Python 3.8.
+
+To speed up builds under these circumstances, consider always using `ccache <https://ccache.dev/>`_. With `ccache`
+installed, *always* execute the installation of `SuPA` by `pip` with::
+
+    CC="ccache cc" pip install -e '.[dev]'
+
+if your primary C/C++ compiler is LLVM, or::
+
+    CC="ccache gcc" pip install -e '.[dev]'
+
+if your primary C/C++ compiler is GCC
+
+To see the `ccache` cache, run::
+
+   ccache -s
+
 Development
 -----------
 
@@ -66,7 +99,7 @@ corresponding Python code for it::
 
     $ python setup.py clean gen_code
 
-Cleaing the previously generated code is a good thing thing. We want to ensure that we don't accidently depend on no
+Cleaning the previously generated code is a good thing thing. We want to ensure that we don't accidentally depend on no
 longer used protobuf/gRPC definitions. Hence always run the `gen_code` in conjunction with and prepended by the `clean`
 command.
 
