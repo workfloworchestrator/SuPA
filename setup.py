@@ -1,6 +1,9 @@
 """Distutils/setuptools packaging information file."""
+import operator
 import shutil
+import sys
 from distutils.command.clean import clean
+from fileinput import FileInput
 from pathlib import Path
 
 import pkg_resources
@@ -55,9 +58,6 @@ class GenCode(setuptools.Command):
         gen_code_path = ROOT_PKG_PATH / GEN_CODE_REL_PKG_PATH
         gen_code_path.mkdir(exist_ok=True)
 
-        # The generated code should be part of a package
-        (gen_code_path / "__init__.py").touch(mode=0o644, exist_ok=True)
-
         # Include common gRPC protobuf definitions
         proto_include = pkg_resources.resource_filename("grpc_tools", "_proto")
 
@@ -84,6 +84,34 @@ class GenCode(setuptools.Command):
                 raise RuntimeError(
                     "Could not generate Python code from protobuf file '{}'. Exit code: {}".format(pf, exit_code)
                 )
+
+        # Post process generated Python modules to fix imports of generated modules.
+        #
+        # The generated Python modules 'think' they are part of the root package whereas in reality they
+        # are part of a subpackage. This means that if one generated module imports another generated module
+        # by means of:
+        #
+        #    import fubar_pb2 as fubar__pb2
+        #
+        # it will fail. To correct this we can rewrite that import using relative imports. That way we do
+        # no need to know the exact subpackage we are in. So changing the import statement above to:
+        #
+        #    from . import fubar_pb2 as fubar__pb2
+        #
+        # We solve the problem.
+        py_proto_files = tuple(gen_code_path.glob("*.py"))
+        py_proto_modules = tuple(map(operator.attrgetter("stem"), py_proto_files))
+        with FileInput(files=tuple(map(str, py_proto_files)), inplace=True) as ppf:
+            for line in ppf:
+                for mod in py_proto_modules:
+                    if mod in line:
+                        line = line.replace("import {}".format(mod), "from . import {}".format(mod))
+                # FileInput, with `inplace` set to `True` redirects stdout to the file currently being
+                # processed.
+                sys.stdout.write(line)
+
+        # The generated code should be part of a package
+        (gen_code_path / "__init__.py").touch(mode=0o644, exist_ok=True)
 
 
 class InstallCommand(install):
