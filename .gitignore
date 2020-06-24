@@ -119,4 +119,4 @@ dmypy.json
 .vscode/
 
 # Generated protobuf/gRPC code
-src/supa/grpc
+src/supa/grpc_nsi

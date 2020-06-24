@@ -18,7 +18,7 @@ PROJECT_PATH = Path(__file__).resolve().parent
 ROOT_PKG_PATH = (PROJECT_PATH / "src" / "supa").resolve(strict=True)
 
 # Relative path (to SuPA's root package) of the package that will contain the protobuf/gRPC generated code.
-GEN_CODE_REL_PKG_PATH = Path("grpc")
+GEN_CODE_REL_PKG_PATH = Path("grpc_nsi")
 
 # The absolute path of where we expect the protobuf/gRPC definitions to live.
 PROTOS_PATH = (PROJECT_PATH / "protos").resolve(strict=True)
