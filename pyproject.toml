@@ -3,7 +3,7 @@
 # For that we need to have `grpcio-tools` around *before* `setup.py` is executed. The version number of `grpcio-tools`
 # should match that of `grpcio` in `setup.cfg`. Actual code generation is done from within `setup.py` in a custom
 # Command class.
-requires = ["setuptools>=47.3.1", "wheel", "grpcio-tools~=1.29"]
+requires = ["setuptools>=47.3.1", "wheel", "grpcio-tools~=1.29", "mypy-protobuf"]
 
 [tool.isort]
 multi_line_output = 3

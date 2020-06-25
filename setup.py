@@ -77,6 +77,7 @@ class GenCode(setuptools.Command):
                     "--proto_path={}".format(PROTOS_PATH),
                     "--python_out={}".format(gen_code_path),
                     "--grpc_python_out={}".format(gen_code_path),
+                    "--mypy_out={}".format(gen_code_path),
                     pf.as_posix(),
                 ]
             )
