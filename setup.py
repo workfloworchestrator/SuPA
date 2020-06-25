@@ -2,9 +2,10 @@
 import operator
 import shutil
 import sys
-from distutils.command.clean import clean
+from distutils.command.clean import clean  # type: ignore
 from fileinput import FileInput
 from pathlib import Path
+from typing import List, Optional, Tuple
 
 import pkg_resources
 import setuptools
@@ -35,15 +36,15 @@ class GenCode(setuptools.Command):
     it will generate Python code from the protobuf/gRPC definitions included in this project (see `PROTOS_PATH`).
     """
 
-    user_options = []
+    user_options: List[Tuple[Optional[str], ...]] = []
 
-    def initialize_options(self):
+    def initialize_options(self) -> None:
         pass
 
-    def finalize_options(self):
+    def finalize_options(self) -> None:
         pass
 
-    def run(self):
+    def run(self) -> None:
         try:
             # With help of PEP-518 and the `build-system` configuration in `pyproject.toml`, `pip install -e .` will
             # pre-install this for us before this code is run. Hence the import should not fail.
@@ -118,7 +119,7 @@ class GenCode(setuptools.Command):
 class InstallCommand(install):
     """Support Python code generation during package installation."""
 
-    def run(self):
+    def run(self) -> None:
         self.run_command("gen_code")
         super().run()
 
@@ -126,7 +127,7 @@ class InstallCommand(install):
 class DevelopCommand(develop):
     """Support Python code generation during 'editable' package installation."""
 
-    def run(self):
+    def run(self) -> None:
         self.run_command("gen_code")
         super().run()
 
@@ -134,7 +135,7 @@ class DevelopCommand(develop):
 class CleanCommand(clean):
     """Custom cleanup for generated code."""
 
-    def run(self):
+    def run(self) -> None:
         gen_code_path = ROOT_PKG_PATH / GEN_CODE_REL_PKG_PATH
         if gen_code_path.exists():
             shutil.rmtree(gen_code_path)
