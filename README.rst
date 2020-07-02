@@ -13,17 +13,17 @@ As we don't have an internal Python package repository, we need to check out the
 
     $ git clone git@git.ia.surfsara.nl:automation/projects/supa.git
 
-`SuPA` is developed using Python 3.7. Hence we need a Python 3.7 virtual environment::
+`SuPA` is developed using Python 3.8. Hence we need a Python 3.8 virtual environment::
 
     $ cd supa
-    $ python3.7 -m venv venv
+    $ python3.8 -m venv venv
     $ source venv/bin/activate
 
 The virtual environment created by the `venv` module does not always contain the most recent version of `pip`. As we
 are using some newer Python packaging standards (`PEP-518 <https://www.python.org/dev/peps/pep-0518/>`_) it is
 probably a good idea have `pip` updated to its most recent version::
 
-    $ pip install -U pip
+    $ pip install -U pip wheel
 
 Depending on whether we want to install `SuPA` for deployment or development we either execute::
 
