@@ -11,8 +11,12 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 import logging.config
+import sys
+from pathlib import Path
+from typing import Optional
 
 import structlog
+from pydantic import BaseSettings
 
 timestamper = structlog.processors.TimeStamper(fmt="%Y-%m-%d %H:%M:%S")
 pre_chain = [
@@ -64,3 +68,53 @@ structlog.configure(
     wrapper_class=structlog.stdlib.BoundLogger,
     cache_logger_on_first_use=True,
 )
+
+logger = structlog.get_logger(__name__)
+
+ENV_FILE_NAME = "supa.env"
+
+
+class Settings(BaseSettings):
+    max_workers: int = 10
+    insecure_address_port: str = "[::]:50051"
+
+    class Config:
+        case_sensitive = True
+
+
+def locate_env_file() -> Optional[Path]:
+    """Locate env file by looking at specific locations.
+
+    Depending on how the project was installed we find the env file in different locations. When pip performs
+    a regular install it will process the `data_files` sections in `setup.cfg`. The env file is specified in that
+    section and the location specified there (hard coded here) is the first location checked.
+
+    Editable pip installs do not process that section. Hence the location of the env file can be found relative to the
+    top level `supa` package in the source tree (where this code is located). This is the second location checked.
+
+    If none of these locations result in finding the env file we give up. `supa` will run fine without a configuration
+    file as it still has its default values, can process environment variables and command line arguments.
+
+    Returns:
+        The path where the env file was found or `None`
+
+    """
+    # regular pip install env file location
+    # TODO we should probably retrieve the exact location from `setup.cfg` instead of hardcoding it here.
+    data_file_env_file_path = Path(sys.prefix) / "etc" / "supa" / ENV_FILE_NAME
+
+    # editable pip install env file location
+    local_env_file_path = Path(__file__).parent.parent.parent / ENV_FILE_NAME  # up from src/supa
+    if data_file_env_file_path.exists():
+        logger.info("Using pip installed version of env file.", path=str(data_file_env_file_path))
+        return data_file_env_file_path
+    if local_env_file_path.exists():
+        logger.info("Using env file in source tree.", path=str(local_env_file_path))
+        return local_env_file_path
+    logger.warning(
+        "Could not find env file in default locations.", paths=(str(data_file_env_file_path), str(local_env_file_path)),
+    )
+    return None
+
+
+settings = Settings(_env_file=locate_env_file())
