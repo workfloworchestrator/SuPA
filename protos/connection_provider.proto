@@ -2,9 +2,8 @@ syntax = "proto3";
 
 package connection.provider;
 
-import "google/protobuf/timestamp.proto";
+import "connection_common.proto";
 import "services.proto";
-import "policy.proto";
 
 option java_multiple_files = true;
 option java_package = "org.ogf.nsi.grpc.connection.provider";
@@ -45,14 +44,9 @@ option java_package = "org.ogf.nsi.grpc.connection.provider";
 
 
  */
-message Schedule {
-  google.protobuf.Timestamp start_time = 1;
-  google.protobuf.Timestamp end_time = 2;
-}
-
 message ReservationRequestCriteria {
   int32 version = 1;
-  Schedule schedule = 2;
+  common.Schedule schedule = 2;
   string service_type = 3;
   oneof service_specific_messages {
     services.PointToPointService ptps = 4;
@@ -80,23 +74,8 @@ message ReservationRequestCriteria {
    */
 }
 
-message Header {
-  string protocol_version = 1;
-  string correlation_id = 2;  // UUID
-  string requester_nsa = 3;  // URI
-  string provider_nsa = 4;  // URI
-  string reply_to = 5;  // URI
-  /*
-     TODO: Not sure yet what to do with the session security attributes.
-     For the initial implementation we can probably pass the original
-     XML representation verbatim as a string.
-   */
-  string session_security_attributes = 6;
-  policy.PathTrace path_trace = 7;
-}
-
 message ReserveRequest {
-  Header header = 1;
+  common.Header header = 1;
   string connection_id = 2; // URI
   string global_reservation_id = 3;  // UUID
   string description = 4;
@@ -104,10 +83,30 @@ message ReserveRequest {
 }
 
 message ReserveResponse {
-  string connection_id = 1; // URI
+  common.Header header = 1;
+  string connection_id = 2; // URI
+}
 
+message ReserveCommitRequest {
+  common.Header header = 1;
+  string connection_id = 2; // URI
+}
+
+message ReserveCommitResponse {
+  common.Header header = 1;
+}
+
+message ReserveAbortRequest {
+  common.Header header = 1;
+  string connection_id = 2; // URI
+}
+
+message ReserveAbortResponse {
+  common.Header header = 1;
 }
 
 service ConnectionProvider {
   rpc Reserve(ReserveRequest) returns (ReserveResponse);
+  rpc ReserveCommit(ReserveCommitRequest) returns (ReserveCommitResponse);
+  rpc ReserveAbort(ReserveAbortRequest) returns (ReserveAbortResponse);
 }
