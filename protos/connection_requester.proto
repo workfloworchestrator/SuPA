@@ -59,7 +59,6 @@ message ReserveCommitFailedRequest {
 
 message ReserveCommitFailedResponse {
   common.Header header = 1;
-
 }
 
 message ReserveAbortConfirmedRequest {

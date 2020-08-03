@@ -49,7 +49,7 @@ message ServiceException {
   string error_id = 4;
   string text = 5;
   repeated TypeValuePair variables = 6;
-  ServiceException child_exception = 7;
+  repeated ServiceException child_exception = 7;
 }
 
 enum ReservationState {
