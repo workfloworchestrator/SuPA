@@ -38,13 +38,13 @@ class GenCode(setuptools.Command):
 
     user_options: List[Tuple[Optional[str], ...]] = []
 
-    def initialize_options(self) -> None:
+    def initialize_options(self) -> None:  # noqa: D102
         pass
 
-    def finalize_options(self) -> None:
+    def finalize_options(self) -> None:  # noqa: D102
         pass
 
-    def run(self) -> None:
+    def run(self) -> None:  # noqa: D102
         try:
             # With help of PEP-518 and the `build-system` configuration in `pyproject.toml`, `pip install -e .` will
             # pre-install this for us before this code is run. Hence the import should not fail.
@@ -65,27 +65,23 @@ class GenCode(setuptools.Command):
         proto_files = list(PROTOS_PATH.glob("*.proto"))
         if len(proto_files) == 0:
             raise RuntimeError(
-                "Could not find any protobuf files in directory '{}'. Hence no Python code to generate.".format(
-                    PROTOS_PATH
-                )
+                f"Could not find any protobuf files in directory '{PROTOS_PATH}'. Hence no Python code to generate."
             )
         # The protoc compiler (with gRPC plugin) seem to only accept one proto file at a time
         for pf in proto_files:
             exit_code = grpc_tools.protoc.main(
                 [
                     "grpc_tools.protoc",
-                    "--proto_path={}".format(proto_include),
-                    "--proto_path={}".format(PROTOS_PATH),
-                    "--python_out={}".format(gen_code_path),
-                    "--grpc_python_out={}".format(gen_code_path),
-                    "--mypy_out={}".format(gen_code_path),
+                    f"--proto_path={proto_include}",
+                    f"--proto_path={PROTOS_PATH}",
+                    f"--python_out={gen_code_path}",
+                    f"--grpc_python_out={gen_code_path}",
+                    f"--mypy_out={gen_code_path}",
                     pf.as_posix(),
                 ]
             )
             if exit_code != 0:
-                raise RuntimeError(
-                    "Could not generate Python code from protobuf file '{}'. Exit code: {}".format(pf, exit_code)
-                )
+                raise RuntimeError(f"Could not generate Python code from protobuf file '{pf}'. Exit code: {exit_code}")
 
         # Post process generated Python modules to fix imports of generated modules.
         #
@@ -107,7 +103,7 @@ class GenCode(setuptools.Command):
             for line in ppf:
                 for mod in py_proto_modules:
                     if mod in line:
-                        line = line.replace("import {}".format(mod), "from . import {}".format(mod))
+                        line = line.replace(f"import {mod}", f"from . import {mod}")
                 # FileInput, with `inplace` set to `True` redirects stdout to the file currently being
                 # processed.
                 sys.stdout.write(line)
@@ -119,7 +115,7 @@ class GenCode(setuptools.Command):
 class InstallCommand(install):
     """Support Python code generation during package installation."""
 
-    def run(self) -> None:
+    def run(self) -> None:  # noqa: D102
         self.run_command("gen_code")
         super().run()
 
@@ -127,7 +123,7 @@ class InstallCommand(install):
 class DevelopCommand(develop):
     """Support Python code generation during 'editable' package installation."""
 
-    def run(self) -> None:
+    def run(self) -> None:  # noqa: D102
         self.run_command("gen_code")
         super().run()
 
@@ -135,7 +131,7 @@ class DevelopCommand(develop):
 class CleanCommand(clean):
     """Custom cleanup for generated code."""
 
-    def run(self) -> None:
+    def run(self) -> None:  # noqa: D102
         gen_code_path = ROOT_PKG_PATH / GEN_CODE_REL_PKG_PATH
         if gen_code_path.exists():
             shutil.rmtree(gen_code_path)
