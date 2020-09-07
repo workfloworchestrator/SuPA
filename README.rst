@@ -91,6 +91,14 @@ To see the ``ccache`` cache, run::
 
    ccache -s
 
+Documentation
+-------------
+
+SuPA's documentation is written using `Sphinx <https://www.sphinx-doc.org>_`. To
+generate, it run::
+
+    $ python setup.py build_sphinx
+
 Development
 -----------
 
