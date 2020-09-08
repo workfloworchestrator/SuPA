@@ -10,6 +10,15 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
+"""
+SuPA main entry point.
+
+SuPA has a single entry point defined in this module,
+namely :func:`cli`.
+That is what is executed when the ``supa`` command is issued from the command-line.
+
+The other ``@cli.command`` annotated functions in this modules implement the various sub-commands.
+"""
 from concurrent import futures
 
 import click
@@ -27,10 +36,11 @@ CONTEXT_SETTINGS = {"help_option_names": ["-h", "--help"], "show_default": True}
 
 @click.group(context_settings=CONTEXT_SETTINGS)
 def cli() -> None:
-    r"""Manage the SURF ultimate Provider Agent from the command line.
+    """Manage the SURF ultimate Provider Agent from the command line.
+
+    Configuration variables can be set using (in order of precedence):
 
     \b
-    Configuration variables can be set using (in order of precedence):
     - command line options
     - environment variables
     - entries in `supa.env`
@@ -46,9 +56,11 @@ def cli() -> None:
 )
 @click.option("--insecure-address-port", default=settings.insecure_address_port, help="Port to listen on.")
 def serve(max_workers: int, insecure_address_port: str) -> None:
-    """Start gRPC server."""
+    """Starts the gRPC server and listen for incoming requests.
 
-    # Commandline options take precedence.
+    The requests (messages) it can respond to are implemented in :mod:`supa.connection.provider.server`.
+    """
+    # Command-line options take precedence.
     settings.max_workers = max_workers
     settings.insecure_address_port = insecure_address_port
 

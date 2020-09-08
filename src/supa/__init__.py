@@ -10,6 +10,25 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
+"""Initial configuration for SuPA.
+
+This being the top level package,
+structured logging is configured here
+so that it is available everywhere else by means of:
+
+.. code-block:: python
+
+   import structlog
+   ...
+   logger = structlog.get_logger(__name__)
+
+All possible configurable settings are defined here as part of :class:`Settings`.
+All these settings have a default values,
+that are overwritten by whatever values those settings have,
+if any,
+in the configuration file ``supa.env``.
+See also :func:`locate_env_file`
+"""
 import logging.config
 import sys
 from pathlib import Path
@@ -75,32 +94,45 @@ ENV_FILE_NAME = "supa.env"
 
 
 class Settings(BaseSettings):
+    """Application wide settings with default values.
+
+    See also: the ``supa.env`` file
+    """
+
     max_workers: int = 10
     insecure_address_port: str = "[::]:50051"
 
-    class Config:
+    class Config:  # noqa: D106
         case_sensitive = True
 
 
 def locate_env_file() -> Optional[Path]:
     """Locate env file by looking at specific locations.
 
-    Depending on how the project was installed we find the env file in different locations. When pip performs
-    a regular install it will process the `data_files` sections in `setup.cfg`. The env file is specified in that
-    section and the location specified there (hard coded here) is the first location checked.
+    Depending on how the project was installed
+    we find the env file in different locations.
+    When pip performs a regular install
+    it will process the ``data_files`` sections in ``setup.cfg``.
+    The env file is specified in that section
+    and the location specified there (hard coded here) is the first location checked.
 
-    Editable pip installs do not process that section. Hence the location of the env file can be found relative to the
-    top level `supa` package in the source tree (where this code is located). This is the second location checked.
+    Editable pip installs do not process that section.
+    Hence the location of the env file can be found relative to the top level ``supa`` package in the source tree
+    (where this code is located).
+    This is the second location checked.
 
-    If none of these locations result in finding the env file we give up. `supa` will run fine without a configuration
-    file as it still has its default values, can process environment variables and command line arguments.
+    If none of these locations result in finding the env file we give up.
+    ``supa`` will run fine without a configuration file
+    as it still has its default values,
+    can process environment variables
+    and command line arguments.
 
     Returns:
-        The path where the env file was found or `None`
+        The path where the env file was found or ``None``
 
     """
     # regular pip install env file location
-    # TODO we should probably retrieve the exact location from `setup.cfg` instead of hardcoding it here.
+    # TODO we should probably retrieve the exact location from ``setup.cfg`` instead of hardcoding it here.
     data_file_env_file_path = Path(sys.prefix) / "etc" / "supa" / ENV_FILE_NAME
 
     # editable pip install env file location

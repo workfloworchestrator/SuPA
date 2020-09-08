@@ -19,9 +19,9 @@ import sphinx_rtd_theme  # noqa: F401
 
 # -- Project information -----------------------------------------------------
 
-project = "SURF ultimate Provider Agent (SuPA)"
 copyright = "2020, SURF"
 author = "Guido Kollerie"
+project = "SuPA"
 
 
 # -- General configuration ---------------------------------------------------
@@ -32,6 +32,8 @@ author = "Guido Kollerie"
 extensions = [
     "sphinx.ext.napoleon",
     "sphinx_rtd_theme",
+    "sphinx.ext.autodoc",
+    "sphinx_click",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
