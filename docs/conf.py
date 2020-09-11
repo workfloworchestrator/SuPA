@@ -3,8 +3,13 @@
 # This file only contains a selection of the most common options. For a full
 # list see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
+import sys
+from pathlib import Path
 
 import sphinx_rtd_theme  # noqa: F401
+
+# Ensure that all of SuPA's source code can be imported by Shpinx
+sys.path.insert(0, (Path("..") / "src").resolve().as_posix())
 
 # -- Path setup --------------------------------------------------------------
 

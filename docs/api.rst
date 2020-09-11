@@ -20,6 +20,12 @@ supa.main
    :prog: supa
    :show-nested:
 
+supa.connection.fsm
+-------------------
+
+.. automodule:: supa.connection.fsm
+   :members:
+
 supa.connection.provider.server
 -------------------------------
 

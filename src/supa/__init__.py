@@ -93,6 +93,15 @@ logger = structlog.get_logger(__name__)
 ENV_FILE_NAME = "supa.env"
 
 
+def get_project_root() -> Path:
+    """Return project root directory.
+
+    Returns:
+        project root directory
+    """
+    return Path(__file__).parent.parent.parent
+
+
 class Settings(BaseSettings):
     """Application wide settings with default values.
 
