@@ -115,6 +115,7 @@ if __name__ == "__main__":
     output_path = get_project_root() / "docs" / "images"
 
     def plot_fsm(fsm: StateMachine, name: str) -> None:
+        """Generate image that visualizes a state machine."""
         dg = Digraph(name=name, comment=name)
         for s in fsm.states:
             for t in s.transitions:

@@ -27,28 +27,31 @@ All these settings have a default values,
 that are overwritten by whatever values those settings have,
 if any,
 in the configuration file ``supa.env``.
-See also :func:`locate_env_file`
+See also :func:`resolve_env_file`
 """
+import errno
+import functools
 import logging.config
 import sys
+from enum import Enum
 from pathlib import Path
-from typing import Optional
 
 import structlog
 from pydantic import BaseSettings
 
 timestamper = structlog.processors.TimeStamper(fmt="%Y-%m-%d %H:%M:%S")
 pre_chain = [
-    # Add the log level and a timestamp to the event_dict if the log entry
+    # Add the log level, name and a timestamp to the event_dict if the log entry
     # is not from structlog.
     structlog.stdlib.add_log_level,
+    structlog.stdlib.add_logger_name,
     timestamper,
 ]
 
 logging.config.dictConfig(
     {
         "version": 1,
-        "disable_existing_loggers": False,
+        "disable_existing_loggers": True,
         "formatters": {
             "plain": {
                 "()": structlog.stdlib.ProcessorFormatter,
@@ -66,16 +69,21 @@ logging.config.dictConfig(
             "file": {
                 "level": "DEBUG",
                 "class": "logging.handlers.WatchedFileHandler",
-                "filename": "test.log",
+                "filename": "supa.log",
                 "formatter": "plain",
             },
         },
-        "loggers": {"": {"handlers": ["default", "file"], "level": "DEBUG", "propagate": True}},
+        "loggers": {
+            "": {"handlers": ["default", "file"], "level": "DEBUG", "propagate": True},
+            # Set `level` to `INFO` or `DEBUG` here for detailed SQLAlchemy logging.
+            "sqlalchemy.engine": {"handlers": ["default", "file"], "level": "WARN", "propagate": False},
+        },
     }
 )
 structlog.configure(
     processors=[
         structlog.stdlib.add_log_level,
+        structlog.stdlib.add_logger_name,
         structlog.stdlib.PositionalArgumentsFormatter(),
         timestamper,
         structlog.processors.StackInfoRenderer(),
@@ -102,6 +110,39 @@ def get_project_root() -> Path:
     return Path(__file__).parent.parent.parent
 
 
+class JournalMode(str, Enum):
+    """A (subset) of the journal modes as supported by SQLite.
+
+    Preferably we should use the :attr:`WAL` journal mode for SQLite
+    as that provides the best concurrency;
+    allowing for multiple READs to occur while a WRITE is in progress.
+    Without WAL,
+    as the journal mode,
+    SQLite locks the entire database as soon as a transaction starts.
+    As SuPA also uses SQLAlchemy,
+    that happens to issue a transaction upon session creation,
+    this could have a negative performance impact.
+
+    However, :attr:`WAL` journal mode does not work well with networked file systems,
+    such as NFS.
+    This might also hold for some, or most of the Kubernetes storage volumes.
+    If in doubt use a ``local`` volume.
+
+    See also:
+        - https://sqlite.org/pragma.html#pragma_journal_mode
+        - https://docs.sqlalchemy.org/en/13/dialects/sqlite.html?highlight=sqlite#database-locking-behavior-concurrency
+        - https://kubernetes.io/docs/concepts/storage/volumes/#local
+
+    But don't let these warnings fool you.
+    SQLlite is a wickedly fast database
+    that matches SuPA's needs perfectly.
+    """
+
+    WAL = "WAL"
+    TRUNCATE = "TRUNCATE"
+    DELETE = "DELETE"
+
+
 class Settings(BaseSettings):
     """Application wide settings with default values.
 
@@ -110,13 +151,16 @@ class Settings(BaseSettings):
 
     max_workers: int = 10
     insecure_address_port: str = "[::]:50051"
+    database_journal_mode: JournalMode = JournalMode.WAL
+    database_file: Path = Path("supa.db")
 
     class Config:  # noqa: D106
         case_sensitive = True
 
 
-def locate_env_file() -> Optional[Path]:
-    """Locate env file by looking at specific locations.
+@functools.lru_cache(maxsize=1)  # not for performance, but rather to keep the logging sane.
+def resolve_env_file() -> Path:
+    """Resolve env file by looking at specific locations.
 
     Depending on how the project was installed
     we find the env file in different locations.
@@ -130,32 +174,43 @@ def locate_env_file() -> Optional[Path]:
     (where this code is located).
     This is the second location checked.
 
-    If none of these locations result in finding the env file we give up.
-    ``supa`` will run fine without a configuration file
-    as it still has its default values,
-    can process environment variables
-    and command line arguments.
+    If none of these locations results in finding the env file we give up.
 
     Returns:
         The path where the env file was found or ``None``
 
+    Raises:
+        FileNotFoundError: if the env file could not be resolved/found.
+
     """
     # regular pip install env file location
-    # TODO we should probably retrieve the exact location from ``setup.cfg`` instead of hardcoding it here.
     data_file_env_file_path = Path(sys.prefix) / "etc" / "supa" / ENV_FILE_NAME
 
     # editable pip install env file location
-    local_env_file_path = Path(__file__).parent.parent.parent / ENV_FILE_NAME  # up from src/supa
+    local_env_file_path = get_project_root() / ENV_FILE_NAME
     if data_file_env_file_path.exists():
         logger.info("Using pip installed version of env file.", path=str(data_file_env_file_path))
         return data_file_env_file_path
     if local_env_file_path.exists():
         logger.info("Using env file in source tree.", path=str(local_env_file_path))
         return local_env_file_path
-    logger.warning(
-        "Could not find env file in default locations.", paths=(str(data_file_env_file_path), str(local_env_file_path)),
+    raise FileNotFoundError(
+        errno.ENOENT,
+        "Could not find env file in its default locations.",
+        (str(data_file_env_file_path), str(local_env_file_path)),
     )
-    return None
 
 
-settings = Settings(_env_file=locate_env_file())
+settings = Settings(_env_file=resolve_env_file())
+"""Application wide settings.
+
+Initially this only has the settings,
+as specified in the env file and environment,
+resolved.
+Command line processing should overwrite specific settings,
+when appropriate,
+to reflect that this takes precedence.
+As a result you should see code updating :attr:`settings` in most,
+if not all,
+Click callables (sub commands) defined in :mod:`supa.main`
+"""

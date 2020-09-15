@@ -28,6 +28,8 @@ copyright = "2020, SURF"
 author = "Guido Kollerie"
 project = "SuPA"
 
+# Describe the author's attitude ;-)
+nitpicky = True
 
 # -- General configuration ---------------------------------------------------
 
