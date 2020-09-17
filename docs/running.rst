@@ -41,27 +41,27 @@ Environment Variables
 
 In addition to ``supa.env`` and command line options,
 ``supa`` will also honor settings by means of environment variables.
-Regarding precedence: c
-ommand line options take precedence over environment variables,
+Regarding precedence:
+command line options take precedence over environment variables,
 that in turn,
 take precedence over settings in ``supa.env``.
 The following examples all achieve the same thing,
-namely running the ``serve`` subcommand with 16 workers.
+namely running the ``serve`` subcommand with 8 workers.
 
 Using a command line option
 (mind the dashes in option names instead of underscores)::
 
-    % supa serve --max-workers=16
+    % supa serve --max-workers=8
 
 Using an environment variable
 (mind the underscores in environment variable names instead of dashes)::
 
-    % max_workers=16 supa serve
+    % grpc_max_workers=8 supa serve
 
 Using a setting in ``supa.env``
-(set ``max_workers`` from ``10`` to ``16``)::
+(set ``grpc_max_workers`` from ``6`` to ``8``)::
 
-    % sed -i '' 's/^#\(max_workers=\)10$/\116/' supa.env
+    % sed -i '' 's/^#\(grpc_max_workers=\)6$/\18/' supa.env
     % supa serve
 
 .. note::

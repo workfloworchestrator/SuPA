@@ -46,6 +46,7 @@ class CommonOptionsState:
     """Class to capture common options shared between Click callables/sub commands."""
 
     database_file: Optional[Path] = None
+    scheduler_max_workers: Optional[int] = None
 
 
 # Trick from: https://github.com/pallets/click/issues/108
@@ -102,9 +103,33 @@ def database_file_option(f):  # type: ignore
     )(f)
 
 
+def scheduler_max_workers_option(f):  # type: ignore
+    """Define common option for specifying the maximum number of workers to execute scheduler jobs."""
+
+    def callback(ctx: Context, param: Option, value: Optional[int]) -> Optional[int]:
+        """Update the Settings instance when the scheduler-max-workers option is used."""
+        cos: CommonOptionsState = ctx.ensure_object(CommonOptionsState)
+        if value is not None:
+            cos.scheduler_max_workers = value
+
+            # Update the `settings` instance so that it available application wide.
+            settings.scheduler_max_workers = cos.scheduler_max_workers
+        return value
+
+    return click.option(
+        "--scheduler-max-workers",
+        default=settings.scheduler_max_workers,
+        type=int,
+        expose_value=False,  # Don't add to sub command arg list. We have `@pass_common_options_state` for that.
+        help="Maximum number of workers to execute scheduler jobs.",
+        callback=callback,
+    )(f)
+
+
 def common_options(f):  # type: ignore
     """Provide the means to declare common options to Click callables/sub command."""
     f = database_file_option(f)
+    f = scheduler_max_workers_option(f)
     return f
 
 
@@ -126,24 +151,27 @@ def cli() -> None:
 
 @cli.command(context_settings=CONTEXT_SETTINGS)
 @click.option(
-    "--max-workers", default=settings.max_workers, type=int, help="Maximum number of workers to serve gRPC requests."
+    "--grpc-max-workers",
+    default=settings.grpc_max_workers,
+    type=int,
+    help="Maximum number of workers to serve gRPC requests.",
 )
-@click.option("--insecure-address-port", default=settings.insecure_address_port, help="Port to listen on.")
+@click.option("--grpc-insecure-address-port", default=settings.grpc_insecure_address_port, help="Port to listen on.")
 @common_options  # type: ignore
-def serve(max_workers: int, insecure_address_port: str) -> None:
+def serve(grpc_max_workers: int, grpc_insecure_address_port: str) -> None:
     """Start the gRPC server and listen for incoming requests."""
     # Command-line options take precedence.
-    settings.max_workers = max_workers
-    settings.insecure_address_port = insecure_address_port
+    settings.grpc_max_workers = grpc_max_workers
+    settings.grpc_insecure_address_port = grpc_insecure_address_port
 
     init_app()
 
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=settings.max_workers))
-    log = logger.bind(max_workers=settings.max_workers)
+    server = grpc.server(futures.ThreadPoolExecutor(max_workers=settings.grpc_max_workers))
+    log = logger.bind(grpc_max_workers=settings.grpc_max_workers)
 
     connection_provider_pb2_grpc.add_ConnectionProviderServicer_to_server(ConnectionProviderService(), server)
-    server.add_insecure_port(settings.insecure_address_port)
-    log = log.bind(insecure_address_port=settings.insecure_address_port)
+    server.add_insecure_port(settings.grpc_insecure_address_port)
+    log = log.bind(grpc_insecure_address_port=settings.grpc_insecure_address_port)
 
     server.start()
     log.info("Started Connection Provider gRPC Service.")

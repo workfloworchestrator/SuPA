@@ -37,7 +37,13 @@ from enum import Enum
 from pathlib import Path
 from typing import Union
 
+import pytz
 import structlog
+from apscheduler.executors.pool import ThreadPoolExecutor
+from apscheduler.jobstores.memory import MemoryJobStore
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.schedulers.base import BaseScheduler
+from apscheduler.util import undefined
 from pydantic import BaseSettings
 from sqlalchemy import create_engine
 from sqlalchemy.orm import scoped_session, sessionmaker
@@ -152,10 +158,14 @@ class Settings(BaseSettings):
     See also: the ``supa.env`` file
     """
 
-    max_workers: int = 10
-    insecure_address_port: str = "[::]:50051"
+    grpc_max_workers: int = 8
+    grpc_insecure_address_port: str = "[::]:50051"
     database_journal_mode: JournalMode = JournalMode.WAL
     database_file: Path = Path("supa.db")
+
+    # Each gRPC worker can schedule at least one job. Hence the number of scheduler workers should
+    # be at least as many as the gRPC ones. We include a couple extra for non-gRPC initiated jobs.
+    scheduler_max_workers: int = grpc_max_workers + 4
 
     class Config:  # noqa: D106
         case_sensitive = True
@@ -258,27 +268,108 @@ Click callables (sub commands) defined in :mod:`supa.main`
 """
 
 
+class UnconfiguredScheduler(BaseScheduler):
+    """Fail safe fake scheduler to guard against premature scheduler usage.
+
+    The BackgroundScheduler can only be initialized after all settings have been resolved.
+    This means that we cannot initialize it at the module level.
+    After all,
+    at the time this module is being executed the default settings
+    and those of the env file have been processed,
+    those specified on the commend line might not have been processed.
+    At the same time we want to keep easy access to the :data:`scheduler` as a module level attribute.
+    So we configure the :data:`scheduler` with this safe guard class
+    only to overwrite it with the real thing after command line options have been processed.
+    """
+
+    exc_msg = """Scheduler has not yet been initialized. Call `main.init_app` first. Only then (locally) import main.scheduler.
+
+IMPORTANT
+==========
+Make sure you have processed all the different ways of dealing with application
+configuration before you call `main.init_app`.  The env file (`supa.env`) and
+the environment are handled automatically by the `supa.settings` instance.
+However anything specified on the command line generally needs to be processed
+explicitly in the module `supa.main`.
+"""
+
+    def shutdown(self, wait=True):  # type: ignore
+        """Trap premature call and raise an exception."""
+        raise Exception(UnconfiguredScheduler.exc_msg)
+
+    def wakeup(self):  # type: ignore
+        """Trap premature call and raise an exception."""
+        raise Exception(UnconfiguredScheduler.exc_msg)
+
+    def start(self, paused=False):  # type: ignore
+        """Trap premature calls and raise an exception."""
+        raise Exception(UnconfiguredScheduler.exc_msg)
+
+    def add_job(  # type: ignore
+        self,
+        func,
+        trigger=None,
+        args=None,
+        kwargs=None,
+        id=None,  # noqa: A002
+        name=None,
+        misfire_grace_time=undefined,
+        coalesce=undefined,
+        max_instances=undefined,
+        next_run_time=undefined,
+        jobstore="default",
+        executor="default",
+        replace_existing=False,
+        **trigger_args,
+    ):
+        """Trap premature calls and raise an exception."""
+        raise Exception(UnconfiguredScheduler.exc_msg)
+
+
+scheduler = UnconfiguredScheduler()
+"""Application scheduler for scheduling and executing jobs
+
+:data:`scheduler` can only be used after a call to :func:`main.init_app`.
+That,
+in turn,
+can only be called after all application configuration has been resolved,
+eg. after command line processing.
+:func:`main.init_app` will replace :data:`scheduler` with a proper ``BackgroundScheduler``.
+"""
+
+
+# TODO remove
+def watchdog() -> None:
+    """Log watchdog timer events (example for the scheduler)."""
+    logger.info("Watchdog timer fired.")
+
+
 def init_app() -> None:
-    """Initialize the application (database, etc)``.
+    """Initialize the application (database, scheduler, etc)``.
+
+    The scheduler will be started immediately after initialization.
 
     :func:`init_app` should anly be called after **all** application configuration has been resolved.
     Most of that happens implicitly in :mod:`supa`,
     but some of needs to be done after processing command line options.
 
-    For instance, :func:`init_app` assumes :attr:`supa.settings`
-    (the :attr:`~supa.Settings.database_file` attribute of it)
+    For instance, :func:`init_app` assumes :data:`settings`
+    (the :attr:`~Settings.database_file` attribute of it)
     has been updated **after** command line processing,
     that is, if the setting was changed on the command line.
     That way the command line options have had the ability
     to override the default values, those of the env file and environment variables.
 
-    .. note:: Only import :attr:`Session` after the call to :func:`init_app`.
-             If imported earlier, :attr:`Session` will refer to :class:`UnconfiguredSession`
+    .. note:: Only import :data:`supa.db.Session` after the call to :func:`init_app`.
+             If imported earlier, :data:`supa.db.Session` will refer to :class:`supa.db.UnconfiguredSession`
              and you will get a nice exception upon usage.
 
-    In addition to initializing the database,
-    :func:`init_app` initializes the scheduler as well.
+             Likewise only import :data:`scheduler` after the call to :func:`init_app`.
+             If imported earlier, :data:`scheduler` will refer to :class:`UnconfiguredScheduler`
+             and you will get an equally nice exception.
+
     """
+    # Initialize the database
     database_file = resolve_database_file(settings.database_file)
     if not database_file.exists():
         logger.warn(
@@ -292,3 +383,16 @@ def init_app() -> None:
     db.Base.metadata.create_all(engine)
     session_factory = sessionmaker(bind=engine)
     db.Session = scoped_session(session_factory)
+
+    # Initialize and start the scheduler
+    jobstores = {"default": MemoryJobStore()}
+    logger.info("Configuring scheduler executor.", scheduler_max_workers=settings.scheduler_max_workers)
+    executors = {"default": ThreadPoolExecutor(settings.scheduler_max_workers)}
+    job_defaults = {"coalesce": False, "max_instances": 1}
+
+    global scheduler
+    scheduler = BackgroundScheduler(
+        jobstores=jobstores, executors=executors, job_defaults=job_defaults, timezone=pytz.utc
+    )
+    scheduler.add_job(watchdog, "interval", seconds=5)  # TODO remove
+    scheduler.start()

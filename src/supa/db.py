@@ -148,8 +148,8 @@ class UnconfiguredSession(scoped_session):
     at the time this module is being executed the default settings
     and those of the env file have been processed,
     those specified on the commend line might not have been processed.
-    At the same time we want to keep easy access to the session as a module level attribute.
-    So we configure the session with this safe guard class
+    At the same time we want to keep easy access to the :data:`Session` as a module level attribute.
+    So we configure the :data:`Session` with this safe guard class
     only to overwrite it with the real thing after command line options have been processed.
     """
 
@@ -157,17 +157,16 @@ class UnconfiguredSession(scoped_session):
         pass
 
     def __call__(self, *args: Any, **kwargs: Any) -> None:
-        """Trap premature ``Session()`` instantiatons and raise exception."""
+        """Trap premature ``Session()`` calls and raise an exception."""
         raise Exception(
             """DB has not yet been initialized. Call `main.init_app` first. Only then (locally) import main.db.Session.
 
 IMPORTANT
 ==========
-Make sure you have processed all the different ways of dealing
-with application configuration before you call `main.init_app`.
-The env file (`supa.env`) and the environment are handled
-automatically by the `supa.settings` instance. However anything
-specified on the command line generally needs to be processed
+Make sure you have processed all the different ways of dealing with application
+configuration before you call `main.init_app`.  The env file (`supa.env`) and
+the environment are handled automatically by the `supa.settings` instance.
+However anything specified on the command line generally needs to be processed
 explicitly in the module `supa.main`.
 """
         )
@@ -176,11 +175,11 @@ explicitly in the module `supa.main`.
 Session = UnconfiguredSession()
 """SQLAlchemy Session for accessing the database.
 
-:attr:`Session` can only be used after a call to :func:`main.init_app`.
+:data:`Session` can only be used after a call to :func:`main.init_app`.
 That,
 in turn,
 can only be called after all application configuration has been resolved,
 eg. after command line processing.
-:func:`main.init_app` will replace :attr:`Session` with a proper SQLAlchemy
+:func:`main.init_app` will replace :data:`Session` with a proper SQLAlchemy
 (scoped) ``Session``.
 """
