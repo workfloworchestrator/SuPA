@@ -35,9 +35,12 @@ import logging.config
 import sys
 from enum import Enum
 from pathlib import Path
+from typing import Union
 
 import structlog
 from pydantic import BaseSettings
+from sqlalchemy import create_engine
+from sqlalchemy.orm import scoped_session, sessionmaker
 
 timestamper = structlog.processors.TimeStamper(fmt="%Y-%m-%d %H:%M:%S")
 pre_chain = [
@@ -201,6 +204,45 @@ def resolve_env_file() -> Path:
     )
 
 
+def resolve_database_file(database_file: Union[Path, str]) -> Path:
+    """Resolve the location of the database file.
+
+    SQLite stores its database in a file.
+    If the file does not exist,
+    it will be created automatically.
+    This means that if we get the reference to that file wrong,
+    a new one will be created.
+    This leads to all kinds of unexpected problems.
+    Hence we need a way to predictably resolve the location of the database file.
+    :func:`resolve_database_file` uses the following algorithm:
+
+    If ``database_file`` is an absolute path, we are done.
+    Otherwise determine if SuPA was installed normally
+    or in editable mode/development mode.
+    In case of the former
+    resolve ``database_file`` relative to ``<venv_dir>/var/db``
+    In case of the latter resolve ``database_file`` relative to the project root.
+
+    Args:
+        database_file: relative or absolute filename of database file
+
+    Returns:
+        Fully resolved/obsolute path name to database file
+    """
+    if isinstance(database_file, str):
+        database_file = Path(database_file)
+    if database_file.is_absolute():
+        resolved_path = database_file.resolve()
+    elif Path(sys.prefix) < resolve_env_file():  # editable install?
+        resolved_path = (Path(sys.prefix) / "var" / "db" / database_file).resolve()
+    else:
+        resolved_path = (get_project_root() / database_file).resolve()
+    logger.info(
+        "Resolved `database_file`.", configured_database_file=database_file, resolved_database_file=resolved_path
+    )
+    return resolved_path
+
+
 settings = Settings(_env_file=resolve_env_file())
 """Application wide settings.
 
@@ -214,3 +256,39 @@ As a result you should see code updating :attr:`settings` in most,
 if not all,
 Click callables (sub commands) defined in :mod:`supa.main`
 """
+
+
+def init_app() -> None:
+    """Initialize the application (database, etc)``.
+
+    :func:`init_app` should anly be called after **all** application configuration has been resolved.
+    Most of that happens implicitly in :mod:`supa`,
+    but some of needs to be done after processing command line options.
+
+    For instance, :func:`init_app` assumes :attr:`supa.settings`
+    (the :attr:`~supa.Settings.database_file` attribute of it)
+    has been updated **after** command line processing,
+    that is, if the setting was changed on the command line.
+    That way the command line options have had the ability
+    to override the default values, those of the env file and environment variables.
+
+    .. note:: Only import :attr:`Session` after the call to :func:`init_app`.
+             If imported earlier, :attr:`Session` will refer to :class:`UnconfiguredSession`
+             and you will get a nice exception upon usage.
+
+    In addition to initializing the database,
+    :func:`init_app` initializes the scheduler as well.
+    """
+    database_file = resolve_database_file(settings.database_file)
+    if not database_file.exists():
+        logger.warn(
+            "`database_file` did not exist. Created new SQLite DB file. Is this really what you wanted?",
+            database_file=database_file,
+        )
+    engine = create_engine(f"sqlite:///{database_file}")
+
+    from supa import db
+
+    db.Base.metadata.create_all(engine)
+    session_factory = sessionmaker(bind=engine)
+    db.Session = scoped_session(session_factory)

@@ -29,9 +29,8 @@ import grpc
 import structlog
 from click import Context, Option
 
-from supa import settings
+from supa import init_app, settings
 from supa.connection.provider.server import ConnectionProviderService
-from supa.db import init_db
 from supa.grpc_nsi import connection_provider_pb2_grpc
 
 logger = structlog.get_logger(__name__)
@@ -69,10 +68,15 @@ Usage::
     @common_options              # <--- usage
     @pass_common_options_state   # <--- usage
     def my_sub_command(common_options: CommonOptionsState, fu: str, bar: str) -> None:
+        # explicitly update ``settings`' attributes if they match command line options
+        settings.fu = fu
+        settings.bar = bar
         ...
-        # if DB work is required down the call chain:
-        init_db()
+        # with all settings resolved, we can now initialize the application properly.
+        init_app()
 
+        # actual sub command stuff
+        ...
 """
 
 
@@ -128,12 +132,11 @@ def cli() -> None:
 @common_options  # type: ignore
 def serve(max_workers: int, insecure_address_port: str) -> None:
     """Start the gRPC server and listen for incoming requests."""
-    # The gRPC workers will be doing database work. Hence we need to initialize the DB.
-    init_db()
-
     # Command-line options take precedence.
     settings.max_workers = max_workers
     settings.insecure_address_port = insecure_address_port
+
+    init_app()
 
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=settings.max_workers))
     log = logger.bind(max_workers=settings.max_workers)
