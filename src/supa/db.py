@@ -66,6 +66,7 @@ from sqlalchemy.dialects import sqlite
 from sqlalchemy.engine import Dialect, Engine
 from sqlalchemy.exc import DontWrapMixin
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.ext.orderinglist import ordering_list
 from sqlalchemy.orm import relationship, scoped_session
 from sqlalchemy.orm.state import InstanceState
 from sqlalchemy.pool import _ConnectionRecord
@@ -307,7 +308,9 @@ class Path(Base):
     path_trace_id = Column(Text, nullable=False)
     connection_id = Column(UUID, nullable=False)
 
-    segments = relationship("Segment", backref="path", order_by="Segment.order")
+    segments = relationship(
+        "Segment", backref="path", order_by="Segment.order", collection_class=ordering_list("order")
+    )
 
     __table_args__ = (
         ForeignKeyConstraint((path_trace_id, connection_id), (PathTrace.path_trace_id, PathTrace.connection_id)),
@@ -328,7 +331,7 @@ class Segment(Base):
     connection_id = Column(Text, nullable=False, comment="Not ours; it's is the connection_id from another uPA")
     order = Column(Integer, nullable=False)
 
-    stps = relationship("Stp", backref="segment", order_by="Stp.order")
+    stps = relationship("Stp", backref="segment", order_by="Stp.order", collection_class=ordering_list("order"))
 
     __table_args__ = (UniqueConstraint(path_id, order),)
 
