@@ -73,6 +73,7 @@ from sqlalchemy.pool import _ConnectionRecord
 from sqlalchemy.types import Text, TypeDecorator
 
 from supa import settings
+from supa.connection.fsm import LifecycleStateMachine, ProvisioningStateMachine, ReservationStateMachine
 from supa.utils import NO_END_DATE, current_timestamp
 
 logger = structlog.get_logger(__name__)
@@ -215,6 +216,11 @@ class ReservationState(enum.Enum):
     Aborting = "Aborting"
 
 
+assert {e.value for e in ReservationState} == {
+    s.value for s in ReservationStateMachine.states
+}, "Values should match up!"
+
+
 class ProvisioningState(enum.Enum):
     """Define applicable ``provisioning_state`` values."""
 
@@ -222,6 +228,11 @@ class ProvisioningState(enum.Enum):
     Provisioning = "Provisioning"
     Provisioned = "Provisioned"
     Releasing = "Releasing"
+
+
+assert {e.value for e in ProvisioningState} == {
+    s.value for s in ProvisioningStateMachine.states
+}, "Values should match up!"
 
 
 class LifecycleState(enum.Enum):
@@ -232,6 +243,9 @@ class LifecycleState(enum.Enum):
     Terminating = "Terminating"
     PassedEndTime = "PassedEndTime"
     Terminated = "Terminated"
+
+
+assert {e.value for e in LifecycleState} == {s.value for s in LifecycleStateMachine.states}, "Values should match up!"
 
 
 class Connection(Base):
