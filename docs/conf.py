@@ -37,6 +37,7 @@ nitpicky = True
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    "sphinx.ext.todo",
     "sphinx.ext.napoleon",
     "sphinx_rtd_theme",
     "sphinx.ext.autodoc",
@@ -51,6 +52,7 @@ templates_path = ["_templates"]
 # This pattern also affects html_static_path and html_extra_path.
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
+todo_include_todos = True
 
 # -- Options for HTML output -------------------------------------------------
 
