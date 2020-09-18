@@ -294,9 +294,11 @@ class Connection(Base):
     lifecycle_state = Column(Enum(LifecycleState), nullable=False, default=LifecycleState.Created)
 
     # another header part
-    path_trace = relationship("PathTrace", uselist=False, back_populates="connection")  # one-to-one
+    path_trace = relationship(
+        "PathTrace", uselist=False, back_populates="connection", cascade="all, delete-orphan", passive_deletes=True
+    )  # one-to-one
 
-    parameters = relationship("Parameter", backref="connection")
+    parameters = relationship("Parameter", backref="connection", cascade="all, delete-orphan", passive_deletes=True)
 
     __table_args__ = (CheckConstraint(start_time < end_time),)
 
@@ -307,10 +309,10 @@ class PathTrace(Base):
     __tablename__ = "path_traces"
 
     path_trace_id = Column(Text, primary_key=True, comment="NSA identifier of root or head-end aggregator NSA")
-    connection_id = Column(UUID, ForeignKey(Connection.connection_id), primary_key=True)
+    connection_id = Column(UUID, ForeignKey(Connection.connection_id, ondelete="CASCADE"), primary_key=True)
 
-    connection = relationship(Connection, back_populates="path_trace")
-    paths = relationship("Path", backref="path_trace")
+    connection = relationship(Connection, back_populates="path_trace")  # one-to-one (cascades defined in parent)
+    paths = relationship("Path", backref="path_trace", cascade="all, delete-orphan", passive_deletes=True)
 
 
 class Path(Base):
@@ -323,11 +325,18 @@ class Path(Base):
     connection_id = Column(UUID, nullable=False)
 
     segments = relationship(
-        "Segment", backref="path", order_by="Segment.order", collection_class=ordering_list("order")
+        "Segment",
+        backref="path",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="Segment.order",
+        collection_class=ordering_list("order"),
     )
 
     __table_args__ = (
-        ForeignKeyConstraint((path_trace_id, connection_id), (PathTrace.path_trace_id, PathTrace.connection_id)),
+        ForeignKeyConstraint(
+            (path_trace_id, connection_id), (PathTrace.path_trace_id, PathTrace.connection_id), ondelete="CASCADE"
+        ),
     )
 
 
@@ -339,13 +348,20 @@ class Segment(Base):
     segment_id = Column(
         Text, primary_key=True, comment="The NSA identifier for the uPA associated with this path segment"
     )
-    path_id = Column(UUID, ForeignKey(Path.path_id), primary_key=True)
+    path_id = Column(UUID, ForeignKey(Path.path_id, ondelete="CASCADE"), primary_key=True)
 
     # `Text` instead of `UUID` as we have no control over the formatting of `connection_id`'s of other uPA's
     connection_id = Column(Text, nullable=False, comment="Not ours; it's is the connection_id from another uPA")
     order = Column(Integer, nullable=False)
 
-    stps = relationship("Stp", backref="segment", order_by="Stp.order", collection_class=ordering_list("order"))
+    stps = relationship(
+        "Stp",
+        backref="segment",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="Stp.order",
+        collection_class=ordering_list("order"),
+    )
 
     __table_args__ = (UniqueConstraint(path_id, order),)
 
@@ -361,7 +377,7 @@ class Stp(Base):
     order = Column(Integer, nullable=False)
 
     __table_args__ = (
-        ForeignKeyConstraint((segment_id, path_id), (Segment.segment_id, Segment.path_id)),
+        ForeignKeyConstraint((segment_id, path_id), (Segment.segment_id, Segment.path_id), ondelete="CASCADE"),
         UniqueConstraint(segment_id, order),
     )
 
@@ -371,7 +387,7 @@ class Parameter(Base):
 
     __tablename__ = "parameters"
 
-    connection_id = Column(UUID, ForeignKey(Connection.connection_id), primary_key=True)
+    connection_id = Column(UUID, ForeignKey(Connection.connection_id, ondelete="CASCADE"), primary_key=True)
     key = Column(Text, primary_key=True)
     value = Column(Text)
 
