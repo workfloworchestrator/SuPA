@@ -41,6 +41,23 @@ on the ``__table_args__`` attribute of the DB model.
 
 .. todo:: Something about the usage of
           `orderinglist <https://docs.sqlalchemy.org/en/13/orm/extensions/orderinglist.html>`_
+
+Connection IDs
+==============
+
+Looking at example messages in the different specifications:
+
+* `GFD-R-233 Applying Policy in the NSI Environment (pdf) <https://www.ogf.org/documents/GFD.233.pdf>`_
+* `GWD-R-P.237 NSI Connection Service v2.1 (pdf) <https://www.ogf.org/documents/GFD.237.pdf>`_
+
+we see that connection IDs always seem to be formatted as ``UUID``'s.
+However, according to its definition in GWD-R-P.237,
+it can be any string as long as it is unique within the context of a PA.
+That is the reason that we have modelled connection IDs from other NSA's
+(``ag_connection_id``, ``upa_connection_id``)
+as ``TEXT``.
+Within SuPA we have decided to use ``UUID``'s for our ``connection_id``'s.
+
 """  # noqa: E501 B950
 import enum
 import sqlite3
@@ -309,7 +326,11 @@ class PathTrace(Base):
     __tablename__ = "path_traces"
 
     path_trace_id = Column(Text, primary_key=True, comment="NSA identifier of root or head-end aggregator NSA")
-    connection_id = Column(UUID, ForeignKey(Connection.connection_id, ondelete="CASCADE"), primary_key=True)
+    ag_connection_id = Column(Text, primary_key=True, comment="Aggregator issued connection_id")
+
+    connection_id = Column(
+        UUID, ForeignKey(Connection.connection_id, ondelete="CASCADE"), primary_key=True, comment="Our connection_id"
+    )
 
     connection = relationship(Connection, back_populates="path_trace")  # one-to-one (cascades defined in parent)
     paths = relationship("Path", backref="path_trace", cascade="all, delete-orphan", passive_deletes=True)
@@ -322,7 +343,7 @@ class Path(Base):
 
     path_id = Column(UUID, primary_key=True, default=uuid.uuid4)
     path_trace_id = Column(Text, nullable=False)
-    connection_id = Column(UUID, nullable=False)
+    ag_connection_id = Column(Text, nullable=False)
 
     segments = relationship(
         "Segment",
@@ -335,7 +356,7 @@ class Path(Base):
 
     __table_args__ = (
         ForeignKeyConstraint(
-            (path_trace_id, connection_id), (PathTrace.path_trace_id, PathTrace.connection_id), ondelete="CASCADE"
+            (path_trace_id, ag_connection_id), (PathTrace.path_trace_id, PathTrace.ag_connection_id), ondelete="CASCADE"
         ),
     )
 
@@ -350,8 +371,7 @@ class Segment(Base):
     )
     path_id = Column(UUID, ForeignKey(Path.path_id, ondelete="CASCADE"), primary_key=True)
 
-    # `Text` instead of `UUID` as we have no control over the formatting of `connection_id`'s of other uPA's
-    connection_id = Column(Text, nullable=False, comment="Not ours; it's is the connection_id from another uPA")
+    upa_connection_id = Column(Text, nullable=False, comment="Not ours; it's is the connection_id from another uPA")
     order = Column(Integer, nullable=False)
 
     stps = relationship(
