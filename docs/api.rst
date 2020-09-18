@@ -37,3 +37,9 @@ supa.connection.provider.server
 
 .. automodule:: supa.connection.provider.server
    :members:
+
+supa.utils
+----------
+
+.. automodule:: supa.utils
+   :members:

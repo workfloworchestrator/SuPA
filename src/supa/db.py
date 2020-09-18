@@ -20,7 +20,29 @@ There are some limitations with regards to concurrency,
 but those will not affect SuPA with its low DB WRITE needs;
 especially when configured with the :attr:`~supa.JournalMode.WAL` journal mode.
 
-"""
+Surrogate keys versus natural keys
+==================================
+
+Looking at the schema definitions
+you'll find that we have used `natural keys <https://en.wikipedia.org/wiki/Natural_key>`_ wherever possible.
+Though no too common these days,
+with the prevalent use of ORMs
+that automatically generate a `surrogate key <https://en.wikipedia.org/wiki/Surrogate_key>`_ per model,
+SQLAlchemy is flexible enough to model things 'naturally' from a relational database point of view.
+This sometimes results in `composite <https://en.wikipedia.org/wiki/Compound_key>`_ primary keys.
+
+Foreign keys to these composite primary keys cannot be defined on a specific Column definition
+or even a set of Column definitions.
+Something that does work for composite primary key definitions.
+Instead,
+these foreign keys need to be defined using a
+`ForeignKeyConstraint <https://docs.sqlalchemy.org/en/13/core/constraints.html?sqlalchemy.schema.ForeignKeyConstraint#sqlalchemy.schema.ForeignKeyConstraint>`_
+on the ``__table_args__`` attribute of the DB model.
+
+.. todo:: Something about the usage of
+          `orderinglist <https://docs.sqlalchemy.org/en/13/orm/extensions/orderinglist.html>`_
+"""  # noqa: E501 B950
+import enum
 import sqlite3
 import uuid
 from contextlib import closing
@@ -28,17 +50,29 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 import structlog
-from sqlalchemy import Column, event, inspect
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Column,
+    Enum,
+    ForeignKey,
+    ForeignKeyConstraint,
+    Integer,
+    UniqueConstraint,
+    event,
+    inspect,
+)
 from sqlalchemy.dialects import sqlite
 from sqlalchemy.engine import Dialect, Engine
 from sqlalchemy.exc import DontWrapMixin
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import scoped_session
+from sqlalchemy.orm import relationship, scoped_session
 from sqlalchemy.orm.state import InstanceState
 from sqlalchemy.pool import _ConnectionRecord
-from sqlalchemy.types import TypeDecorator
+from sqlalchemy.types import Text, TypeDecorator
 
 from supa import settings
+from supa.utils import NO_END_DATE, current_timestamp
 
 logger = structlog.get_logger(__name__)
 
@@ -161,6 +195,44 @@ class UtcTimestamp(TypeDecorator):
 Base: Any = declarative_base(cls=ReprBase)
 
 
+class Directionality(enum.Enum):
+    """Define applicable ``directionality values``."""
+
+    Bidirectional = "Bidirectional"
+    Unidirectional = "Unidirectional"
+
+
+class ReservationState(enum.Enum):
+    """Define applicable ``reservation_state`` values."""
+
+    Start = "Start"
+    Checking = "Checking"
+    Held = "Held"
+    Committing = "Committing"
+    Failed = "Failed"
+    Timeout = "Timeout"
+    Aborting = "Aborting"
+
+
+class ProvisioningState(enum.Enum):
+    """Define applicable ``provisioning_state`` values."""
+
+    Released = "Released"
+    Provisioning = "Provisioning"
+    Provisioned = "Provisioned"
+    Releasing = "Releasing"
+
+
+class LifecycleState(enum.Enum):
+    """Define applicable ``lifecycle_state`` values."""
+
+    Created = "Created"
+    Failed = "Failed"
+    Terminating = "Terminating"
+    PassedEndTime = "PassedEndTime"
+    Terminated = "Terminated"
+
+
 class Connection(Base):
     """DB mapping for registering NSI connections.
 
@@ -170,7 +242,121 @@ class Connection(Base):
 
     __tablename__ = "connections"
 
-    connection_id = Column(UUID, primary_key=True)
+    # Most of these attribute come from different parts of the ``ReserveRequest`` message.
+    # Although this is not a direct mapping, we have indicated from what parts some these
+    # attribute comes from.
+
+    connection_id = Column(UUID, primary_key=True, default=uuid.uuid4)
+
+    # header
+    correlation_id = Column(UUID, nullable=False, comment="urn:uid")
+    requester_nsa = Column(Text, nullable=False)
+    provider_nsa = Column(Text, nullable=False)
+    reply_to = Column(Text)
+    session_security_attributes = Column(Text)
+
+    # request message (+ connection_id)
+    global_reservation_id = Column(Text, nullable=False)
+    description = Column(Text)
+
+    # reservation request criteria
+    version = Column(Integer, nullable=False)
+
+    # schedule
+    start_time = Column(UtcTimestamp, nullable=False, default=current_timestamp)
+    end_time = Column(UtcTimestamp, nullable=False, default=NO_END_DATE)
+
+    # p2p
+    bandwidth = Column(Integer, nullable=False, comment="Mbps")
+    directionality = Column(Enum(Directionality), nullable=Directionality.Bidirectional)
+    symmetric = Column(Boolean, nullable=False)
+    source_stp = Column(Text, nullable=False)
+    dest_stp = Column(Text, nullable=False)
+
+    # internal state keeping
+    reservation_state = Column(Enum(ReservationState), nullable=False, default=ReservationState.Start)
+    provisioning_state = Column(Enum(ProvisioningState))
+    lifecycle_state = Column(Enum(LifecycleState), nullable=False, default=LifecycleState.Created)
+
+    # another header part
+    path_trace = relationship("PathTrace", uselist=False, back_populates="connection")  # one-to-one
+
+    parameters = relationship("Parameter", backref="connection")
+
+    __table_args__ = (CheckConstraint(start_time < end_time),)
+
+
+class PathTrace(Base):
+    """DB mapping for PathTraces."""
+
+    __tablename__ = "path_traces"
+
+    path_trace_id = Column(Text, primary_key=True, comment="NSA identifier of root or head-end aggregator NSA")
+    connection_id = Column(UUID, ForeignKey(Connection.connection_id), primary_key=True)
+
+    connection = relationship(Connection, back_populates="path_trace")
+    paths = relationship("Path", backref="path_trace")
+
+
+class Path(Base):
+    """DB mapping for Paths."""
+
+    __tablename__ = "paths"
+
+    path_id = Column(UUID, primary_key=True, default=uuid.uuid4)
+    path_trace_id = Column(Text, nullable=False)
+    connection_id = Column(UUID, nullable=False)
+
+    segments = relationship("Segment", backref="path", order_by="Segment.order")
+
+    __table_args__ = (
+        ForeignKeyConstraint((path_trace_id, connection_id), (PathTrace.path_trace_id, PathTrace.connection_id)),
+    )
+
+
+class Segment(Base):
+    """DB mapping for Segment."""
+
+    __tablename__ = "segments"
+
+    segment_id = Column(
+        Text, primary_key=True, comment="The NSA identifier for the uPA associated with this path segment"
+    )
+    path_id = Column(UUID, ForeignKey(Path.path_id), primary_key=True)
+
+    # `Text` instead of `UUID` as we have no control over the formatting of `connection_id`'s of other uPA's
+    connection_id = Column(Text, nullable=False, comment="Not ours; it's is the connection_id from another uPA")
+    order = Column(Integer, nullable=False)
+
+    stps = relationship("Stp", backref="segment", order_by="Stp.order")
+
+    __table_args__ = (UniqueConstraint(path_id, order),)
+
+
+class Stp(Base):
+    """DB Mapping for STP."""
+
+    __tablename__ = "stps"
+
+    stp_id = Column(Text, primary_key=True, comment="Assumes fully qualified STP")
+    segment_id = Column(Text, nullable=False)
+    path_id = Column(UUID, nullable=False)
+    order = Column(Integer, nullable=False)
+
+    __table_args__ = (
+        ForeignKeyConstraint((segment_id, path_id), (Segment.segment_id, Segment.path_id)),
+        UniqueConstraint(segment_id, order),
+    )
+
+
+class Parameter(Base):
+    """DB mapping for PointToPointService Parameters."""
+
+    __tablename__ = "parameters"
+
+    connection_id = Column(UUID, ForeignKey(Connection.connection_id), primary_key=True)
+    key = Column(Text, primary_key=True)
+    value = Column(Text)
 
 
 class UnconfiguredSession(scoped_session):

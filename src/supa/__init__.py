@@ -85,7 +85,7 @@ logging.config.dictConfig(
         "loggers": {
             "": {"handlers": ["default", "file"], "level": "DEBUG", "propagate": True},
             # Set `level` to `INFO` or `DEBUG` here for detailed SQLAlchemy logging.
-            "sqlalchemy.engine": {"handlers": ["default", "file"], "level": "WARN", "propagate": False},
+            "sqlalchemy.engine": {"handlers": ["default", "file"], "level": "INFO", "propagate": False},
         },
     }
 )
