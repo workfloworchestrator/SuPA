@@ -24,12 +24,14 @@ especially when configured with the :attr:`~supa.JournalMode.WAL` journal mode.
 import sqlite3
 import uuid
 from contextlib import closing
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 import structlog
 from sqlalchemy import Column, event, inspect
 from sqlalchemy.dialects import sqlite
 from sqlalchemy.engine import Dialect, Engine
+from sqlalchemy.exc import DontWrapMixin
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import scoped_session
 from sqlalchemy.orm.state import InstanceState
@@ -119,6 +121,40 @@ class ReprBase:
     def __str__(self) -> str:
         """Return string that represents a SQLAlchemy ORM model."""
         return self.__repr__()
+
+
+class UtcTimestampException(Exception, DontWrapMixin):
+    """Exception class for custom UtcTimestamp SQLAlchemy column type."""
+
+    pass
+
+
+class UtcTimestamp(TypeDecorator):
+    """Custom SQLAlchemy column type for storing timestamps in UTC in SQLite databases.
+
+    This column type always returns timestamps with the UTC timezone.
+    It also guards against accidentally trying to store Python naive timestamps
+    (those without a time zone).
+
+    In the SQLite database the timestamps are stored as strings of format: ``yyyy-mm-dd hh:mm:ss``.
+    UTC is always implied.
+    """
+
+    impl = sqlite.DATETIME(truncate_microseconds=True)
+
+    def process_bind_param(self, value: Optional[datetime], dialect: Dialect) -> Optional[datetime]:  # noqa: D102
+        if value is not None:
+            if value.tzinfo is None:
+                raise UtcTimestampException(f"Expected timestamp with tzinfo. Got naive timestamp {value!r} instead")
+            return value.astimezone(timezone.utc)
+        return value
+
+    def process_result_value(self, value: Optional[datetime], dialect: Dialect) -> Optional[datetime]:  # noqa: D102
+        if value is not None:
+            if value.tzinfo is not None:
+                return value.astimezone(timezone.utc)
+            return value.replace(tzinfo=timezone.utc)
+        return value
 
 
 # Using type ``Any`` because: https://github.com/python/mypy/issues/2477
