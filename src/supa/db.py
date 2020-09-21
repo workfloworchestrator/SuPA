@@ -302,8 +302,13 @@ class Connection(Base):
     bandwidth = Column(Integer, nullable=False, comment="Mbps")
     directionality = Column(Enum(Directionality), nullable=Directionality.Bidirectional)
     symmetric = Column(Boolean, nullable=False)
-    source_stp = Column(Text, nullable=False)
-    dest_stp = Column(Text, nullable=False)
+
+    source_network = Column(Text, nullable=False)
+    source_port = Column(Text, nullable=False)
+    source_vlans = Column(Text, nullable=False)
+    dest_network = Column(Text, nullable=False)
+    dest_port = Column(Text, nullable=False)
+    dest_vlans = Column(Text, nullable=False)
 
     # internal state keeping
     reservation_state = Column(Enum(ReservationState), nullable=False, default=ReservationState.Start)
