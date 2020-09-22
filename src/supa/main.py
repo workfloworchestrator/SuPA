@@ -47,6 +47,7 @@ class CommonOptionsState:
 
     database_file: Optional[Path] = None
     scheduler_max_workers: Optional[int] = None
+    domain_name: Optional[str] = None
 
 
 # Trick from: https://github.com/pallets/click/issues/108
@@ -126,10 +127,34 @@ def scheduler_max_workers_option(f):  # type: ignore
     )(f)
 
 
+def domain_name_option(f):  # type: ignore
+    """Define common option for specifying the name of the network SuPA is responsible for."""
+
+    def callback(ctx: Context, param: Option, value: Optional[str]) -> Optional[str]:
+        """Update the Settings instance when the domain-name option is used."""
+        cos: CommonOptionsState = ctx.ensure_object(CommonOptionsState)
+        if value is not None:
+            cos.domain_name = value
+
+            # Update the `settings` instance so that it available application wide.
+            settings.domain_name = cos.domain_name
+        return value
+
+    return click.option(
+        "--domain-name",
+        default=settings.domain_name,
+        type=str,
+        expose_value=False,  # Don't add to sub command arg list. We have `@pass_common_options_state` for that.
+        help="Name of the domain SuPA is responsible for.",
+        callback=callback,
+    )(f)
+
+
 def common_options(f):  # type: ignore
     """Provide the means to declare common options to Click callables/sub command."""
     f = database_file_option(f)
     f = scheduler_max_workers_option(f)
+    f = domain_name_option(f)
     return f
 
 
