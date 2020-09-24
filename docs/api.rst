@@ -49,3 +49,22 @@ supa.util.nsi
 
 .. automodule:: supa.util.nsi
    :members:
+
+supa.util.vlan
+--------------
+
+..
+    Explicitely list special members to show that they are present,
+    even if they are not yet properly documented.
+
+.. automodule:: supa.util.vlan
+   :members:
+   :undoc-members:
+   :special-members: __contains__, __iter__, __len__, __str__, __repr__, __eq__, __hash__,
+                     __sub__, __and__, __or__, __xor__
+
+supa.util.functional
+--------------------
+
+.. automodule:: supa.util.functional
+   :members:

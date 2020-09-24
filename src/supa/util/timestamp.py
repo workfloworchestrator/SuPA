@@ -10,6 +10,7 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
+"""Assorted helper functions and datastructures for dealing with timestamps."""
 from datetime import datetime, timezone
 
 from google.protobuf.timestamp_pb2 import Timestamp
@@ -77,7 +78,7 @@ def as_utc_timestamp(timestamp: Timestamp) -> datetime:
 
 
 def is_specified(timestamp: datetime) -> bool:
-    """Is the timestamp specified?
+    """Test to see if the timestamp is specified.
 
     In the context of Protobuf Timestamps
     we consider a timestamp
