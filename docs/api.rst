@@ -38,8 +38,14 @@ supa.connection.provider.server
 .. automodule:: supa.connection.provider.server
    :members:
 
-supa.utils
-----------
+supa.util.timestamp
+-------------------
 
-.. automodule:: supa.utils
+.. automodule:: supa.util.timestamp
+   :members:
+
+supa.util.nsi
+-------------------
+
+.. automodule:: supa.util.nsi
    :members:
