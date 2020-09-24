@@ -16,6 +16,19 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Optional
 
+from google.protobuf.timestamp_pb2 import Timestamp
+
+EPOCH = datetime(1970, 1, 1, 0, 0, tzinfo=timezone.utc)
+"""The epoch as an aware datetime object.
+
+When using protobuf you can **not** distinguish between
+no value specified
+and the default value.
+For Protobuf ``Timestamp`` fields the default value is 0 seconds since the epoch.
+However we deal with :class:`~datetime.datetime` objects exclusively.
+So we need the epoch as a :class:`~datetime.datetime` object.
+"""
+
 NO_END_DATE = datetime(2108, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
 """A sufficiently far into the future date to be considered *no end date*
 
@@ -52,6 +65,38 @@ def current_timestamp() -> datetime:
         An "aware" UTC timestamp.
     """
     return datetime.now(timezone.utc)
+
+
+def as_utc_timestamp(timestamp: Timestamp) -> datetime:
+    """Convert Protobuf timestamp to an UTC datetime object.
+
+    Args:
+        timestamp: Protobuf timestamp
+
+    Returns:
+        "aware" UTC datetime object
+    """
+    # Protobuf stores seconds since the epoch. That's UTC by definition.
+    return timestamp.ToDatetime().replace(tzinfo=timezone.utc)
+
+
+def is_specified(timestamp: datetime) -> bool:
+    """Is the timestamp specified?
+
+    In the context of Protobuf Timestamps
+    we consider a timestamp
+    (previously converted to :class:`~datetime.datetime`)
+    to be "specified"
+    if it is larger than the default value for Timestamps.
+    That default value being :data:`EPOCH`.
+
+    Args:
+        timestamp: timestamp under test.
+
+    Returns:
+        True if ``timestamp`` > EPOC
+    """
+    return timestamp > EPOCH
 
 
 @dataclass
