@@ -91,7 +91,7 @@ from sqlalchemy.types import Text, TypeDecorator
 
 from supa import settings
 from supa.connection.fsm import LifecycleStateMachine, ProvisioningStateMachine, ReservationStateMachine
-from supa.utils import NO_END_DATE, current_timestamp
+from supa.util.timestamp import NO_END_DATE, current_timestamp
 
 logger = structlog.get_logger(__name__)
 
@@ -303,10 +303,10 @@ class Connection(Base):
     directionality = Column(Enum(Directionality), nullable=Directionality.Bidirectional)
     symmetric = Column(Boolean, nullable=False)
 
-    source_network = Column(Text, nullable=False)
+    source_domain = Column(Text, nullable=False)
     source_port = Column(Text, nullable=False)
     source_vlans = Column(Text, nullable=False)
-    dest_network = Column(Text, nullable=False)
+    dest_domain = Column(Text, nullable=False)
     dest_port = Column(Text, nullable=False)
     dest_vlans = Column(Text, nullable=False)
 
