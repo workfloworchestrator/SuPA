@@ -75,17 +75,17 @@ logging.config.dictConfig(
         },
         "handlers": {
             "default": {"level": "DEBUG", "class": "logging.StreamHandler", "formatter": "colored"},
-            "file": {
-                "level": "DEBUG",
-                "class": "logging.handlers.WatchedFileHandler",
-                "filename": "supa.log",
-                "formatter": "plain",
-            },
+            #     "file": {
+            #         "level": "DEBUG",
+            #         "class": "logging.handlers.WatchedFileHandler",
+            #         "filename": "supa.log",
+            #         "formatter": "plain",
+            #     },
         },
         "loggers": {
-            "": {"handlers": ["default", "file"], "level": "DEBUG", "propagate": True},
+            "": {"handlers": ["default"], "level": "DEBUG", "propagate": True},
             # Set `level` to `INFO` or `DEBUG` here for detailed SQLAlchemy logging.
-            "sqlalchemy.engine": {"handlers": ["default", "file"], "level": "INFO", "propagate": False},
+            "sqlalchemy.engine": {"handlers": ["default"], "level": "INFO", "propagate": False},
         },
     }
 )
