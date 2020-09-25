@@ -15,6 +15,8 @@ import operator
 from dataclasses import dataclass
 from typing import Optional
 
+from supa.util.vlan import VlanRanges
+
 
 @dataclass
 class Stp:
@@ -24,6 +26,23 @@ class Stp:
     network_type: str
     port: str
     labels: Optional[str]
+
+    @property
+    def vlan_ranges(self) -> VlanRanges:
+        """Return the vlan ranges specified on the STP.
+
+        A single
+        If no vlan ranges where specified on the STP,
+        this will return an "empty" :class:`~supa.util.vlan.VlanRanges` object.
+        Such an object will evaluate to False in a boolean context.
+
+
+        Returns:
+            A :class:`~supa.util.vlan.VlanRanges` object.
+        """
+        if self.labels is not None and self.labels.startswith("vlan="):
+            return VlanRanges(self.labels[len("vlan=") :])  # noqa: E203
+        return VlanRanges()
 
 
 URN_PREFIX = "urn:ogf:network"

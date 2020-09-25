@@ -14,6 +14,7 @@
 import pytest
 
 from supa.util.nsi import parse_stp
+from supa.util.vlan import VlanRanges
 
 
 def test_parse_stp_with_year_unqualified() -> None:  # noqa: D103
@@ -61,3 +62,14 @@ def test_parse_stp_missing_port() -> None:  # noqa: D103
 def test_parse_stp_missing_domain() -> None:  # noqa: D103
     with pytest.raises(ValueError):
         parse_stp("urn:ogf:network:2013:production7:netherlight-of-1?vlan=200-500,1779-1799")
+
+
+def test_stp_vlan_ranges() -> None:  # noqa: D103
+    stp = parse_stp("urn:ogf:network:netherlight.net:2013:production7:netherlight-of-1?vlan=200-500,1779-1799")
+    assert stp.vlan_ranges == VlanRanges("200-500,1779-1799")
+
+    stp = parse_stp("urn:ogf:network:netherlight.net:2013:production7:netherlight-of-1?vlan=1799")
+    assert stp.vlan_ranges == VlanRanges(1799)
+
+    stp = parse_stp("urn:ogf:network:netherlight.net:2013:production7:netherlight-of-1")
+    assert stp.vlan_ranges == VlanRanges()
