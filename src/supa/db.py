@@ -62,9 +62,9 @@ Within SuPA we have decided to use ``UUID``'s for our ``connection_id``'s.
 import enum
 import sqlite3
 import uuid
-from contextlib import closing
+from contextlib import closing, contextmanager
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any, Iterator, Optional
 
 import structlog
 from sqlalchemy import (
@@ -78,6 +78,7 @@ from sqlalchemy import (
     UniqueConstraint,
     event,
     inspect,
+    orm,
 )
 from sqlalchemy.dialects import sqlite
 from sqlalchemy.engine import Dialect, Engine
@@ -436,7 +437,7 @@ class UnconfiguredSession(scoped_session):
     def __init__(self) -> None:  # noqa: D107
         pass
 
-    def __call__(self, *args: Any, **kwargs: Any) -> None:
+    def __call__(self, *args: Any, **kwargs: Any) -> orm.Session:
         """Trap premature ``Session()`` calls and raise an exception."""
         raise Exception(
             """DB has not yet been initialized. Call `main.init_app` first. Only then (locally) import main.db.Session.
@@ -463,3 +464,41 @@ eg. after command line processing.
 :func:`main.init_app` will replace :data:`Session` with a proper SQLAlchemy
 (scoped) ``Session``.
 """
+
+
+@contextmanager
+def db_session() -> Iterator[scoped_session]:
+    """Context manager for using an SQLAlchemy session.
+
+    It will automatically commit the session upon leaving the context manager.
+    It will rollback the session if an exception occurred while in the context manager.
+    re-raising the exception afterwards.
+
+    Example::
+
+        my_model = MyModel(fu="fu", bar="bar")
+        with db_session() as session:
+            session.add(my_model)
+
+    Raises:
+        Whatever exception that was raised while the context manager was active.
+
+    """
+    # IMPORTANT: Due to how DB initialization happens within this application
+    # we absolutely need to import Session via a local import.
+    # See also: :func:`supa.init_app`
+    from supa.db import Session
+
+    session = None
+    try:
+        session = Session()
+        yield session
+        session.commit()
+    except BaseException:
+        logger.exception("An exception occurred while doing DB work. Rolling back.")
+        if session is not None:
+            session.rollback()
+        raise
+    finally:
+        if session is not None:
+            session.close()
