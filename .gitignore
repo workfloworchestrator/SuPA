@@ -123,3 +123,5 @@ src/supa/grpc_nsi
 
 # SQLite databases
 *.db
+*.db-shm
+*.db-wal
