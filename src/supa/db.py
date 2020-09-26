@@ -334,9 +334,7 @@ class PathTrace(Base):
     path_trace_id = Column(Text, primary_key=True, comment="NSA identifier of root or head-end aggregator NSA")
     ag_connection_id = Column(Text, primary_key=True, comment="Aggregator issued connection_id")
 
-    connection_id = Column(
-        UUID, ForeignKey(Connection.connection_id, ondelete="CASCADE"), primary_key=True, comment="Our connection_id"
-    )
+    connection_id = Column(UUID, ForeignKey(Connection.connection_id, ondelete="CASCADE"), comment="Our connection_id")
 
     connection = relationship(Connection, back_populates="path_trace")  # one-to-one (cascades defined in parent)
     paths = relationship("Path", backref="path_trace", cascade="all, delete-orphan", passive_deletes=True)
