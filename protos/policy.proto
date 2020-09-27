@@ -19,7 +19,7 @@ message Segment {
 }
 
 message Path {
-  repeated Segment segment = 1;
+  repeated Segment segments = 1;
 }
 
 message PathTrace {
