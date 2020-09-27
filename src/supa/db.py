@@ -302,10 +302,10 @@ class Reservation(Base):
     symmetric = Column(Boolean, nullable=False)
 
     source_domain = Column(Text, nullable=False)
-    source_port = Column(Text, nullable=False)
+    source_port = Column(Text, nullable=False, comment="Name of the port")
     source_vlans = Column(Text, nullable=False)
     dest_domain = Column(Text, nullable=False)
-    dest_port = Column(Text, nullable=False)
+    dest_port = Column(Text, nullable=False, comment="Name of the port")
     dest_vlans = Column(Text, nullable=False)
 
     # internal state keeping
@@ -330,6 +330,15 @@ class Reservation(Base):
         passive_deletes=True,
         lazy="joined",
     )
+
+    connection = relationship(
+        "Connection",
+        uselist=False,
+        back_populates="reservation",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        lazy="joined",
+    )  # one-to-one
 
     __table_args__ = (CheckConstraint(start_time < end_time),)
 
@@ -451,6 +460,67 @@ class Parameter(Base):
     )
     key = Column(Text, primary_key=True)
     value = Column(Text)
+
+
+class Port(Base):
+    """DB mapping for ports (STPs) from the Orchestrator."""
+
+    __tablename__ = "ports"
+
+    port_id = Column(UUID, primary_key=True, comment="subscription_id of a port in the Orchestrator")
+    name = Column(Text, nullable=False, unique=True)
+    vlans = Column(Text, nullable=False)
+    remote_stp = Column(Text, nullable=True)  # not sure if we need this?
+    bandwidth = Column(Integer, nullable=False, comment="Mbps")
+
+    # A port might still be in operation (eg active) as part of one or more connections.
+    # However to prevent new reservations be made against it,
+    # we can enable of disable it.
+    enabled = Column(Boolean, nullable=False, default=True, comment="We don't delete ports, we enable or disable them.")
+
+
+class Connection(Base):
+    """DB mapping for registering connections to be build/built.
+
+    It stores references to the actual :class`Port`s used in the  connection
+    and the ``subscription_id`` of the lightpath from the Orchestrator.
+    """
+
+    __tablename__ = "connections"
+
+    connection_id = Column(UUID, ForeignKey(Reservation.connection_id, ondelete="CASCADE"), primary_key=True)
+    bandwidth = Column(Integer, nullable=False, comment="Mbps")
+
+    # Mind the singular {src,dst}_vlan
+    # compared to the plural {src,dst}_vlans in
+    # :class:`Reservation`.
+    # We use singular here,
+    # as by the time we are creating a Connection a VLAN
+    # per port will have been selected.
+    source_port_id = Column(UUID, ForeignKey(Port.port_id), nullable=False)
+    source_vlan = Column(Text, nullable=False)
+    dest_port_id = Column(UUID, ForeignKey(Port.port_id), nullable=False)
+    dest_vlan = Column(Text, nullable=False)
+    subscription_id = Column(
+        UUID, nullable=False, unique=True, comment="subscription_id of the lightpath in the Orchestrator"
+    )
+
+    reservation = relationship(
+        Reservation,
+        back_populates="connection",
+    )  # one-to-one (cascades defined in parent)
+
+    source_port = relationship(
+        "Port",
+        foreign_keys=[source_port_id],
+        lazy="joined",
+    )
+
+    dest_port = relationship(
+        "Port",
+        foreign_keys=[dest_port_id],
+        lazy="joined",
+    )
 
 
 class UnconfiguredSession(scoped_session):
