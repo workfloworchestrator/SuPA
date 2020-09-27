@@ -342,7 +342,9 @@ class PathTrace(Base):
     path_trace_id = Column(Text, primary_key=True, comment="NSA identifier of root or head-end aggregator NSA")
     ag_connection_id = Column(Text, primary_key=True, comment="Aggregator issued connection_id")
 
-    connection_id = Column(UUID, ForeignKey(Reservation.connection_id, ondelete="CASCADE"), comment="Our connection_id")
+    connection_id = Column(
+        UUID, ForeignKey(Reservation.connection_id, ondelete="CASCADE"), nullable=False, comment="Our connection_id"
+    )
 
     reservation = relationship(
         Reservation,
@@ -399,7 +401,7 @@ class Segment(Base):
     segment_id = Column(
         Text, primary_key=True, comment="The NSA identifier for the uPA associated with this path segment"
     )
-    path_id = Column(UUID, ForeignKey(Path.path_id, ondelete="CASCADE"), primary_key=True)
+    path_id = Column(UUID, ForeignKey(Path.path_id, ondelete="CASCADE"), nullable=False, primary_key=True)
 
     upa_connection_id = Column(Text, nullable=False, comment="Not ours; it's is the connection_id from another uPA")
     order = Column(Integer, nullable=False)
@@ -444,7 +446,9 @@ class Parameter(Base):
 
     __tablename__ = "parameters"
 
-    connection_id = Column(UUID, ForeignKey(Reservation.connection_id, ondelete="CASCADE"), primary_key=True)
+    connection_id = Column(
+        UUID, ForeignKey(Reservation.connection_id, ondelete="CASCADE"), nullable=False, primary_key=True
+    )
     key = Column(Text, primary_key=True)
     value = Column(Text)
 
