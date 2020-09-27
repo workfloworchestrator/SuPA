@@ -319,10 +319,21 @@ class Connection(Base):
 
     # another header part
     path_trace = relationship(
-        "PathTrace", uselist=False, back_populates="connection", cascade="all, delete-orphan", passive_deletes=True
+        "PathTrace",
+        uselist=False,
+        back_populates="connection",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        lazy="joined",
     )  # one-to-one
 
-    parameters = relationship("Parameter", backref="connection", cascade="all, delete-orphan", passive_deletes=True)
+    parameters = relationship(
+        "Parameter",
+        backref="connection",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        lazy="joined",
+    )
 
     __table_args__ = (CheckConstraint(start_time < end_time),)
 
@@ -337,8 +348,17 @@ class PathTrace(Base):
 
     connection_id = Column(UUID, ForeignKey(Connection.connection_id, ondelete="CASCADE"), comment="Our connection_id")
 
-    connection = relationship(Connection, back_populates="path_trace")  # one-to-one (cascades defined in parent)
-    paths = relationship("Path", backref="path_trace", cascade="all, delete-orphan", passive_deletes=True)
+    connection = relationship(
+        Connection,
+        back_populates="path_trace",
+    )  # one-to-one (cascades defined in parent)
+    paths = relationship(
+        "Path",
+        backref="path_trace",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        lazy="joined",
+    )
 
     __table_args__ = (
         # Ensure that the column used in joins with the parent table will have an index.
@@ -362,6 +382,7 @@ class Path(Base):
         passive_deletes=True,
         order_by="Segment.order",
         collection_class=ordering_list("order"),
+        lazy="joined",
     )
 
     __table_args__ = (
@@ -393,6 +414,7 @@ class Segment(Base):
         passive_deletes=True,
         order_by="Stp.order",
         collection_class=ordering_list("order"),
+        lazy="joined",
     )
 
     # By virtue of the composite unique constraint,
