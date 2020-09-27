@@ -74,6 +74,7 @@ from sqlalchemy import (
     Enum,
     ForeignKey,
     ForeignKeyConstraint,
+    Index,
     Integer,
     UniqueConstraint,
     event,
@@ -339,6 +340,11 @@ class PathTrace(Base):
     connection = relationship(Connection, back_populates="path_trace")  # one-to-one (cascades defined in parent)
     paths = relationship("Path", backref="path_trace", cascade="all, delete-orphan", passive_deletes=True)
 
+    __table_args__ = (
+        # Ensure that the column used in joins with the parent table will have an index.
+        Index("fx_to_connections_idx", connection_id),
+    )
+
 
 class Path(Base):
     """DB mapping for Paths."""
@@ -362,6 +368,8 @@ class Path(Base):
         ForeignKeyConstraint(
             (path_trace_id, ag_connection_id), (PathTrace.path_trace_id, PathTrace.ag_connection_id), ondelete="CASCADE"
         ),
+        # Ensure that columns used in joins with the parent table will have an index.
+        Index("fk_to_path_traces_idx", path_trace_id, ag_connection_id),
     )
 
 
@@ -387,6 +395,10 @@ class Segment(Base):
         collection_class=ordering_list("order"),
     )
 
+    # By virtue of the composite unique constraint,
+    # a composite index will be created with the first column being `path_id`.
+    # This index can be for joins involving the foreign key column.
+    # Hence no need to create a separate index
     __table_args__ = (UniqueConstraint(path_id, order),)
 
 
@@ -403,6 +415,8 @@ class Stp(Base):
     __table_args__ = (
         ForeignKeyConstraint((segment_id, path_id), (Segment.segment_id, Segment.path_id), ondelete="CASCADE"),
         UniqueConstraint(segment_id, order),
+        # Ensure that columns used in joins with the parent table will have an index.
+        Index("fk_to_segment_idx", segment_id, path_id),
     )
 
 
