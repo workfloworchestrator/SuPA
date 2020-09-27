@@ -283,7 +283,7 @@ class Connection(Base):
     connection_id = Column(UUID, primary_key=True, default=uuid.uuid4)
 
     # header
-    correlation_id = Column(UUID, nullable=False, comment="urn:uid")
+    correlation_id = Column(UUID, nullable=False, comment="urn:uid", unique=True)
     requester_nsa = Column(Text, nullable=False)
     provider_nsa = Column(Text, nullable=False)
     reply_to = Column(Text)
