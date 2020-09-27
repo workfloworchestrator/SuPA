@@ -267,14 +267,10 @@ class LifecycleState(enum.Enum):
 assert {e.value for e in LifecycleState} == {s.value for s in LifecycleStateMachine.states}, "Values should match up!"
 
 
-class Connection(Base):
-    """DB mapping for registering NSI connections.
+class Reservation(Base):
+    """DB mapping for registering NSI reservations."""
 
-    This concerns both reserved, yet not existing, connections
-    and existing connections.
-    """
-
-    __tablename__ = "connections"
+    __tablename__ = "reservations"
 
     # Most of these attribute come from different parts of the ``ReserveRequest`` message.
     # Although this is not a direct mapping, we have indicated from what parts some these
@@ -321,7 +317,7 @@ class Connection(Base):
     path_trace = relationship(
         "PathTrace",
         uselist=False,
-        back_populates="connection",
+        back_populates="reservation",
         cascade="all, delete-orphan",
         passive_deletes=True,
         lazy="joined",
@@ -329,7 +325,7 @@ class Connection(Base):
 
     parameters = relationship(
         "Parameter",
-        backref="connection",
+        backref="reservation",
         cascade="all, delete-orphan",
         passive_deletes=True,
         lazy="joined",
@@ -346,12 +342,13 @@ class PathTrace(Base):
     path_trace_id = Column(Text, primary_key=True, comment="NSA identifier of root or head-end aggregator NSA")
     ag_connection_id = Column(Text, primary_key=True, comment="Aggregator issued connection_id")
 
-    connection_id = Column(UUID, ForeignKey(Connection.connection_id, ondelete="CASCADE"), comment="Our connection_id")
+    connection_id = Column(UUID, ForeignKey(Reservation.connection_id, ondelete="CASCADE"), comment="Our connection_id")
 
-    connection = relationship(
-        Connection,
+    reservation = relationship(
+        Reservation,
         back_populates="path_trace",
     )  # one-to-one (cascades defined in parent)
+
     paths = relationship(
         "Path",
         backref="path_trace",
@@ -362,7 +359,7 @@ class PathTrace(Base):
 
     __table_args__ = (
         # Ensure that the column used in joins with the parent table will have an index.
-        Index("fx_to_connections_idx", connection_id),
+        Index("fx_to_reservations_idx", connection_id),
     )
 
 
@@ -447,7 +444,7 @@ class Parameter(Base):
 
     __tablename__ = "parameters"
 
-    connection_id = Column(UUID, ForeignKey(Connection.connection_id, ondelete="CASCADE"), primary_key=True)
+    connection_id = Column(UUID, ForeignKey(Reservation.connection_id, ondelete="CASCADE"), primary_key=True)
     key = Column(Text, primary_key=True)
     value = Column(Text)
 
