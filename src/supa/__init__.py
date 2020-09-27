@@ -340,12 +340,6 @@ eg. after command line processing.
 """
 
 
-# TODO remove
-def watchdog() -> None:
-    """Log watchdog timer events (example for the scheduler)."""
-    logger.info("Watchdog timer fired.")
-
-
 def init_app() -> None:
     """Initialize the application (database, scheduler, etc)``.
 
@@ -396,5 +390,4 @@ def init_app() -> None:
     scheduler = BackgroundScheduler(
         jobstores=jobstores, executors=executors, job_defaults=job_defaults, timezone=pytz.utc
     )
-    scheduler.add_job(watchdog, "interval", seconds=5)  # TODO remove
     scheduler.start()
