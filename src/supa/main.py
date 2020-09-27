@@ -23,15 +23,19 @@ from concurrent import futures
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
+from uuid import UUID
 
 import click
 import grpc
+import sqlalchemy
 import structlog
 from click import Context, Option
+from tabulate import tabulate
 
 from supa import init_app, settings
 from supa.connection.provider.server import ConnectionProviderService
 from supa.grpc_nsi import connection_provider_pb2_grpc
+from supa.util.vlan import VlanRanges
 
 logger = structlog.get_logger(__name__)
 
@@ -202,3 +206,131 @@ def serve(grpc_max_workers: int, grpc_insecure_address_port: str) -> None:
     log.info("Started Connection Provider gRPC Service.")
 
     server.wait_for_termination()
+
+
+@cli.command(context_settings=CONTEXT_SETTINGS)
+@click.option("--port-id", required=True, type=click.UUID, help="Orchestrator subscription_id on the port.")
+@click.option("--name", required=True, type=str, help="Name of the Port.")
+@click.option("--vlans", required=True, type=str, help="Available VLANs on the port.")
+@click.option("--remote-stp", type=str, help="Remote STP (for Service Demarcation Points).")
+@click.option("--bandwidth", required=True, type=int, help="In Mbps.")
+@click.option("--enabled/--disabled", default=True)
+@common_options  # type: ignore
+def add(port_id: UUID, name: str, vlans: str, remote_stp: Optional[str], bandwidth: int, enabled: bool) -> None:
+    """Add Orchestrator port to SuPA."""
+    init_app(with_scheduler=False)
+
+    # Safe to import, now that `init_app()` has been called
+    from supa.db import Port, db_session
+
+    port = Port(
+        port_id=port_id,
+        name=name,
+        vlans=str(VlanRanges(vlans)),
+        remote_stp=remote_stp,
+        bandwidth=bandwidth,
+        enabled=enabled,
+    )
+
+    with db_session() as session:
+        session.add(port)
+
+
+@cli.command(name="list", context_settings=CONTEXT_SETTINGS)
+@click.option("--only", type=click.Choice(("enabled", "disabled")), help="Limit list of ports [default: list all]")
+@common_options  # type: ignore
+def list_cmd(only: Optional[str]) -> None:
+    """List Orchestrator ports made available to SuPA."""
+    init_app(with_scheduler=False)
+    from supa.db import Port, db_session
+
+    with db_session() as session:
+        ports = session.query(Port)
+        if only == "enabled":
+            ports = ports.filter(Port.enabled.is_(True))
+        elif only == "disabled":
+            ports = ports.filter(Port.enabled.is_(False))
+        ports = ports.values(Port.port_id, Port.name, Port.vlans, Port.bandwidth, Port.remote_stp, Port.enabled)
+        click.echo(
+            tabulate(
+                tuple(ports),
+                headers=("port_id", "name", "vlans", "bandwidth", "remote_stp", "enabled"),
+                tablefmt="psql",
+            )
+        )
+
+
+@cli.command(context_settings=CONTEXT_SETTINGS)
+@click.option("--port-id", type=click.UUID, help="Orchestrator subscription_id on the port.")
+@click.option("--name", type=str, help="Name of the Port.")
+@common_options  # type: ignore
+def delete(port_id: Optional[UUID], name: Optional[str]) -> None:
+    """Delete Orchestrator port if not in use (or previously used).
+
+    A port can only be deleted if it was never used in a reservation.
+    Once used  a port cannot be deleted again.
+    A port can be disabled though!
+    This will take it out of the pool of ports
+    reservations (and hence connections) are made against.
+    See the `disable` command.
+    """
+    init_app(with_scheduler=False)
+    from supa.db import Port, db_session
+
+    if port_id is None and name is None:
+        click.echo("Please specify either --port-id or --name.", err=True)
+    try:
+        with db_session() as session:
+            port = session.query(Port)
+            if port_id is not None:
+                port = port.get(port_id)
+            else:
+                port = port.filter(Port.name == name).one()
+            session.delete(port)
+    except sqlalchemy.exc.IntegrityError:
+        click.echo(
+            "Port is in use. Could not delete it. (You could disable it instead to prevent further use).", err=True
+        )
+    except sqlalchemy.orm.exc.NoResultFound:
+        click.echo("Port could not be found.", err=True)
+
+
+def _set_enable(port_id: Optional[UUID], name: Optional[str], enabled: bool) -> None:
+    init_app(with_scheduler=False)
+    from supa.db import Port, db_session
+
+    if port_id is None and name is None:
+        click.echo("Please specify either --port-id or --name.", err=True)
+    try:
+        with db_session() as session:
+            port = session.query(Port)
+            if port_id is not None:
+                port = port.get(port_id)
+            else:
+                port = port.filter(Port.name == name).one()
+            port.enabled = enabled
+            click.echo(f"Port '{port.name}' has been {'enabled' if enabled else 'disabled'}.")
+    except sqlalchemy.orm.exc.NoResultFound:
+        click.echo("Port could not be found.", err=True)
+
+
+@cli.command(context_settings=CONTEXT_SETTINGS)
+@click.option("--port-id", type=click.UUID, help="Orchestrator subscription_id on the port.")
+@click.option("--name", type=str, help="Name of the Port.")
+def enable(port_id: Optional[UUID], name: Optional[str]) -> None:
+    """Enable a specific port.
+
+    Enabling a port makes it available for reservation requests.
+    """
+    _set_enable(port_id, name, enabled=True)
+
+
+@cli.command(context_settings=CONTEXT_SETTINGS)
+@click.option("--port-id", type=click.UUID, help="Orchestrator subscription_id on the port.")
+@click.option("--name", type=str, help="Name of the Port.")
+def disable(port_id: Optional[UUID], name: Optional[str]) -> None:
+    """Disable a specific port.
+
+    Disabling a port makes it unavailable for reservation requests.
+    """
+    _set_enable(port_id, name, enabled=False)

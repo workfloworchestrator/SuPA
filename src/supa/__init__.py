@@ -340,10 +340,8 @@ eg. after command line processing.
 """
 
 
-def init_app() -> None:
+def init_app(with_scheduler: bool = True) -> None:
     """Initialize the application (database, scheduler, etc)``.
-
-    The scheduler will be started immediately after initialization.
 
     :func:`init_app` should anly be called after **all** application configuration has been resolved.
     Most of that happens implicitly in :mod:`supa`,
@@ -364,6 +362,9 @@ def init_app() -> None:
              If imported earlier, :data:`scheduler` will refer to :class:`UnconfiguredScheduler`
              and you will get an equally nice exception.
 
+    Args:
+        with_scheduler: if True, initialize and start scheduler. If False, don't.
+
     """
     # Initialize the database
     database_file = resolve_database_file(settings.database_file)
@@ -380,14 +381,15 @@ def init_app() -> None:
     session_factory = sessionmaker(bind=engine)
     db.Session = scoped_session(session_factory)
 
-    # Initialize and start the scheduler
-    jobstores = {"default": MemoryJobStore()}
-    logger.info("Configuring scheduler executor.", scheduler_max_workers=settings.scheduler_max_workers)
-    executors = {"default": ThreadPoolExecutor(settings.scheduler_max_workers)}
-    job_defaults = {"coalesce": False, "max_instances": 1}
+    if with_scheduler:
+        # Initialize and start the scheduler
+        jobstores = {"default": MemoryJobStore()}
+        logger.info("Configuring scheduler executor.", scheduler_max_workers=settings.scheduler_max_workers)
+        executors = {"default": ThreadPoolExecutor(settings.scheduler_max_workers)}
+        job_defaults = {"coalesce": False, "max_instances": 1}
 
-    global scheduler
-    scheduler = BackgroundScheduler(
-        jobstores=jobstores, executors=executors, job_defaults=job_defaults, timezone=pytz.utc
-    )
-    scheduler.start()
+        global scheduler
+        scheduler = BackgroundScheduler(
+            jobstores=jobstores, executors=executors, job_defaults=job_defaults, timezone=pytz.utc
+        )
+        scheduler.start()

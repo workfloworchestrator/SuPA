@@ -600,7 +600,7 @@ def db_session() -> Iterator[scoped_session]:
         yield session
         session.commit()
     except BaseException:
-        logger.exception("An exception occurred while doing DB work. Rolling back.")
+        logger.info("An exception occurred while doing DB work. Rolling back.")
         if session is not None:
             session.rollback()
         raise
