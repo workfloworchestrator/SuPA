@@ -50,8 +50,6 @@ class CommonOptionsState:
     """Class to capture common options shared between Click callables/sub commands."""
 
     database_file: Optional[Path] = None
-    scheduler_max_workers: Optional[int] = None
-    domain_name: Optional[str] = None
 
 
 # Trick from: https://github.com/pallets/click/issues/108
@@ -108,57 +106,9 @@ def database_file_option(f):  # type: ignore
     )(f)
 
 
-def scheduler_max_workers_option(f):  # type: ignore
-    """Define common option for specifying the maximum number of workers to execute scheduler jobs."""
-
-    def callback(ctx: Context, param: Option, value: Optional[int]) -> Optional[int]:
-        """Update the Settings instance when the scheduler-max-workers option is used."""
-        cos: CommonOptionsState = ctx.ensure_object(CommonOptionsState)
-        if value is not None:
-            cos.scheduler_max_workers = value
-
-            # Update the `settings` instance so that it available application wide.
-            settings.scheduler_max_workers = cos.scheduler_max_workers
-        return value
-
-    return click.option(
-        "--scheduler-max-workers",
-        default=settings.scheduler_max_workers,
-        type=int,
-        expose_value=False,  # Don't add to sub command arg list. We have `@pass_common_options_state` for that.
-        help="Maximum number of workers to execute scheduler jobs.",
-        callback=callback,
-    )(f)
-
-
-def domain_name_option(f):  # type: ignore
-    """Define common option for specifying the name of the network SuPA is responsible for."""
-
-    def callback(ctx: Context, param: Option, value: Optional[str]) -> Optional[str]:
-        """Update the Settings instance when the domain-name option is used."""
-        cos: CommonOptionsState = ctx.ensure_object(CommonOptionsState)
-        if value is not None:
-            cos.domain_name = value
-
-            # Update the `settings` instance so that it available application wide.
-            settings.domain_name = cos.domain_name
-        return value
-
-    return click.option(
-        "--domain-name",
-        default=settings.domain_name,
-        type=str,
-        expose_value=False,  # Don't add to sub command arg list. We have `@pass_common_options_state` for that.
-        help="Name of the domain SuPA is responsible for.",
-        callback=callback,
-    )(f)
-
-
 def common_options(f):  # type: ignore
     """Provide the means to declare common options to Click callables/sub command."""
     f = database_file_option(f)
-    f = scheduler_max_workers_option(f)
-    f = domain_name_option(f)
     return f
 
 
@@ -186,12 +136,23 @@ def cli() -> None:
     help="Maximum number of workers to serve gRPC requests.",
 )
 @click.option("--grpc-insecure-address-port", default=settings.grpc_insecure_address_port, help="Port to listen on.")
+@click.option(
+    "--scheduler-max-workers",
+    default=settings.scheduler_max_workers,
+    type=int,
+    help="Maximum number of workers to execute scheduler jobs.",
+)
+@click.option(
+    "--domain-name", default=settings.domain_name, type=str, help="Name of the domain SuPA is responsible for."
+)
 @common_options  # type: ignore
-def serve(grpc_max_workers: int, grpc_insecure_address_port: str) -> None:
+def serve(grpc_max_workers: int, grpc_insecure_address_port: str, scheduler_max_workers: int, domain_name: str) -> None:
     """Start the gRPC server and listen for incoming requests."""
     # Command-line options take precedence.
     settings.grpc_max_workers = grpc_max_workers
     settings.grpc_insecure_address_port = grpc_insecure_address_port
+    settings.scheduler_max_workers = scheduler_max_workers
+    settings.domain_name = domain_name
 
     init_app()
 
@@ -296,6 +257,7 @@ def delete(port_id: Optional[UUID], name: Optional[str]) -> None:
 
 
 def _set_enable(port_id: Optional[UUID], name: Optional[str], enabled: bool) -> None:
+    """Enable or disable a specific port."""
     init_app(with_scheduler=False)
     from supa.db import Port, db_session
 
