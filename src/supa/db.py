@@ -301,12 +301,12 @@ class Reservation(Base):
     directionality = Column(Enum(Directionality), nullable=Directionality.Bidirectional)
     symmetric = Column(Boolean, nullable=False)
 
-    source_domain = Column(Text, nullable=False)
-    source_port = Column(Text, nullable=False, comment="Name of the port")
-    source_vlans = Column(Text, nullable=False)
-    dest_domain = Column(Text, nullable=False)
-    dest_port = Column(Text, nullable=False, comment="Name of the port")
-    dest_vlans = Column(Text, nullable=False)
+    src_domain = Column(Text, nullable=False)
+    src_port = Column(Text, nullable=False, comment="Name of the port")
+    src_vlans = Column(Text, nullable=False)
+    dst_domain = Column(Text, nullable=False)
+    dst_port = Column(Text, nullable=False, comment="Name of the port")
+    dst_vlans = Column(Text, nullable=False)
 
     # internal state keeping
     reservation_state = Column(Enum(ReservationState), nullable=False, default=ReservationState.Start)
