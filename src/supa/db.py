@@ -320,7 +320,6 @@ class Reservation(Base):
         back_populates="reservation",
         cascade="all, delete-orphan",
         passive_deletes=True,
-        lazy="joined",
     )  # one-to-one
 
     parameters = relationship(
@@ -328,7 +327,6 @@ class Reservation(Base):
         backref="reservation",
         cascade="all, delete-orphan",
         passive_deletes=True,
-        lazy="joined",
     )
 
     connection = relationship(
@@ -337,7 +335,6 @@ class Reservation(Base):
         back_populates="reservation",
         cascade="all, delete-orphan",
         passive_deletes=True,
-        lazy="joined",
     )  # one-to-one
 
     __table_args__ = (CheckConstraint(start_time < end_time),)
@@ -365,7 +362,6 @@ class PathTrace(Base):
         backref="path_trace",
         cascade="all, delete-orphan",
         passive_deletes=True,
-        lazy="joined",
     )
 
     __table_args__ = (
@@ -390,7 +386,6 @@ class Path(Base):
         passive_deletes=True,
         order_by="Segment.order",
         collection_class=ordering_list("order"),
-        lazy="joined",
     )
 
     __table_args__ = (
@@ -422,7 +417,6 @@ class Segment(Base):
         passive_deletes=True,
         order_by="Stp.order",
         collection_class=ordering_list("order"),
-        lazy="joined",
     )
 
     # By virtue of the composite unique constraint,
@@ -513,13 +507,11 @@ class Connection(Base):
     source_port = relationship(
         "Port",
         foreign_keys=[source_port_id],
-        lazy="joined",
     )
 
     dest_port = relationship(
         "Port",
         foreign_keys=[dest_port_id],
-        lazy="joined",
     )
 
 
