@@ -32,6 +32,12 @@ supa.connection.fsm
 .. automodule:: supa.connection.fsm
    :members:
 
+supa.connection.error
+---------------------
+
+.. automodule:: supa.connection.error
+   :members:
+
 supa.connection.provider.server
 -------------------------------
 
