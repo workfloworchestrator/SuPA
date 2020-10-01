@@ -158,14 +158,14 @@ class Settings(BaseSettings):
     See also: the ``supa.env`` file
     """
 
-    grpc_max_workers: int = 8
-    grpc_insecure_address_port: str = "[::]:50051"
+    grpc_server_max_workers: int = 8
+    grpc_server_insecure_address_port: str = "[::]:50051"
     database_journal_mode: JournalMode = JournalMode.WAL
     database_file: Path = Path("supa.db")
 
     # Each gRPC worker can schedule at least one job. Hence the number of scheduler workers should
     # be at least as many as the gRPC ones. We include a couple extra for non-gRPC initiated jobs.
-    scheduler_max_workers: int = grpc_max_workers + 4
+    scheduler_max_workers: int = grpc_server_max_workers + 4
 
     domain_name: str = "netherlight.net:2013"
 
