@@ -235,50 +235,6 @@ class Directionality(enum.Enum):
     Unidirectional = "Unidirectional"
 
 
-class ReservationState(enum.Enum):
-    """Define applicable ``reservation_state`` values."""
-
-    Start = "Start"
-    Checking = "Checking"
-    Held = "Held"
-    Committing = "Committing"
-    Failed = "Failed"
-    Timeout = "Timeout"
-    Aborting = "Aborting"
-
-
-assert {e.value for e in ReservationState} == {
-    s.value for s in ReservationStateMachine.states
-}, "Values should match up!"
-
-
-class ProvisioningState(enum.Enum):
-    """Define applicable ``provisioning_state`` values."""
-
-    Released = "Released"
-    Provisioning = "Provisioning"
-    Provisioned = "Provisioned"
-    Releasing = "Releasing"
-
-
-assert {e.value for e in ProvisioningState} == {
-    s.value for s in ProvisioningStateMachine.states
-}, "Values should match up!"
-
-
-class LifecycleState(enum.Enum):
-    """Define applicable ``lifecycle_state`` values."""
-
-    Created = "Created"
-    Failed = "Failed"
-    Terminating = "Terminating"
-    PassedEndTime = "PassedEndTime"
-    Terminated = "Terminated"
-
-
-assert {e.value for e in LifecycleState} == {s.value for s in LifecycleStateMachine.states}, "Values should match up!"
-
-
 class Reservation(Base):
     """DB mapping for registering NSI reservations."""
 
@@ -321,9 +277,17 @@ class Reservation(Base):
     dst_vlans = Column(Text, nullable=False)
 
     # internal state keeping
-    reservation_state = Column(Enum(ReservationState), nullable=False, default=ReservationState.Start)
-    provisioning_state = Column(Enum(ProvisioningState))
-    lifecycle_state = Column(Enum(LifecycleState), nullable=False, default=LifecycleState.Created)
+    reservation_state = Column(
+        Enum(*[s.identifier for s in ReservationStateMachine.states]),
+        nullable=False,
+        default=ReservationStateMachine.Start.identifier,
+    )
+    provisioning_state = Column(Enum(*[s.identifier for s in ProvisioningStateMachine.states]))
+    lifecycle_state = Column(
+        Enum(*[s.identifier for s in LifecycleStateMachine.states]),
+        nullable=False,
+        default=LifecycleStateMachine.Created.identifier,
+    )
 
     # another header part
     path_trace = relationship(
