@@ -20,6 +20,21 @@ There are some limitations with regards to concurrency,
 but those will not affect SuPA with its low DB WRITE needs;
 especially when configured with the :attr:`~supa.JournalMode.WAL` journal mode.
 
+Usage
+=====
+
+.. warning:: Due to how this application initializes itself,
+             one should always **locally** import classes and attributes from this module.
+
+When classes and attributes from this module are imported at the top of other modules
+some of them might not yet have been correctly initialized.
+Once the initialization has been completed,
+these already imported classes and attributed will still refer to the old uninitialized ones.
+Don't worry too much about it;
+you will get an informative error.
+But just to be on the safe side,
+always import anything from this module locally!
+
 Surrogate keys versus natural keys
 ==================================
 
@@ -38,9 +53,6 @@ Instead,
 these foreign keys need to be defined using a
 `ForeignKeyConstraint <https://docs.sqlalchemy.org/en/13/core/constraints.html?sqlalchemy.schema.ForeignKeyConstraint#sqlalchemy.schema.ForeignKeyConstraint>`_
 on the ``__table_args__`` attribute of the DB model.
-
-.. todo:: Something about the usage of
-          `orderinglist <https://docs.sqlalchemy.org/en/13/orm/extensions/orderinglist.html>`_
 
 Connection IDs
 ==============
@@ -293,8 +305,8 @@ class Reservation(Base):
     version = Column(Integer, nullable=False)
 
     # schedule
-    start_time = Column(UtcTimestamp, nullable=False, default=current_timestamp)
-    end_time = Column(UtcTimestamp, nullable=False, default=NO_END_DATE)
+    start_time = Column(UtcTimestamp, nullable=False, default=current_timestamp, index=True)
+    end_time = Column(UtcTimestamp, nullable=False, default=NO_END_DATE, index=True)
 
     # p2p
     bandwidth = Column(Integer, nullable=False, comment="Mbps")
@@ -462,7 +474,7 @@ class Port(Base):
     __tablename__ = "ports"
 
     port_id = Column(UUID, primary_key=True, comment="subscription_id of a port in the Orchestrator")
-    name = Column(Text, nullable=False, unique=True)
+    name = Column(Text, nullable=False, unique=True, index=True)
     vlans = Column(Text, nullable=False)
     remote_stp = Column(Text, nullable=True)  # not sure if we need this?
     bandwidth = Column(Integer, nullable=False, comment="Mbps")
