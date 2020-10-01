@@ -136,7 +136,9 @@ def cli() -> None:
     help="Maximum number of workers to serve gRPC requests.",
 )
 @click.option(
-    "--grpc-server-insecure-address-port", default=settings.grpc_server_insecure_address_port, help="Port to listen on."
+    "--grpc-server-insecure-address-port",
+    default=settings.grpc_server_insecure_address_port,
+    help="Address and port to listen on.",
 )
 @click.option(
     "--scheduler-max-workers",
@@ -147,9 +149,18 @@ def cli() -> None:
 @click.option(
     "--domain-name", default=settings.domain_name, type=str, help="Name of the domain SuPA is responsible for."
 )
+@click.option(
+    "--grpc-client-insecure-address-port",
+    default=settings.grpc_client_insecure_address_port,
+    help="Address and port of PolyNSI.",
+)
 @common_options  # type: ignore
 def serve(
-    grpc_server_max_workers: int, grpc_server_insecure_address_port: str, scheduler_max_workers: int, domain_name: str
+    grpc_server_max_workers: int,
+    grpc_server_insecure_address_port: str,
+    scheduler_max_workers: int,
+    domain_name: str,
+    grpc_client_insecure_address_port: str,
 ) -> None:
     """Start the gRPC server and listen for incoming requests."""
     # Command-line options take precedence.
@@ -157,6 +168,7 @@ def serve(
     settings.grpc_server_insecure_address_port = grpc_server_insecure_address_port
     settings.scheduler_max_workers = scheduler_max_workers
     settings.domain_name = domain_name
+    settings.grpc_client_insecure_address_port = grpc_client_insecure_address_port
 
     init_app()
 
