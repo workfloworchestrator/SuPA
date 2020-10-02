@@ -272,9 +272,19 @@ class Reservation(Base):
     src_domain = Column(Text, nullable=False)
     src_port = Column(Text, nullable=False, comment="Name of the port")
     src_vlans = Column(Text, nullable=False)
+
+    # `src_vlans` might be a range of VLANs in case the reservation specified an unqualified STP.
+    # In that case it is up to the reservation process to select an available VLAN out of the
+    # supplied range.
+    # This also explain the difference in column types. A range is expressed as a string (eg "1-10").
+    # A single VLAN is always a single number, hence integer.
+    src_selected_vlan = Column(Integer, nullable=True)
     dst_domain = Column(Text, nullable=False)
     dst_port = Column(Text, nullable=False, comment="Name of the port")
     dst_vlans = Column(Text, nullable=False)
+
+    # See `src_selected_vlan`
+    dst_selected_vlan = Column(Integer, nullable=True)
 
     # internal state keeping
     reservation_state = Column(
@@ -468,9 +478,9 @@ class Connection(Base):
     # as by the time we are creating a Connection a VLAN
     # per port will have been selected.
     source_port_id = Column(UUID, ForeignKey(Port.port_id), nullable=False)
-    source_vlan = Column(Text, nullable=False)
+    source_vlan = Column(Integer, nullable=False)
     dest_port_id = Column(UUID, ForeignKey(Port.port_id), nullable=False)
-    dest_vlan = Column(Text, nullable=False)
+    dest_vlan = Column(Integer, nullable=False)
     subscription_id = Column(
         UUID, nullable=False, unique=True, comment="subscription_id of the lightpath in the Orchestrator"
     )
