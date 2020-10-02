@@ -150,6 +150,9 @@ def cli() -> None:
     "--domain-name", default=settings.domain_name, type=str, help="Name of the domain SuPA is responsible for."
 )
 @click.option(
+    "--network-type", default=settings.network_type, type=str, help="Name of the network SuPA is responsible for."
+)
+@click.option(
     "--grpc-client-insecure-address-port",
     default=settings.grpc_client_insecure_address_port,
     help="Address and port of PolyNSI.",
@@ -160,6 +163,7 @@ def serve(
     grpc_server_insecure_address_port: str,
     scheduler_max_workers: int,
     domain_name: str,
+    network_type: str,
     grpc_client_insecure_address_port: str,
 ) -> None:
     """Start the gRPC server and listen for incoming requests."""
@@ -168,6 +172,7 @@ def serve(
     settings.grpc_server_insecure_address_port = grpc_server_insecure_address_port
     settings.scheduler_max_workers = scheduler_max_workers
     settings.domain_name = domain_name
+    settings.network_type = network_type
     settings.grpc_client_insecure_address_port = grpc_client_insecure_address_port
 
     init_app()

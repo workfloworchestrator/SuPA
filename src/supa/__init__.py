@@ -174,6 +174,7 @@ class Settings(BaseSettings):
     scheduler_max_workers: int = grpc_server_max_workers + 4
 
     domain_name: str = "netherlight.net:2013"
+    network_type: str = "production8"
 
     class Config:  # noqa: D106
         case_sensitive = True
