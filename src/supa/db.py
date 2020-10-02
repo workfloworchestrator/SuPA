@@ -270,6 +270,7 @@ class Reservation(Base):
     symmetric = Column(Boolean, nullable=False)
 
     src_domain = Column(Text, nullable=False)
+    src_network_type = Column(Text, nullable=False)
     src_port = Column(Text, nullable=False, comment="Name of the port")
     src_vlans = Column(Text, nullable=False)
 
@@ -280,6 +281,7 @@ class Reservation(Base):
     # A single VLAN is always a single number, hence integer.
     src_selected_vlan = Column(Integer, nullable=True)
     dst_domain = Column(Text, nullable=False)
+    dst_network_type = Column(Text, nullable=False)
     dst_port = Column(Text, nullable=False, comment="Name of the port")
     dst_vlans = Column(Text, nullable=False)
 
