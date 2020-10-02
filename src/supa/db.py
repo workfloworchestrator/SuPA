@@ -105,6 +105,7 @@ from sqlalchemy.types import Text, TypeDecorator
 
 from supa import settings
 from supa.connection.fsm import LifecycleStateMachine, ProvisioningStateMachine, ReservationStateMachine
+from supa.util import nsi
 from supa.util.timestamp import NO_END_DATE, current_timestamp
 
 logger = structlog.get_logger(__name__)
@@ -326,6 +327,14 @@ class Reservation(Base):
     )  # one-to-one
 
     __table_args__ = (CheckConstraint(start_time < end_time),)
+
+    def src_stp(self) -> nsi.Stp:
+        """Return :class:`~supa.util.nsi.STP` instance for src data."""
+        return nsi.Stp(self.src_domain, self.src_network_type, self.src_port, self.src_vlans)
+
+    def dst_stp(self) -> nsi.Stp:
+        """Return :class:`~supa.util.nsi.STP` instance for dst data."""
+        return nsi.Stp(self.dst_domain, self.dst_network_type, self.dst_port, self.dst_vlans)
 
 
 class PathTrace(Base):

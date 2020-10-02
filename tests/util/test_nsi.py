@@ -73,3 +73,14 @@ def test_stp_vlan_ranges() -> None:  # noqa: D103
 
     stp = parse_stp("urn:ogf:network:netherlight.net:2013:production7:netherlight-of-1")
     assert stp.vlan_ranges == VlanRanges()
+
+
+def test_str_stp() -> None:  # noqa: D103
+    stp_str = "urn:ogf:network:netherlight.net:2013:production7:netherlight-of-1?vlan=200-500,1779-1799"
+    stp = parse_stp(stp_str)
+    assert str(stp) == stp_str
+
+    # without labels
+    stp_str = "urn:ogf:network:netherlight.net:2013:production7:netherlight-of-1"
+    stp = parse_stp(stp_str)
+    assert str(stp) == stp_str

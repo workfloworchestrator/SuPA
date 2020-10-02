@@ -17,6 +17,11 @@ from typing import Optional
 
 from supa.util.vlan import VlanRanges
 
+URN_PREFIX = "urn:ogf:network"
+"""URN namespace for Network Resources."""
+
+_URN_PREFIX_LEN = len(URN_PREFIX)
+
 
 @dataclass
 class Stp:
@@ -44,11 +49,12 @@ class Stp:
             return VlanRanges(self.labels[len("vlan=") :])  # noqa: E203
         return VlanRanges()
 
-
-URN_PREFIX = "urn:ogf:network"
-"""URN namespace for Network Resources."""
-
-_URN_PREFIX_LEN = len(URN_PREFIX)
+    def __str__(self) -> str:
+        """Return printable string representation of Stp."""
+        stp = f"{URN_PREFIX}:{self.domain}:{self.network_type}:{self.port}"
+        if self.labels:
+            stp += f"?{self.labels}"
+        return stp
 
 
 def parse_stp(stp: str) -> Stp:
