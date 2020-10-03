@@ -44,6 +44,12 @@ supa.connection.provider.server
 .. automodule:: supa.connection.provider.server
    :members:
 
+supa.util.bandwidth
+-------------------
+
+.. automodule:: supa.util.bandwidth
+   :members:
+
 supa.util.timestamp
 -------------------
 
