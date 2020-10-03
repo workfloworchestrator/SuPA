@@ -12,6 +12,7 @@ Some rules:
     - ``mypy src/supa``
     - ``flake8``
     - ``pytest -n auto --cov``
+    - ``pytest --doctest-module src``
 - Each MR should probably result in a version bump (``VERSION.txt``)
   and an update to ``CHANGES.rst``
 
