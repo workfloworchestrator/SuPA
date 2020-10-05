@@ -20,10 +20,16 @@ supa.main
    :prog: supa
    :show-nested:
 
-supa.db
--------
+supa.db.model
+-------------
 
-.. automodule:: supa.db
+.. automodule:: supa.db.model
+   :members:
+
+supa.db.session
+---------------
+
+.. automodule:: supa.db.session
    :members:
 
 supa.connection.fsm
