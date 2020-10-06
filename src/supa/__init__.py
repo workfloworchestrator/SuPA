@@ -32,6 +32,7 @@ See also :func:`resolve_env_file`
 import errno
 import functools
 import logging.config
+import random
 import sys
 from enum import Enum
 from pathlib import Path
@@ -87,7 +88,7 @@ logging.config.dictConfig(
         "loggers": {
             "": {"handlers": ["default"], "level": "DEBUG", "propagate": True},
             # Set `level` to `INFO` or `DEBUG` here for detailed SQLAlchemy logging.
-            "sqlalchemy.engine": {"handlers": ["default"], "level": "INFO", "propagate": False},
+            "sqlalchemy.engine": {"handlers": ["default"], "level": "WARNING", "propagate": False},
         },
     }
 )
@@ -376,6 +377,8 @@ def init_app(with_scheduler: bool = True) -> None:
         with_scheduler: if True, initialize and start scheduler. If False, don't.
 
     """
+    random.seed()
+
     # Initialize the database
     database_file = resolve_database_file(settings.database_file)
     if not database_file.exists():

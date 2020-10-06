@@ -28,7 +28,8 @@ from supa.grpc_nsi.connection_common_pb2 import (
 from supa.grpc_nsi.connection_requester_pb2 import ReservationConfirmCriteria
 from supa.grpc_nsi.policy_pb2 import Segment
 from supa.grpc_nsi.services_pb2 import PointToPointService
-from supa.job import NsiException
+from supa.job.shared import NsiException
+from supa.util.timestamp import NO_END_DATE
 
 
 def to_header(reservation: model.Reservation, *, add_path_segment: bool = False) -> Header:
@@ -55,7 +56,7 @@ def to_header(reservation: model.Reservation, *, add_path_segment: bool = False)
     """
     pb_header = Header()
     pb_header.protocol_version = reservation.protocol_version
-    pb_header.correlation_id = reservation.correlation_id
+    pb_header.correlation_id = reservation.correlation_id.urn
     pb_header.requester_nsa = reservation.requester_nsa
     pb_header.provider_nsa = reservation.provider_nsa
     if reservation.reply_to is not None:
@@ -88,7 +89,7 @@ def to_header(reservation: model.Reservation, *, add_path_segment: bool = False)
             if add_path_segment and cur_path_num == num_paths:
                 pb_segment = Segment()
                 pb_segment.id = settings.nsa_id
-                pb_segment.connection_id = reservation.connection_id
+                pb_segment.connection_id = str(reservation.connection_id)
                 pb_segment.stps.extend([reservation.src_stp(selected=True), reservation.dst_stp(selected=True)])
                 pb_path.append(pb_segment)
     return pb_header
@@ -153,8 +154,9 @@ def to_schedule(reservation: model.Reservation) -> Schedule:
         A Schedule object.
     """
     pb_s = Schedule()
-    pb_s.start_time.FromJsonString(reservation.start_time)
-    pb_s.end_time.FromJsonString(reservation.end_time)
+    pb_s.start_time.FromDatetime(reservation.start_time)
+    if not reservation.end_time == NO_END_DATE:
+        pb_s.end_time.FromDatetime(reservation.end_time)
     return pb_s
 
 

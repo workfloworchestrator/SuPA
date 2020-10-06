@@ -10,6 +10,12 @@ supa
    :members:
    :undoc-members:
 
+supa.const
+----------
+
+.. automodule:: supa.const
+   :members:
+
 supa.main
 ---------
 
@@ -30,6 +36,12 @@ supa.db.session
 ---------------
 
 .. automodule:: supa.db.session
+   :members:
+
+supa.job
+--------
+
+.. automodule:: supa.job
    :members:
 
 supa.connection.fsm
@@ -54,6 +66,12 @@ supa.util.bandwidth
 -------------------
 
 .. automodule:: supa.util.bandwidth
+   :members:
+
+supa.util.converter
+-------------------
+
+.. automodule:: supa.util.converter
    :members:
 
 supa.util.timestamp
