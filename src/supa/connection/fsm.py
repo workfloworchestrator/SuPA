@@ -44,13 +44,13 @@ class ReservationStateMachine(StateMachine):
     .. image:: /images/ReservationStateMachine.png
     """
 
-    ReserveStart = State("RESERVE_START", initial=True)
-    ReserveChecking = State("RESERVE_CHECKING")
-    ReserveHeld = State("RESERVE_HELD")
-    ReserveCommitting = State("RESERVE_COMMITTING")
-    ReserveFailed = State("RESERVE_FAILED")
-    ReserveTimeout = State("RESERVE_TIMEOUT")
-    ReserveAborting = State("RESERVE_ABORTING")
+    ReserveStart = State("ReserveStart", "RESERVE_START", initial=True)
+    ReserveChecking = State("ReserveChecking", "RESERVE_CHECKING")
+    ReserveHeld = State("ReserveHeld", "RESERVE_HELD")
+    ReserveCommitting = State("ReserveCommitting", "RESERVE_COMMITTING")
+    ReserveFailed = State("ReserveFailed", "RESERVE_FAILED")
+    ReserveTimeout = State("ReserveTimeout", "RESERVE_TIMEOUT")
+    ReserveAborting = State("ReserveAborting", "RESERVE_ABORTING")
 
     reserve_request = ReserveStart.to(ReserveChecking)
     reserve_confirmed = ReserveChecking.to(ReserveHeld)
@@ -69,10 +69,10 @@ class ProvisioningStateMachine(StateMachine):
     .. image:: /images/ProvisioningStateMachine.png
     """
 
-    Released = State("RELEASED", initial=True)
-    Provisioning = State("PROVISIONING")
-    Provisioned = State("PROVISIONED")
-    Releasing = State("RELEASING")
+    Released = State("Released", "RELEASED", initial=True)
+    Provisioning = State("Provisioning", "PROVISIONING")
+    Provisioned = State("Provisioned", "PROVISIONED")
+    Releasing = State("Releasing", "RELEASING")
 
     provision_request = Released.to(Provisioning)
     provision_confirmed = Provisioning.to(Provisioned)
@@ -86,11 +86,11 @@ class LifecycleStateMachine(StateMachine):
     .. image:: /images/LifecycleStateMachine.png
     """
 
-    Created = State("CREATED", initial=True)
-    Failed = State("FAILED")
-    Terminating = State("TERMINATING")
-    PassedEndTime = State("PASSED_END_TIME")
-    Terminated = State("TERMINATED")
+    Created = State("Created", "CREATED", initial=True)
+    Failed = State("Failed", "FAILED")
+    Terminating = State("Terminating", "TERMINATING")
+    PassedEndTime = State("PassedEndTime", "PASSED_END_TIME")
+    Terminated = State("Terminated", "TERMINATED")
 
     forced_end_notification = Created.to(Failed)
     terminate_request = Created.to(Terminating) | PassedEndTime.to(Terminating) | Failed.to(Terminating)
@@ -119,7 +119,7 @@ if __name__ == "__main__":
         dg = Digraph(name=name, comment=name)
         for s in fsm.states:
             for t in s.transitions:
-                dg.edge(t.source.name, t.destinations[0].name, label=t.identifier)
+                dg.edge(t.source.value, t.destinations[0].value, label=t.identifier)
         dg.render(filename=name, directory=output_path, cleanup=True, format="png")
 
     plot_fsm(ReservationStateMachine(), "ReservationStateMachine")

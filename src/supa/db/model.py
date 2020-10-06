@@ -226,15 +226,15 @@ class Reservation(Base):
 
     # internal state keeping
     reservation_state = Column(
-        Enum(*[s.name for s in ReservationStateMachine.states]),
+        Enum(*[s.value for s in ReservationStateMachine.states]),
         nullable=False,
-        default=ReservationStateMachine.ReserveStart.name,  # type: ignore[has-type]
+        default=ReservationStateMachine.ReserveStart.value,  # type: ignore[has-type]
     )
     provisioning_state = Column(Enum(*[s.name for s in ProvisioningStateMachine.states]))
     lifecycle_state = Column(
-        Enum(*[s.name for s in LifecycleStateMachine.states]),
+        Enum(*[s.value for s in LifecycleStateMachine.states]),
         nullable=False,
-        default=LifecycleStateMachine.Created.name,  # type: ignore[has-type]
+        default=LifecycleStateMachine.Created.value,  # type: ignore[has-type]
     )
 
     # another header part
