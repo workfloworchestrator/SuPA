@@ -141,7 +141,7 @@ def db_session() -> Iterator[scoped_session]:
             session.add(my_model)
 
     Raises:
-        Whatever exception that was raised while the context manager was active.
+        Exception: Actually whatever exception that was raised while the context manager was active.
 
     """
     session = None

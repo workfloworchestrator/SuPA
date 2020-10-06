@@ -46,6 +46,17 @@ That is the reason that we have modelled connection IDs from other NSA's
 (``ag_connection_id``, ``upa_connection_id``)
 as ``TEXT``.
 Within SuPA we have decided to use ``UUID``'s for our ``connection_id``'s.
+
+
+SQLAlchemy Model Dependency Diagram
+===================================
+
+A visual representation of how everything is wired together
+should help navigating the Python code a lot better.
+
+.. image:: /images/sqlalchemy_model_dependency_diagram.png
+
+
 """  # noqa: E501 B950
 import uuid
 from datetime import datetime, timezone
@@ -146,7 +157,7 @@ class UtcTimestamp(TypeDecorator):
     (those without a time zone).
 
     In the SQLite database the timestamps are stored as strings of format: ``yyyy-mm-dd hh:mm:ss``.
-    UTC is always implied.
+    **UTC is always implied.**
     """
 
     impl = sqlite.DATETIME(truncate_microseconds=True)

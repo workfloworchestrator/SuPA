@@ -26,22 +26,28 @@ supa.main
    :prog: supa
    :show-nested:
 
-supa.db.model
--------------
-
-.. automodule:: supa.db.model
-   :members:
-
 supa.db.session
 ---------------
 
 .. automodule:: supa.db.session
    :members:
 
-supa.job
---------
+supa.db.model
+-------------
 
-.. automodule:: supa.job
+.. automodule:: supa.db.model
+   :members:
+
+supa.job.shared
+---------------
+
+.. automodule:: supa.job.shared
+   :members:
+
+supa.job.reserve
+---------------
+
+.. automodule:: supa.job.reserve
    :members:
 
 supa.connection.fsm

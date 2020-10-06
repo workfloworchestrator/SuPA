@@ -47,6 +47,7 @@ such as SURF.
    documentation
    running
    development
+   changelog
 
 .. toctree::
    :maxdepth: 2

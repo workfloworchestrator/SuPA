@@ -14,14 +14,17 @@ run::
 This assumes you have installed SuPA with the ``doc`` option.
 See :doc:`installation` on how to do that.
 
-The above Setuptools way of generation documentation
-is probably only useful from a packaging point of view.
-When working on the documentation
-it is generally more convenient to generated it from directly from within the ``docs`` folder::
+.. note::
 
-    % cd docs
-    % make html
-    % open _build/html/index.html
+    The above Setuptools way of generation documentation
+    is probably only useful from a packaging point of view.
+
+When working on the documentation
+it is generally more convenient to generated it
+using the Sphinx provided Makefile::
+
+    % make -C docs html
+    % open docs/_build/html/index.html
 
 .. note::
 
