@@ -278,7 +278,8 @@ class Reservation(Base):
         Returns:
             :class:`~supa.util.nsi.Stp` object
         """
-        labels = self.src_selected_vlan if selected else self.src_vlans
+        vlans = self.src_selected_vlan if selected else self.src_vlans
+        labels = f"vlan={vlans}"
         return nsi.Stp(self.src_domain, self.src_network_type, self.src_port, labels)
 
     def dst_stp(self, selected: bool = False) -> nsi.Stp:
@@ -296,7 +297,8 @@ class Reservation(Base):
         Returns:
             :class:`~supa.util.nsi.Stp` object
         """
-        labels = self.dst_selected_vlan if selected else self.dst_vlans
+        vlans = self.dst_selected_vlan if selected else self.dst_vlans
+        labels = f"vlan={vlans}"
         return nsi.Stp(self.dst_domain, self.dst_network_type, self.dst_port, labels)
 
 
