@@ -47,7 +47,6 @@ That is the reason that we have modelled connection IDs from other NSA's
 as ``TEXT``.
 Within SuPA we have decided to use ``UUID``'s for our ``connection_id``'s.
 """  # noqa: E501 B950
-import enum
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Optional
@@ -171,13 +170,6 @@ class UtcTimestamp(TypeDecorator):
 Base: Any = declarative_base(cls=ReprBase)
 
 
-class Directionality(enum.Enum):
-    """Define applicable ``directionality values``."""
-
-    Bidirectional = "Bidirectional"
-    Unidirectional = "Unidirectional"
-
-
 class Reservation(Base):
     """DB mapping for registering NSI reservations."""
 
@@ -210,7 +202,7 @@ class Reservation(Base):
 
     # p2p
     bandwidth = Column(Integer, nullable=False, comment="Mbps")
-    directionality = Column(Enum(Directionality), nullable=Directionality.Bidirectional)
+    directionality = Column(Enum("BI_DIRECTIONAL", "UNI_DIRECTIONAL"), nullable=False, default="BI_DIRECTIONAL")
     symmetric = Column(Boolean, nullable=False)
 
     src_domain = Column(Text, nullable=False)
