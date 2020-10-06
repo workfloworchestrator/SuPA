@@ -162,10 +162,10 @@ class Settings(BaseSettings):
 
     grpc_server_max_workers: int = 8
 
-    grpc_server_insecure_address_port: str = "[::]:50051"
+    grpc_server_insecure_address_port: str = "localhost:50051"
     """The address and port SuPA is listening on."""
 
-    grpc_client_insecure_address_port: str = "[::]:9090"
+    grpc_client_insecure_address_port: str = "localhost:9090"
     """The address and port the Requester Agent/PolyNSI is listening on."""
 
     database_journal_mode: JournalMode = JournalMode.WAL
