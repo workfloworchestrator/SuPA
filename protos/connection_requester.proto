@@ -6,6 +6,7 @@ import "connection_common.proto";
 
 option java_multiple_files = true;
 option java_package = "org.ogf.nsi.grpc.connection.requester";
+import "services.proto";
 
 /*
   SOAP's version of ReserveFailed is an alias of GenericFailedType. Unfortunately protobuf does not
@@ -27,6 +28,9 @@ message ReservationConfirmCriteria {
   int32 version = 1;
   common.Schedule schedule = 2;
   string serviceType = 3;
+  oneof service_specific_messages {
+    services.PointToPointService ptps = 4;
+  }
 }
 
 message ReserveConfirmedRequest {
