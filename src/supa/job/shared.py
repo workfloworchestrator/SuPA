@@ -13,26 +13,82 @@
 from __future__ import annotations
 
 from abc import ABCMeta, abstractmethod
-from typing import ClassVar, Dict, List, Optional, Type
+from typing import ClassVar, Dict, List, Optional, Tuple, Type
 
 from supa.connection.error import NsiError, Variable
 
 
 class Job(metaclass=ABCMeta):
+    """Capture SuPA's asynchronous work.
+
+    .. note::
+
+        With asynchronous we don't mean async IO, as is all the hype these days.
+        Instead, we refer to all the work that happens outside of the regular gRPC request/response cycle.
+        Asynchronous 'work' is an explicit aspect of the NSI protocol.
+
+    """
+
     registry: ClassVar[List[Type[Job]]] = []
 
     @classmethod
     def __init_subclass__(cls: Type[Job]) -> None:
+        """Register sub classes for job recovery purposes."""
         super().__init_subclass__()
         cls.registry.append(cls)
 
     @abstractmethod
     def __call__(self) -> None:
+        """Perform the work represented by this class.
+
+        Sub classes must override this method.
+        This method is called by the scheduler when the job is scheduled to run.
+        """
         pass
 
     @classmethod
     @abstractmethod
     def recover(cls) -> List[Job]:
+        """Recover work that did not run to completion due to a premature termination of SuPA.
+
+        When SuPA needs to be terminated,
+        there might still be some scheduled jobs that haven't yet run.
+        These jobs might be recovered when SuPA's is started again.
+        If they can, it is up to this class method to recreated these jobs.
+
+        See Also: :func:`supa.init_app`
+
+        Returns:
+            A list of instantiated jobs to be rescheduled.
+        """
+        pass
+
+    @abstractmethod
+    def trigger(self) -> Tuple:
+        """Trigger for recovered jobs.
+
+        Recovered jobs generally know when they should be run.
+        This function provides the means to tell the recovery process exactly that.
+
+        Whatever this :meth:`trigger` function returns,
+        is passed to the scheduler's
+        `add_job() <https://apscheduler.readthedocs.io/en/latest/modules/schedulers/base.html#apscheduler.schedulers.base.BaseScheduler.add_job>`_
+        method after the job has been passed into it.
+
+        Example::
+
+            from datetime import datetime, timezone
+
+            my_job = MyJob(...)
+            my_job.trigger()  # -> ("date", run_date=datetime(2020, 10, 8, 10, 0, tzinfo=timezone.utc))
+
+            # Then the recovery process will do this:
+
+            scheduler.add_job(my_job, *my_job.trigger())
+
+        If a job needs to be run immediately after recovery,
+        then simply return an empty tuple.
+        """  # noqa: E501 B950
         pass
 
 
@@ -70,6 +126,10 @@ class NsiException(Exception):
     """
 
     def __init__(self, nsi_error: NsiError, extra_info: str, variables: Optional[Dict[Variable, str]] = None) -> None:
+        """Initialize NsiException.
+
+        See instance attribute documentation for what the parameters are.
+        """
         super().__init__(nsi_error, extra_info, variables)
         self.nsi_error = nsi_error
         self.extra_info = extra_info
@@ -86,4 +146,5 @@ class NsiException(Exception):
         return f"{self.nsi_error.error_code}: {self.nsi_error.descriptive_text} ({self.extra_info})"
 
     def __str__(self) -> str:
+        """Return the exception in a human readable format."""
         return self.text

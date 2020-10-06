@@ -421,4 +421,4 @@ def init_app(with_scheduler: bool = True) -> None:
             recovered_jobs.extend(job_type.recover())
         logger.info("Recovering jobs.", num_recovered_jobs=len(recovered_jobs))
         for job in recovered_jobs:
-            scheduler.add_job(job)
+            scheduler.add_job(job, *job.trigger())

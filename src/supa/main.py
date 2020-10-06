@@ -191,6 +191,7 @@ def serve(
     log.info("Started Connection Provider gRPC Service.")
 
     server.wait_for_termination()
+    # TODO Need to capture termination (Ctrl-C) and call `scheduler.shutdown`
 
 
 @cli.command(context_settings=CONTEXT_SETTINGS)

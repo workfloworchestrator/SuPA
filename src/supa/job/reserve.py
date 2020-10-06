@@ -13,7 +13,7 @@
 from __future__ import annotations
 
 import random
-from typing import Dict, List, NamedTuple, Type
+from typing import Dict, List, NamedTuple, Tuple, Type
 from uuid import UUID
 
 import structlog
@@ -53,10 +53,17 @@ class PortResources(NamedTuple):
 
 
 class ReserveJob(Job):
+    """Handle reservation requests."""
+
     connection_id: UUID
     log: BoundLogger
 
     def __init__(self, connection_id: UUID):
+        """Initialize the ReserveJob.
+
+        Args:
+           connection_id: The connection_id of the reservation request
+        """
         self.log = logger.bind(job=self.__class__.__name__)
         self.connection_id = connection_id
 
@@ -204,6 +211,12 @@ class ReserveJob(Job):
         stub.ReserveConfirmed(pb_rc_req)
 
     def __call__(self) -> None:
+        """Check reservation request.
+
+        If the reservation can be made
+        a ReserveConfirmed message will be send to the NSA/AG.
+        If not, a ReserveFailed message will be send instead.
+        """
         self.log.info("Checking reservation request.")
         from supa.db.session import db_session
 
@@ -304,6 +317,11 @@ class ReserveJob(Job):
 
     @classmethod
     def recover(cls: Type[ReserveJob]) -> List[Job]:
+        """Recover ReserveJob's that did not get to run before SuPA was terminated.
+
+        Returns:
+            List of ReserveJob's that still need to be run.
+        """
         from supa.db.session import db_session
 
         with db_session() as session:
@@ -315,3 +333,7 @@ class ReserveJob(Job):
                 )
             )
         return [ReserveJob(cid) for cid in connection_ids]
+
+    def trigger(self) -> Tuple:
+        """Return APScheduler trigger information for scheduling recovered ReserveJob's."""
+        return ()  # Run immediately after recovery

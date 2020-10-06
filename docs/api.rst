@@ -43,6 +43,7 @@ supa.job.shared
 
 .. automodule:: supa.job.shared
    :members:
+   :special-members: __call__
 
 supa.job.reserve
 ---------------
