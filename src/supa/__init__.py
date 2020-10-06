@@ -50,6 +50,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import scoped_session, sessionmaker
 
 from supa.db.model import Base
+from supa.job.shared import Job
 
 timestamper = structlog.processors.TimeStamper(fmt="%Y-%m-%d %H:%M:%S")
 pre_chain = [
@@ -352,9 +353,9 @@ eg. after command line processing.
 
 
 def init_app(with_scheduler: bool = True) -> None:
-    """Initialize the application (database, scheduler, etc)``.
+    """Initialize the application (database, scheduler, etc) and recover jobs``.
 
-    :func:`init_app` should anly be called after **all** application configuration has been resolved.
+    :func:`init_app` should only be called after **all** application configuration has been resolved.
     Most of that happens implicitly in :mod:`supa`,
     but some of needs to be done after processing command line options.
 
@@ -372,6 +373,14 @@ def init_app(with_scheduler: bool = True) -> None:
              Likewise only import :data:`scheduler` after the call to :func:`init_app`.
              If imported earlier, :data:`scheduler` will refer to :class:`UnconfiguredScheduler`
              and you will get an equally nice exception.
+
+    If the scheduler is to be initialized as well (see: :attr:`with_scheduler`)
+    it will try to recover jobs.
+    All af SuPA's asynchronous work is performed by jobs that the scheduler schedules.
+    If SuPA is terminated before these jobs have had a chance to run to completion,
+    they might be recovered by looking at the state of their work in the database.
+
+    See Also: :class:`supa.job.shared.Job`
 
     Args:
         with_scheduler: if True, initialize and start scheduler. If False, don't.
@@ -406,3 +415,10 @@ def init_app(with_scheduler: bool = True) -> None:
             jobstores=jobstores, executors=executors, job_defaults=job_defaults, timezone=pytz.utc
         )
         scheduler.start()
+
+        recovered_jobs = []
+        for job_type in Job.registry:
+            recovered_jobs.extend(job_type.recover())
+        logger.info("Recovering jobs.", num_recovered_jobs=len(recovered_jobs))
+        for job in recovered_jobs:
+            scheduler.add_job(job)

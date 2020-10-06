@@ -17,6 +17,7 @@ from typing import Dict, List, NamedTuple, Type
 from uuid import UUID
 
 import structlog
+from more_itertools import flatten
 from sqlalchemy import and_, func, or_, orm
 from sqlalchemy.orm import aliased, joinedload
 from structlog.stdlib import BoundLogger
@@ -303,5 +304,14 @@ class ReserveJob(Job):
 
     @classmethod
     def recover(cls: Type[ReserveJob]) -> List[Job]:
-        # TODO [GK 20201003] Fancy query restoring all Job to peform Reservation checking
-        pass
+        from supa.db.session import db_session
+
+        with db_session() as session:
+            connection_ids: List[UUID] = list(
+                flatten(
+                    session.query(Reservation.connection_id)
+                    .filter(Reservation.reservation_state == ReservationStateMachine.ReserveChecking.value)
+                    .all()
+                )
+            )
+        return [ReserveJob(cid) for cid in connection_ids]
