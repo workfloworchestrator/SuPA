@@ -20,10 +20,18 @@ from supa.connection.fsm import ReservationStateMachine
 from supa.db import model
 from supa.grpc_nsi import connection_provider_pb2_grpc
 from supa.grpc_nsi.connection_common_pb2 import Header, Schedule
-from supa.grpc_nsi.connection_provider_pb2 import ReservationRequestCriteria, ReserveRequest, ReserveResponse
+from supa.grpc_nsi.connection_provider_pb2 import (
+    ReservationRequestCriteria,
+    ReserveAbortRequest,
+    ReserveAbortResponse,
+    ReserveCommitRequest,
+    ReserveCommitResponse,
+    ReserveRequest,
+    ReserveResponse,
+)
 from supa.grpc_nsi.policy_pb2 import PathTrace
 from supa.grpc_nsi.services_pb2 import Directionality, PointToPointService
-from supa.job.reserve import ReserveJob
+from supa.job.reserve import ReserveAbortJob, ReserveCommitJob, ReserveJob
 from supa.util.nsi import parse_stp
 from supa.util.timestamp import as_utc_timestamp, current_timestamp, is_specified
 
@@ -142,3 +150,57 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
 
         log.info("Sending response.", response_message=reserve_response)
         return reserve_response
+
+    def ReserveCommit(
+        self, pb_reserve_commit_request: ReserveCommitRequest, context: ServicerContext
+    ) -> ReserveCommitResponse:
+        """Commit reservation.
+
+        The implementation is extremely straighforward.
+        That is because 'all' the work for committing a request is done asynchronously by
+        :class:`~supa.job.reserve.ReserveCommitJob`
+
+        Args:
+            pb_reserve_commit_request: Basically the connection_id wrapped in a request like object
+            context: gRPC server context object.
+
+        Returns:
+            A response telling the caller we have received its commit request.
+        """
+        log = logger.bind(method="ReserveCommit")
+        log.info("Received message.", request_message=pb_reserve_commit_request)
+
+        from supa import scheduler
+
+        scheduler.add_job(ReserveCommitJob(UUID(pb_reserve_commit_request.connection_id)))
+
+        reserve_commit_response = ReserveCommitResponse(header=pb_reserve_commit_request.header)
+        log.info("Sending response.", response_message=reserve_commit_response)
+        return reserve_commit_response
+
+    def ReserveAbort(
+        self, pb_reserve_abort_request: ReserveAbortRequest, context: ServicerContext
+    ) -> ReserveAbortResponse:
+        """Abort reservation.
+
+        The implementation is extremely straighforward.
+        That is because 'all' the work for aborting a request is done asynchronously by
+        :class:`~supa.job.reserve.ReserveAbortJob`
+
+        Args:
+            pb_reserve_abort_request: Basically the connection wrapped in a request like object
+            context: gRPC server context object.
+
+        Returns:
+            A response telling the caller we have received its abort request.
+        """
+        log = logger.bind(method="ReserveAbort")
+        logger.info("Received message.", request_message=pb_reserve_abort_request)
+
+        from supa import scheduler
+
+        scheduler.add_job(ReserveAbortJob(UUID(pb_reserve_abort_request.connection_id)))
+
+        reserve_abort_response = ReserveAbortResponse(header=pb_reserve_abort_request.header)
+        log.info("Sending response.", response_message=reserve_abort_response)
+        return reserve_abort_response

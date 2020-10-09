@@ -56,12 +56,14 @@ class Job(metaclass=ABCMeta):
         These jobs might be recovered when SuPA's is started again.
         If they can, it is up to this class method to recreated these jobs.
 
+        This is an abstract method as we want subclasses to be explict about their recovery process.
+
         See Also: :func:`supa.init_app`
 
         Returns:
             A list of instantiated jobs to be rescheduled.
         """
-        pass
+        return []
 
     @abstractmethod
     def trigger(self) -> Tuple:
@@ -69,6 +71,8 @@ class Job(metaclass=ABCMeta):
 
         Recovered jobs generally know when they should be run.
         This function provides the means to tell the recovery process exactly that.
+
+        This is an abstract method as we want subclasses to be explicit about their trigger behaviour.
 
         Whatever this :meth:`trigger` function returns,
         is passed to the scheduler's
@@ -88,8 +92,11 @@ class Job(metaclass=ABCMeta):
 
         If a job needs to be run immediately after recovery,
         then simply return an empty tuple.
+
+        Returns:
+            Tuple of arguments to be supplied to the ``add_job`` scheduler method.
         """  # noqa: E501 B950
-        pass
+        return ()
 
 
 class NsiException(Exception):

@@ -20,6 +20,7 @@ import structlog
 from more_itertools import flatten
 from sqlalchemy import and_, func, or_, orm
 from sqlalchemy.orm import aliased, joinedload
+from statemachine.exceptions import TransitionNotAllowed
 from structlog.stdlib import BoundLogger
 
 from supa import settings
@@ -30,13 +31,19 @@ from supa.connection.error import (
     InvalidLabelFormat,
     InvalidTransition,
     NoServiceplanePathFound,
+    ReservationNonExistent,
     StpUnavailable,
     UnknownStp,
     Variable,
 )
 from supa.connection.fsm import LifecycleStateMachine, ReservationStateMachine
 from supa.db.model import Path, PathTrace, Port, Reservation, Segment
-from supa.grpc_nsi.connection_requester_pb2 import ReserveConfirmedRequest, ReserveFailedRequest
+from supa.grpc_nsi.connection_requester_pb2 import (
+    ReserveCommitConfirmedRequest,
+    ReserveCommitFailedRequest,
+    ReserveConfirmedRequest,
+    ReserveFailedRequest,
+)
 from supa.job.shared import Job, NsiException
 from supa.util.bandwidth import format_bandwidth
 from supa.util.converter import to_confirm_criteria, to_connection_states, to_header, to_service_exception
@@ -337,3 +344,124 @@ class ReserveJob(Job):
     def trigger(self) -> Tuple:
         """Return APScheduler trigger information for scheduling recovered ReserveJob's."""
         return ()  # Run immediately after recovery
+
+
+class ReserveCommitJob(Job):
+    """Handle reservation commit requests."""
+
+    connection_id: UUID
+    log: BoundLogger
+
+    def __init__(self, connection_id: UUID):
+        """Initialize the ReserveCommitJob.
+
+        Args:
+           connection_id: The connection_id of the reservation commit request
+        """
+        self.log = logger.bind(job=self.__class__.__name__)
+        self.connection_id = connection_id
+
+    def _send_reserve_commit_failed(self, session: orm.Session, nsi_exc: NsiException) -> None:
+        # the reservation is still in the session, hence no actual query will be performed
+        reservation: Reservation = session.query(Reservation).get(self.connection_id)
+        pb_rcf_req = ReserveCommitFailedRequest()
+
+        pb_rcf_req.header.CopyFrom(to_header(reservation, add_path_segment=False))
+        pb_rcf_req.connection_id = str(reservation.connection_id)
+        pb_rcf_req.connection_states.CopyFrom(to_connection_states(reservation, data_plane_active=False))
+        pb_rcf_req.service_exception.CopyFrom(to_service_exception(nsi_exc, reservation.connection_id))
+
+        self.log.info("Sending message.", method="ReserveCommitFailed", request_message=pb_rcf_req)
+        stub = requester.get_stub()
+        stub.ReserveCommitFailed(pb_rcf_req)
+
+    def _send_reserve_commit_confirmed(self, session: orm.Session) -> None:
+        # the reservation is still in the session, hence no actual query will be performed
+        reservation: Reservation = session.query(Reservation).get(self.connection_id)
+        pb_rcc_req = ReserveCommitConfirmedRequest()
+
+        pb_rcc_req.header.CopyFrom(to_header(reservation, add_path_segment=True))  # Yes, add our segment!
+        pb_rcc_req.connection_id = str(reservation.connection_id)
+
+        self.log.info("Sending message.", method="ReserveCommitConfirmed", request_message=pb_rcc_req)
+        stub = requester.get_stub()
+        stub.ReserveCommitFailed(pb_rcc_req)
+
+    def __call__(self) -> None:
+        """Commit Reservation."""
+        self.log.info("Committing reservation")
+
+        from supa.db.session import db_session
+
+        with db_session() as session:
+            reservation = (
+                session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one_or_none()
+            )
+            if reservation is None:
+                raise NsiException(
+                    ReservationNonExistent, str(self.connection_id), {Variable.CONNECTION_ID: str(self.connection_id)}
+                )
+            try:
+                rsm = ReservationStateMachine(reservation, state_field="reservation_state")
+                rsm.reserve_commit_request()
+            except NsiException as nsi_exc:
+                self.log.info("Reserve commit failed.", reason=nsi_exc.text)
+                rsm.reserve_commit_failed()
+                self._send_reserve_commit_failed(session, nsi_exc)
+            except TransitionNotAllowed as tna:
+                self.log.info("Invalid state transition", reason=str(tna))
+                rsm.reserve_commit_failed()
+                nsi_exc = NsiException(
+                    InvalidTransition,
+                    str(tna),
+                    {Variable.RESERVATION_STATE: reservation.reservation_state},
+                )  # type: ignore[misc]
+                self._send_reserve_commit_failed(session, nsi_exc)  # type: ignore[misc]
+            except Exception as exc:
+                self.log.exception("Unexpected error occurred.", reason=str(exc))
+                rsm.reserve_commit_failed()
+                nsi_exc = NsiException(GenericInternalError, str(exc))  # type: ignore[misc]
+                self._send_reserve_commit_failed(session, nsi_exc)  # type: ignore[misc]
+            else:
+                self._send_reserve_commit_confirmed(session)
+
+    @classmethod
+    def recover(cls) -> List[Job]:
+        """Recover ReserveCommitJobs."""
+        # Nothing to recover -> no-op
+        return super().recover()
+
+    def trigger(self) -> Tuple:
+        """Trigger for recovered ReserveCommitJobs."""
+        return super().trigger()
+
+
+class ReserveAbortJob(Job):
+    """Handle reservation obort requests."""
+
+    connection_id: UUID
+    log: BoundLogger
+
+    def __init__(self, connection_id: UUID):
+        """Initialize the ReserveAbortJob.
+
+        Args:
+           connection_id: The connection_id of the reservation abort request
+        """
+        self.log = logger.bind(job=self.__class__.__name__)
+        self.connection_id = connection_id
+
+    def __call__(self) -> None:
+        """Abort Reservation."""
+        # FIXME Implement!!!
+        raise NotImplementedError("Implementation is basically the same as `ReserveCommitJob.__call__`.")
+
+    @classmethod
+    def recover(cls) -> List[Job]:
+        """Recover ReserveAbortJobs."""
+        # Nothing to recover -> no-op
+        return super().recover()
+
+    def trigger(self) -> Tuple:
+        """Trigger for ReserveAbortJobs."""
+        return super().trigger()
