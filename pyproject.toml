@@ -1,0 +1,33 @@
+[build-system]
+# Part of the installation process is the generation of Python code from protobuf/gRPC definitions.
+# For that we need to have `grpcio-tools` around *before* `setup.py` is executed. The version number of `grpcio-tools`
+# should match that of `grpcio` in `setup.cfg`. Actual code generation is done from within `setup.py` in a custom
+# Command class.
+requires = ["setuptools>=47.3.1", "wheel", "grpcio-tools~=1.30.0", "mypy-protobuf"]
+
+[tool.isort]
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+line_length = 120
+forced_separate = "supa"
+skip = ["venv"]
+default_section = "THIRDPARTY"
+
+[tool.black]
+line-length = 120
+target-version = ["py38"]
+exclude = '''
+(
+  /(
+      \.eggs         # exclude a few common directories in the
+    | \.git          # root of the project
+    | \.hg
+    | \.mypy_cache
+    | \.tox
+    | \.venv
+    | venv
+  )/
+)
+'''

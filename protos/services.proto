@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package services;
+
+option java_multiple_files = true;
+option java_package = "org.ogf.nsi.grpc.services";
+
+enum Directionality {
+  BI_DIRECTIONAL = 0;
+  UNI_DIRECTIONAL = 1;
+}
+
+
+message PointToPointService {
+  int64 capacity = 1;  // in Mbps
+  Directionality directionality = 2;
+  bool symmetric_path = 3;
+  string source_stp = 4;  // StpId
+  string dest_stp = 5;  // StpId
+  repeated string eros = 6;  // [StpId]
+  map<string, string> parameters = 7;
+}

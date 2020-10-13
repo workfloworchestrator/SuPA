@@ -1,0 +1,112 @@
+syntax = "proto3";
+
+package connection.provider;
+
+import "connection_common.proto";
+import "services.proto";
+
+option java_multiple_files = true;
+option java_package = "org.ogf.nsi.grpc.connection.provider";
+
+/*
+   SOAP has a much more expressive type system, by virtue of using XML
+   schema definitions, than Protocol Buffers. Hence we need to decide
+   how to express things such as UUIDs that are explicitly defined in
+   NSI using constructs such as: `<xsd:pattern
+   value="urn:uuid:[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}"/>`.
+
+   In Protocol Buffers we basically have only two choices to map an UUID,
+   namely `string` or `bytes`. Regardless of whether we use `string` or
+   `bytes` we loose a fair amount specificity. Eg given the mapping of an
+   UUID to a `string`, we are not actually dealing with any kind of string,
+   we are dealing with a string in a very specific format. One way to
+   restore some of that specificity is to use a separate message type for
+   UUIDs ,eg:
+
+   message Uuid {
+     string uuid = 1;
+   }
+
+   Such a message still does not constrain the string values allowed, but
+   it does make field definitions much more explicit for the human reader
+   (compare `Uuid correlation_id` vs `string correlation_id`). However
+   when using the stub code generated from the Protocol Buffers
+   definition, this additional level of indirection requires us to use an
+   extra Builder just to set a single field. As the users of the stub code
+   are expected to have knowledge of the protocol and as such should know
+   that, for example, `correlation_id` is not just any string but an UUID,
+   this additional level of indirection was deemed wasteful.
+
+   Hence we have decided to map UUIDs, but also URIs, StpIds and other,
+   more constraint types, to Protocol Buffers primitive types rather than
+   messages. To aid the human reader we've annotated the fields with
+   comments to indicate what kind of string is really expected.
+
+
+ */
+message ReservationRequestCriteria {
+  int32 version = 1;
+  common.Schedule schedule = 2;
+  string service_type = 3;
+  oneof service_specific_messages {
+    services.PointToPointService ptps = 4;
+  }
+  /*
+     The specification has two additional fields, `inclusion` and
+     `exclusion`. These are of type `Clusion` and provide the means to
+     specify additional constraints beyond those that are specified in the
+     `service_specific_message`. However modelling the `Clusion` type in
+     Protocol Buffers is non-trivial. Eg. one needs to model the means to
+     dynamically refer to types, attributes and the values they should or
+     should not contain. This is beyond simply modelling a bunch a
+     fields with corresponding types (eg a message). However, these
+     fields are apparently not used yet in the current deployment of
+     Automated GOLE (GLIF Open Lightpath Exchanges). Hence we have chosen
+     not to implement them.
+
+     Should the need for this functionality ever arise, we're probably
+     better off using some sort of mini-DSL, a constraints language of
+     some sorts that we pass along as a string, rather then trying to
+     model it using a plethora of Protocol Buffer messages that rely on
+     the `Any` type. As it is, the 'runtime libraries for working with
+     `Any` types are still under development'
+     (https://developers.google.com/protocol-buffers/docs/proto3#any).
+   */
+}
+
+message ReserveRequest {
+  common.Header header = 1;
+  string connection_id = 2; // URI
+  string global_reservation_id = 3;  // UUID
+  string description = 4;
+  ReservationRequestCriteria criteria = 5;
+}
+
+message ReserveResponse {
+  common.Header header = 1;
+  string connection_id = 2; // URI
+}
+
+message ReserveCommitRequest {
+  common.Header header = 1;
+  string connection_id = 2; // URI
+}
+
+message ReserveCommitResponse {
+  common.Header header = 1;
+}
+
+message ReserveAbortRequest {
+  common.Header header = 1;
+  string connection_id = 2; // URI
+}
+
+message ReserveAbortResponse {
+  common.Header header = 1;
+}
+
+service ConnectionProvider {
+  rpc Reserve(ReserveRequest) returns (ReserveResponse);
+  rpc ReserveCommit(ReserveCommitRequest) returns (ReserveCommitResponse);
+  rpc ReserveAbort(ReserveAbortRequest) returns (ReserveAbortResponse);
+}

@@ -1,0 +1,83 @@
+syntax = "proto3";
+
+package connection.requester;
+
+import "connection_common.proto";
+
+option java_multiple_files = true;
+option java_package = "org.ogf.nsi.grpc.connection.requester";
+import "services.proto";
+
+/*
+  SOAP's version of ReserveFailed is an alias of GenericFailedType. Unfortunately protobuf does not
+  allows aliases for messages that are structurally the same. Hence we define each of the *Failed messages
+  explicitely.
+ */
+message ReserveFailedRequest {
+  common.Header header = 1;
+  string connection_id = 2;
+  common.ConnectionStates connection_states = 3;
+  common.ServiceException service_exception = 4;
+}
+
+message ReserveFailedResponse {
+  common.Header header = 1;
+}
+
+message ReservationConfirmCriteria {
+  int32 version = 1;
+  common.Schedule schedule = 2;
+  string serviceType = 3;
+  oneof service_specific_messages {
+    services.PointToPointService ptps = 4;
+  }
+}
+
+message ReserveConfirmedRequest {
+  common.Header header = 1;
+  string connection_id = 2;
+  string global_reservation_id = 3;  // UUID
+  string description = 4;
+  ReservationConfirmCriteria criteria = 5;
+}
+
+message ReserveConfirmedResponse {
+  common.Header header = 1;
+}
+
+message ReserveCommitConfirmedRequest {
+  common.Header header = 1;
+  string connection_id = 2; // URI
+}
+
+message ReserveCommitConfirmedResponse {
+  common.Header header = 1;
+}
+
+message ReserveCommitFailedRequest {
+  common.Header header = 1;
+  string connection_id = 2; // URI
+  common.ConnectionStates connection_states = 3;
+  common.ServiceException service_exception = 4;
+}
+
+message ReserveCommitFailedResponse {
+  common.Header header = 1;
+}
+
+message ReserveAbortConfirmedRequest {
+  common.Header header = 1;
+  string connection_id = 2; // URI
+}
+
+message ReserveAbortConfirmedResponse {
+  common.Header header = 1;
+}
+
+service ConnectionRequester {
+  rpc ReserveFailed(ReserveFailedRequest) returns (ReserveFailedResponse);
+  rpc ReserveConfirmed(ReserveConfirmedRequest) returns (ReserveConfirmedResponse);
+  rpc ReserveCommitConfirmed(ReserveCommitConfirmedRequest) returns (ReserveCommitConfirmedResponse);
+  rpc ReserveCommitFailed(ReserveCommitFailedRequest) returns (ReserveCommitFailedResponse);
+  rpc ReserveAbortConfirmed(ReserveAbortConfirmedRequest) returns (ReserveAbortConfirmedResponse);
+}

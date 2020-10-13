@@ -1,0 +1,91 @@
+syntax = "proto3";
+
+package connection.common;
+
+import "google/protobuf/timestamp.proto";
+import "policy.proto";
+
+option java_multiple_files = true;
+option java_package = "org.ogf.nsi.grpc.connection.common";
+
+
+
+message Header {
+  string protocol_version = 1;
+  string correlation_id = 2;  // UUID
+  string requester_nsa = 3;  // URI
+  string provider_nsa = 4;  // URI
+  string reply_to = 5;  // URI
+  /*
+     TODO: Not sure yet what to do with the session security attributes.
+     For the initial implementation we can probably pass the original
+     XML representation verbatim as a string.
+   */
+  string session_security_attributes = 6;
+  policy.PathTrace path_trace = 7;
+}
+
+
+message Schedule {
+  google.protobuf.Timestamp start_time = 1;
+  google.protobuf.Timestamp end_time = 2;
+}
+
+message TypeValuePair {
+  string type = 1;
+  string namespace = 2; // URI
+  string value = 3;
+  string feedback = 4;
+  /*
+    We didn't bother with the `any` element and `anyAttribute` attribute from the SOAP version. They are meant
+    for future extensions that are not yet being used. Should that time come we can extend our TypeValuePair message.
+   */
+}
+
+message ServiceException {
+  string nsa_id = 1;  // URI
+  string connection_id = 2;
+  string service_type = 3;
+  string error_id = 4;
+  string text = 5;
+  repeated TypeValuePair variables = 6;
+  repeated ServiceException child_exception = 7;
+}
+
+enum ReservationState {
+  RESERVE_START = 0;
+  RESERVE_CHECKING = 1;
+  RESERVE_FAILED = 2;
+  RESERVE_ABORTING = 3;
+  RESERVE_HELD = 4;
+  RESERVE_COMMITTING = 5;
+  RESERVE_TIMEOUT = 6;
+}
+
+enum ProvisionState {
+  RELEASED = 0;
+  PROVISIONING = 1;
+  PROVISIONED = 2;
+  RELEASING = 3;
+}
+
+enum LifecycleState {
+  CREATED = 0;
+  FAILED = 1;
+  PASSED_END_TIME = 2;
+  TERMINATING = 3;
+  TERMINATED = 4;
+}
+
+message DataPlaneStatus {
+  bool active = 1;
+  int32 version = 2;
+  bool version_consistent = 3;
+}
+
+message ConnectionStates {
+  ReservationState reservation_state = 1;
+  ProvisionState provision_state = 2;
+  LifecycleState lifecycle_state = 3;
+  DataPlaneStatus data_plane_status = 4;
+}
