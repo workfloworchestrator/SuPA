@@ -11,10 +11,10 @@ the NRM would be the Orchestrator.
 Installation
 ------------
 
-As we don't have an internal Python package repository
+As we have not published supa to a Python package repository
 we need to check out the source code repository::
 
-    $ git clone git@git.ia.surfsara.nl:automation/projects/supa.git
+    $ git clone https://github.com/workfloworchestrator/SuPA.git
 
 SuPA is developed using Python 3.8.
 Hence we need a Python 3.8 virtual environment::
