@@ -26,7 +26,7 @@ such as SURF.
 
     SuPA is kind of special in that it does not speak NSI's native 'language' SOAP.
     Instead, it relies on an `gRPC <https://grpc.io/>`_ version of the NSI protocol
-    as implemented by `PolyNSI <https://git.ia.surfsara.nl/automation/projects/polynsi/>`_,
+    as implemented by `PolyNSI <https://github.com/workfloworchestrator/polynsi/>`_,
     a SOAP <-> gRPC translating proxy that is developed concurrently with SuPA.
 
     The idea is that a modern underlying protocol such gRPC
