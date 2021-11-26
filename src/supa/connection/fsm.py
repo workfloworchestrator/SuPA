@@ -69,12 +69,14 @@ class ReservationStateMachine(StateMachine):
     reserve_request = ReserveStart.to(ReserveChecking)
     reserve_confirmed = ReserveChecking.to(ReserveHeld)
     reserve_failed = ReserveChecking.to(ReserveFailed)
-    reserve_abort_request = ReserveFailed.to(ReserveAborting) | ReserveHeld.to(ReserveAborting)
     reserve_abort_confirmed = ReserveAborting.to(ReserveStart)
     reserve_timeout_notification = ReserveHeld.to(ReserveTimeout)
     reserve_commit_request = ReserveHeld.to(ReserveCommitting) | ReserveTimeout.to(ReserveCommitting)
     reserve_commit_confirmed = ReserveCommitting.to(ReserveStart)
     reserve_commit_failed = ReserveCommitting.to(ReserveStart)
+    reserve_abort_request = (
+        ReserveFailed.to(ReserveAborting) | ReserveHeld.to(ReserveAborting) | ReserveTimeout.to(ReserveAborting)
+    )
 
     def on_enter_ReserveStart(self):
         _log(self)
