@@ -171,7 +171,7 @@ class LifecycleStateMachine(StateMachine):
         _log(self)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     # If you have Graphviz and the corresponding Python package ``graphviz`` installed,
     # generating a graphical representation of the state machines is as easy as running this module.
     # The generated graphs are not the most beautiful
