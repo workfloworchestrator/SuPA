@@ -35,7 +35,15 @@ The RSM and LSM MUST be instantiated as soon as the first Connection request is 
 The PSM MUST be instantiated as soon as the first version of the reservation is committed.
 
 """
+import structlog
 from statemachine import State, StateMachine
+from structlog.stdlib import BoundLogger
+
+logger = structlog.get_logger(__name__)
+
+
+def _log(fsm):
+    fsm.log.info("State transition", to_state=fsm.current_state.identifier, connection_id=str(fsm.model.connection_id))
 
 
 class ReservationStateMachine(StateMachine):
@@ -43,6 +51,12 @@ class ReservationStateMachine(StateMachine):
 
     .. image:: /images/ReservationStateMachine.png
     """
+
+    log: BoundLogger
+
+    def __init__(self, *args, **kwargs):
+        self.log = logger.bind(fsm=self.__class__.__name__)
+        super().__init__(*args, **kwargs)
 
     ReserveStart = State("ReserveStart", "RESERVE_START", initial=True)
     ReserveChecking = State("ReserveChecking", "RESERVE_CHECKING")
@@ -62,12 +76,39 @@ class ReservationStateMachine(StateMachine):
     reserve_commit_confirmed = ReserveCommitting.to(ReserveStart)
     reserve_commit_failed = ReserveCommitting.to(ReserveStart)
 
+    def on_enter_ReserveStart(self):
+        _log(self)
+
+    def on_enter_ReserveChecking(self):
+        _log(self)
+
+    def on_enter_ReserveHeld(self):
+        _log(self)
+
+    def on_enter_ReserveCommitting(self):
+        _log(self)
+
+    def on_enter_ReserveFailed(self):
+        _log(self)
+
+    def on_enter_ReserveTimeout(self):
+        _log(self)
+
+    def on_enter_ReserveAborting(self):
+        _log(self)
+
 
 class ProvisioningStateMachine(StateMachine):
     """Provisioning State Machine.
 
     .. image:: /images/ProvisioningStateMachine.png
     """
+
+    log: BoundLogger
+
+    def __init__(self, *args, **kwargs):
+        self.log = logger.bind(fsm=self.__class__.__name__)
+        super().__init__(*args, **kwargs)
 
     Released = State("Released", "RELEASED", initial=True)
     Provisioning = State("Provisioning", "PROVISIONING")
@@ -79,12 +120,30 @@ class ProvisioningStateMachine(StateMachine):
     release_request = Provisioned.to(Releasing)
     release_confirmed = Releasing.to(Released)
 
+    def on_enter_Released(self):
+        _log(self)
+
+    def on_enter_Provisioning(self):
+        _log(self)
+
+    def on_enter_Provisioned(self):
+        _log(self)
+
+    def on_enter_Releasing(self):
+        _log(self)
+
 
 class LifecycleStateMachine(StateMachine):
     """Lifecycle State Machine.
 
     .. image:: /images/LifecycleStateMachine.png
     """
+
+    log: BoundLogger
+
+    def __init__(self, *args, **kwargs):
+        self.log = logger.bind(fsm=self.__class__.__name__)
+        super().__init__(*args, **kwargs)
 
     Created = State("Created", "CREATED", initial=True)
     Failed = State("Failed", "FAILED")
@@ -96,6 +155,18 @@ class LifecycleStateMachine(StateMachine):
     terminate_request = Created.to(Terminating) | PassedEndTime.to(Terminating) | Failed.to(Terminating)
     endtime_event = Created.to(PassedEndTime)
     terminate_confirmed = Terminating.to(Terminated)
+
+    def on_enter_Failed(self):
+        _log(self)
+
+    def on_enter_Terminating(self):
+        _log(self)
+
+    def on_enter_PassedEndTime(self):
+        _log(self)
+
+    def on_enter_Terminated(self):
+        _log(self)
 
 
 if __name__ == "__main__":
