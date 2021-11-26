@@ -109,8 +109,8 @@ def to_connection_states(reservation: model.Reservation, *, data_plane_active: b
     """
     pb_cs = ConnectionStates()
     pb_cs.reservation_state = ReservationState.Value(reservation.reservation_state)
-    if reservation.provisioning_state is not None:
-        pb_cs.provision_state = ProvisionState.Value(reservation.provisioning_state)
+    if reservation.provision_state is not None:
+        pb_cs.provision_state = ProvisionState.Value(reservation.provision_state)
     pb_cs.lifecycle_state = LifecycleState.Value(reservation.lifecycle_state)
     pb_cs.data_plane_status.active = data_plane_active
     pb_cs.data_plane_status.version = reservation.version

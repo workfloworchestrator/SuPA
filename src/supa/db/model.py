@@ -84,7 +84,7 @@ from sqlalchemy.ext.orderinglist import ordering_list
 from sqlalchemy.orm import relationship
 from sqlalchemy.orm.state import InstanceState
 
-from supa.connection.fsm import LifecycleStateMachine, ProvisioningStateMachine, ReservationStateMachine
+from supa.connection.fsm import LifecycleStateMachine, ProvisionStateMachine, ReservationStateMachine
 from supa.util import nsi
 from supa.util.timestamp import NO_END_DATE, current_timestamp
 
@@ -241,7 +241,7 @@ class Reservation(Base):
         nullable=False,
         default=ReservationStateMachine.ReserveStart.value,  # type: ignore[has-type]
     )
-    provisioning_state = Column(Enum(*[s.name for s in ProvisioningStateMachine.states]))
+    provision_state = Column(Enum(*[s.name for s in ProvisionStateMachine.states]))
     lifecycle_state = Column(
         Enum(*[s.value for s in LifecycleStateMachine.states]),
         nullable=False,

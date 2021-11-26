@@ -1,6 +1,6 @@
 import pytest
 
-from supa.connection.fsm import LifecycleStateMachine, ProvisioningStateMachine, ReservationStateMachine
+from supa.connection.fsm import LifecycleStateMachine, ProvisionStateMachine, ReservationStateMachine
 from supa.db.model import Reservation
 
 
@@ -87,19 +87,19 @@ def test_reservation_state_machine() -> None:  # noqa: D103
 
 def test_provision_state_machine() -> None:  # noqa: D103
     reservation = Reservation()
-    psm = ProvisioningStateMachine(reservation, state_field="provision_state")
+    psm = ProvisionStateMachine(reservation, state_field="provision_state")
     #
     # provision_request -> provision_confirmed -> release_request -> release_confirmed
     #
-    assert reservation.provision_state == ProvisioningStateMachine.Released.value
+    assert reservation.provision_state == ProvisionStateMachine.Released.value
     psm.provision_request()
-    assert reservation.provision_state == ProvisioningStateMachine.Provisioning.value
+    assert reservation.provision_state == ProvisionStateMachine.Provisioning.value
     psm.provision_confirmed()
-    assert reservation.provision_state == ProvisioningStateMachine.Provisioned.value
+    assert reservation.provision_state == ProvisionStateMachine.Provisioned.value
     psm.release_request()
-    assert reservation.provision_state == ProvisioningStateMachine.Releasing.value
+    assert reservation.provision_state == ProvisionStateMachine.Releasing.value
     psm.release_confirmed()
-    assert reservation.provision_state == ProvisioningStateMachine.Released.value
+    assert reservation.provision_state == ProvisionStateMachine.Released.value
 
 
 def test_lifecycle_state_machine() -> None:  # noqa: D103

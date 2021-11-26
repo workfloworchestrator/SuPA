@@ -19,7 +19,7 @@ model the behaviour of the protocol.
 They are:
 
 - :class:`ReservationStateMachine` (RSM)
-- :class:`ProvisioningStateMachine` (PSM)
+- :class:`ProvisionStateMachine` (PSM)
 - :class:`LifecycleStateMachine` (LSM)
 
 The state machines explicitly regulate the sequence in which messages are processed.
@@ -100,10 +100,10 @@ class ReservationStateMachine(StateMachine):
         _log(self)
 
 
-class ProvisioningStateMachine(StateMachine):
-    """Provisioning State Machine.
+class ProvisionStateMachine(StateMachine):
+    """Provision State Machine.
 
-    .. image:: /images/ProvisioningStateMachine.png
+    .. image:: /images/ProvisionStateMachine.png
     """
 
     log: BoundLogger
@@ -196,5 +196,5 @@ if __name__ == "__main__":  # pragma: no cover
         dg.render(filename=name, directory=output_path, cleanup=True, format="png")
 
     plot_fsm(ReservationStateMachine(), "ReservationStateMachine")
-    plot_fsm(ProvisioningStateMachine(), "ProvisioningStateMachine")
+    plot_fsm(ProvisionStateMachine(), "ProvisionStateMachine")
     plot_fsm(LifecycleStateMachine(), "LifecycleStateMachine")
