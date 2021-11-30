@@ -127,7 +127,7 @@ class ReserveJob(Job):
                 or_(
                     and_(
                         Reservation.reservation_state == ReservationStateMachine.ReserveStart.name,
-                        Reservation.provisioning_state.isnot(None),
+                        Reservation.provision_state.isnot(None),
                         Reservation.lifecycle_state == LifecycleStateMachine.Created.name,
                     ),
                     Reservation.reservation_state == ReservationStateMachine.ReserveHeld.name,

@@ -19,7 +19,7 @@ model the behaviour of the protocol.
 They are:
 
 - :class:`ReservationStateMachine` (RSM)
-- :class:`ProvisioningStateMachine` (PSM)
+- :class:`ProvisionStateMachine` (PSM)
 - :class:`LifecycleStateMachine` (LSM)
 
 The state machines explicitly regulate the sequence in which messages are processed.
@@ -35,10 +35,30 @@ The RSM and LSM MUST be instantiated as soon as the first Connection request is 
 The PSM MUST be instantiated as soon as the first version of the reservation is committed.
 
 """
+from typing import Any
+
+import structlog
 from statemachine import State, StateMachine
+from structlog.stdlib import BoundLogger
+
+logger = structlog.get_logger(__name__)
 
 
-class ReservationStateMachine(StateMachine):
+class SuPAStateMachine(StateMachine):
+    """Add logging capabilities to StateMachine."""
+
+    log: BoundLogger
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        self.log = logger.bind(fsm=self.__class__.__name__)
+        super().__init__(*args, **kwargs)
+
+    def on_enter_state(self, state: State) -> None:
+        if isinstance(state, State):
+            self.log.info("State transition", to_state=state.identifier, connection_id=str(self.model.connection_id))
+
+
+class ReservationStateMachine(SuPAStateMachine):
     """Reservation State Machine.
 
     .. image:: /images/ReservationStateMachine.png
@@ -55,18 +75,20 @@ class ReservationStateMachine(StateMachine):
     reserve_request = ReserveStart.to(ReserveChecking)
     reserve_confirmed = ReserveChecking.to(ReserveHeld)
     reserve_failed = ReserveChecking.to(ReserveFailed)
-    reserve_abort_request = ReserveFailed.to(ReserveAborting) | ReserveHeld.to(ReserveAborting)
     reserve_abort_confirmed = ReserveAborting.to(ReserveStart)
     reserve_timeout_notification = ReserveHeld.to(ReserveTimeout)
     reserve_commit_request = ReserveHeld.to(ReserveCommitting) | ReserveTimeout.to(ReserveCommitting)
     reserve_commit_confirmed = ReserveCommitting.to(ReserveStart)
     reserve_commit_failed = ReserveCommitting.to(ReserveStart)
+    reserve_abort_request = (
+        ReserveFailed.to(ReserveAborting) | ReserveHeld.to(ReserveAborting) | ReserveTimeout.to(ReserveAborting)
+    )
 
 
-class ProvisioningStateMachine(StateMachine):
-    """Provisioning State Machine.
+class ProvisionStateMachine(SuPAStateMachine):
+    """Provision State Machine.
 
-    .. image:: /images/ProvisioningStateMachine.png
+    .. image:: /images/ProvisionStateMachine.png
     """
 
     Released = State("Released", "RELEASED", initial=True)
@@ -80,7 +102,7 @@ class ProvisioningStateMachine(StateMachine):
     release_confirmed = Releasing.to(Released)
 
 
-class LifecycleStateMachine(StateMachine):
+class LifecycleStateMachine(SuPAStateMachine):
     """Lifecycle State Machine.
 
     .. image:: /images/LifecycleStateMachine.png
@@ -98,7 +120,7 @@ class LifecycleStateMachine(StateMachine):
     terminate_confirmed = Terminating.to(Terminated)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     # If you have Graphviz and the corresponding Python package ``graphviz`` installed,
     # generating a graphical representation of the state machines is as easy as running this module.
     # The generated graphs are not the most beautiful
@@ -123,5 +145,5 @@ if __name__ == "__main__":
         dg.render(filename=name, directory=output_path, cleanup=True, format="png")
 
     plot_fsm(ReservationStateMachine(), "ReservationStateMachine")
-    plot_fsm(ProvisioningStateMachine(), "ProvisioningStateMachine")
+    plot_fsm(ProvisionStateMachine(), "ProvisionStateMachine")
     plot_fsm(LifecycleStateMachine(), "LifecycleStateMachine")
