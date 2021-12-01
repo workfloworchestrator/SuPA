@@ -1,0 +1,26 @@
+name: Unit tests
+on: push
+
+jobs:
+  container_job:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [ 3.8.12 ]
+    container: python:${{ matrix.python-version }}-slim
+    steps:
+      # Downloads a copy of the code in your repository before running CI tests
+      - name: Check out repository code
+        uses: actions/checkout@v2
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[dev]'
+      - name: Run Unit tests
+        run: pytest --cov-report term-missing --cov-report=xml --cov=src tests
+      - name: "Upload coverage to Codecov"
+        uses: codecov/codecov-action@v2
+        with:
+          fail_ci_if_error: true
+          files: ./coverage.xml

@@ -84,7 +84,7 @@ class VlanRanges(abc.Set):
                 try:
                     vlans = list(map(lambda s: list(map(int, s.strip().split("-"))), val.split(",")))
                 except ValueError:
-                    raise ValueError(f"{val} could not be converted to a {self.__class__.__name__} object.")
+                    raise ValueError(f"{val} could not be converted to a {self.__class__.__name__} object.") from None
         elif isinstance(val, int):
             vlans = [[val]]
         elif isinstance(val, abc.Sequence):

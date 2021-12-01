@@ -50,10 +50,12 @@ class SuPAStateMachine(StateMachine):
     log: BoundLogger
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
+        """Bind logger for this state machine and call __init__ of super class."""
         self.log = logger.bind(fsm=self.__class__.__name__)
         super().__init__(*args, **kwargs)
 
     def on_enter_state(self, state: State) -> None:
+        """Log the new state machine state for every connection ID."""
         if isinstance(state, State):
             self.log.info("State transition", to_state=state.identifier, connection_id=str(self.model.connection_id))
 
