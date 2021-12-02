@@ -291,7 +291,7 @@ if __name__ == "__main__":
     import io
 
     nsi_errors = [(attr, globals()[attr]) for attr in list(globals().keys()) if isinstance(globals()[attr], NsiError)]
-    nsi_errors.sort(key=lambda t: t[1].error_id)
+    nsi_errors.sort(key=lambda t: str(t[1].error_id))
     print(  # noqa: T001
         """
 .. csv-table:: Predefined NSI errors
