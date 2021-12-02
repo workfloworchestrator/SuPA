@@ -239,13 +239,13 @@ class Reservation(Base):
     reservation_state = Column(
         Enum(*[s.value for s in ReservationStateMachine.states]),
         nullable=False,
-        default=ReservationStateMachine.ReserveStart.value,  # type: ignore[has-type]
+        default=ReservationStateMachine.ReserveStart.value,
     )
     provision_state = Column(Enum(*[s.name for s in ProvisionStateMachine.states]))
     lifecycle_state = Column(
         Enum(*[s.value for s in LifecycleStateMachine.states]),
         nullable=False,
-        default=LifecycleStateMachine.Created.value,  # type: ignore[has-type]
+        default=LifecycleStateMachine.Created.value,
     )
 
     # another header part
