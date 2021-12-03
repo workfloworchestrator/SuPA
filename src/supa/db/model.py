@@ -241,7 +241,7 @@ class Reservation(Base):
         nullable=False,
         default=ReservationStateMachine.ReserveStart.value,
     )
-    provision_state = Column(Enum(*[s.name for s in ProvisionStateMachine.states]))
+    provision_state = Column(Enum(*[s.value for s in ProvisionStateMachine.states]))
     lifecycle_state = Column(
         Enum(*[s.value for s in LifecycleStateMachine.states]),
         nullable=False,
