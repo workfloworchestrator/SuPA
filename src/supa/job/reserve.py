@@ -13,13 +13,16 @@
 from __future__ import annotations
 
 import random
-from typing import Dict, List, NamedTuple, Tuple, Type
+from datetime import timedelta
+from typing import Dict, List, NamedTuple, Type
 from uuid import UUID
 
 import structlog
+from apscheduler.triggers.date import DateTrigger
 from more_itertools import flatten
 from sqlalchemy import and_, func, or_, orm
 from sqlalchemy.orm import aliased, joinedload
+from statemachine.exceptions import TransitionNotAllowed
 from structlog.stdlib import BoundLogger
 
 from supa import settings
@@ -46,6 +49,7 @@ from supa.grpc_nsi.connection_requester_pb2 import (
 from supa.job.shared import Job, NsiException
 from supa.util.bandwidth import format_bandwidth
 from supa.util.converter import to_confirm_criteria, to_connection_states, to_header, to_service_exception
+from supa.util.timestamp import current_timestamp
 from supa.util.vlan import VlanRanges
 
 logger = structlog.get_logger(__name__)
@@ -348,9 +352,9 @@ class ReserveJob(Job):
             )
         return [ReserveJob(cid) for cid in connection_ids]
 
-    def trigger(self) -> Tuple:
-        """Return APScheduler trigger information for scheduling recovered ReserveJob's."""
-        return ()  # Run immediately after recovery
+    def trigger(self) -> DateTrigger:
+        """Return APScheduler trigger information for scheduling ReserveJob's."""
+        return DateTrigger(run_date=None)  # Run immediately
 
 
 class ReserveCommitJob(Job):
@@ -398,7 +402,6 @@ class ReserveCommitJob(Job):
         """Commit reservation request.
 
         If the reservation can be committed
-        the reservation timeout timer will be cancelled and
         a ReserveCommitConfirmed message will be send to the NSA/AG.
         If for whatever reason the reservation cannot be committed
         a ReserveCommitFailed message will be sent instead.
@@ -464,9 +467,9 @@ class ReserveCommitJob(Job):
             )
         return [ReserveJob(cid) for cid in connection_ids]
 
-    def trigger(self) -> Tuple:
-        """Trigger for recovered ReserveCommitJobs."""
-        return super().trigger()
+    def trigger(self) -> DateTrigger:
+        """Trigger for ReserveCommitJobs."""
+        return DateTrigger(run_date=None)  # Run immediately
 
 
 class ReserveAbortJob(Job):
@@ -500,8 +503,7 @@ class ReserveAbortJob(Job):
         """Abort reservation request.
 
         The reservation will be aborted and
-        a ReserveCommitConfirmed message will be sent to the NSA/AG
-        canceling the reservation timeout timer if still active.
+        a ReserveAbortConfirmed message will be sent to the NSA/AG.
         If the reservation state machine is not in the correct state for a ReserveCommit
         an NSI error is returned leaving the state machine unchanged.
         """
@@ -563,6 +565,110 @@ class ReserveAbortJob(Job):
             )
         return [ReserveJob(cid) for cid in connection_ids]
 
-    def trigger(self) -> Tuple:
+    def trigger(self) -> DateTrigger:
         """Trigger for ReserveAbortJobs."""
-        return super().trigger()
+        return DateTrigger(run_date=None)  # Run immediately
+
+
+class ReserveTimeoutJob(Job):
+    """Handle reserve timeouts."""
+
+    connection_id: UUID
+    log: BoundLogger
+
+    def _send_reserve_timeout_notification(self, session: orm.Session) -> None:
+        # the reservation is still in the session, hence no actual query will be performed
+        #
+        # FIXME: implement reserve timeout notification
+        #
+        # reservation: Reservation = session.query(Reservation).get(self.connection_id)
+        # pb_rcc_req = ReserveAbortConfirmedRequest()
+        #
+        # pb_rcc_req.header.CopyFrom(to_header(reservation, add_path_segment=True))  # Yes, add our segment!
+        # pb_rcc_req.connection_id = str(reservation.connection_id)
+        #
+        # self.log.info("Sending message.", method="ReserveAbortConfirmed", request_message=pb_rcc_req)
+        # stub = requester.get_stub()
+        # stub.ReserveAbortConfirmed(pb_rcc_req)
+        pass
+
+    def __init__(self, connection_id: UUID):
+        """Initialize the ReserveTimeoutJob.
+
+        Args:
+           connection_id: The connection_id of the reservation to timeout
+        """
+        self.log = logger.bind(job=self.__class__.__name__)
+        self.connection_id = connection_id
+
+    def __call__(self) -> None:
+        """Timeout reservation request.
+
+        The reservation will be timed out
+        if the ReservationStateMachine is still in the ReserveHeld state and
+        a ReserveTimeoutNotification message will be sent to the NSA/AG.
+        If another transition already moved the state beyond ReserveHeld
+        then this is practically a no-op.
+        """
+        self.log.info("Timeout reservation")
+
+        from supa.db.session import db_session
+
+        with db_session() as session:
+            reservation = (
+                session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one_or_none()
+            )
+            rsm = ReservationStateMachine(reservation, state_field="reservation_state")
+            try:
+                rsm.reserve_timeout_notification()
+                #
+                # FixME: If there is a Network Resource Manager that needs to be contacted
+                #        to timeout the reservation request then this is the place.
+                #        If this is a recovered job then try to recover the reservation state
+                #        from the NRM.
+                #
+            except TransitionNotAllowed:
+                self.log.info(
+                    "Reservation not timed out",
+                    state=rsm.current_state.identifier,
+                    connection_id=str(self.connection_id),
+                )
+            except Exception as exc:
+                self.log.exception("Unexpected error occurred.", reason=str(exc))
+                #
+                # FIXME: Send NSI serviceException
+                #
+                # nsi_exc = NsiException(GenericInternalError, str(exc))  # type: ignore[misc]
+                # self._send_service_exception(session, nsi_exc)
+            else:
+                #
+                # FIXME: release reserved resources
+                #
+                self._send_reserve_timeout_notification(session)
+
+    @classmethod
+    def recover(cls: Type[ReserveTimeoutJob]) -> List[Job]:
+        """Recover ReserveTimeoutJob's that did not get to run before SuPA was terminated.
+
+        The current implementation just re-adds a new reservation timeout
+        for all reservations that are still in ReserveHeld,
+        potentially almost doubling the original reservation hold time.
+
+        Returns:
+            List of ReserveTimeoutJob's that still need to be run.
+        """
+        from supa.db.session import db_session
+
+        with db_session() as session:
+            connection_ids: List[UUID] = list(
+                flatten(
+                    session.query(Reservation.connection_id)
+                    .filter(Reservation.reservation_state == ReservationStateMachine.ReserveHeld.value)
+                    .all()
+                )
+            )
+        return [ReserveTimeoutJob(cid) for cid in connection_ids]
+
+    def trigger(self) -> DateTrigger:
+        """Trigger for ReserveTimeoutJobs."""
+        return DateTrigger(run_date=current_timestamp() + timedelta(seconds=30))

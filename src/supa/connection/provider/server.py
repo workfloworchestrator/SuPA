@@ -33,8 +33,8 @@ from supa.grpc_nsi.connection_provider_pb2 import (
 )
 from supa.grpc_nsi.policy_pb2 import PathTrace
 from supa.grpc_nsi.services_pb2 import Directionality, PointToPointService
-from supa.job.reserve import ReserveAbortJob, ReserveCommitJob, ReserveJob
-from supa.job.shared import NsiException
+from supa.job.reserve import ReserveAbortJob, ReserveCommitJob, ReserveJob, ReserveTimeoutJob
+from supa.job.shared import Job, NsiException
 from supa.util.nsi import parse_stp
 from supa.util.timestamp import as_utc_timestamp, current_timestamp, is_specified
 
@@ -148,8 +148,16 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
 
         from supa import scheduler
 
-        scheduler.add_job(ReserveJob(connection_id))
+        job: Job
+
+        scheduler.add_job(job := ReserveJob(connection_id), trigger=job.trigger())
         reserve_response = ReserveResponse(header=pb_reserve_request.header, connection_id=str(connection_id))
+        #
+        # FIXME: - make timeout delta configurable
+        #        - add reservation version to timeout job so we do not accidentally timeout a modify
+        #
+        log.info("Schedule reserve timeout", connection_id=str(connection_id), timeout=30)
+        scheduler.add_job(job := ReserveTimeoutJob(connection_id), trigger=job.trigger())
 
         log.info("Sending response.", response_message=reserve_response)
         return reserve_response
@@ -211,11 +219,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             else:
                 from supa import scheduler
 
-                scheduler.add_job(ReserveCommitJob(connection_id))
-
-        #
-        # FIXME: Add reserveTimeoutJob
-        #
+                scheduler.add_job(job := ReserveCommitJob(connection_id), trigger=job.trigger())
 
         reserve_commit_response = ReserveCommitResponse(header=pb_reserve_commit_request.header)
         log.info("Sending response.", response_message=reserve_commit_response)
@@ -278,7 +282,9 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             else:
                 from supa import scheduler
 
-                scheduler.add_job(ReserveAbortJob(UUID(pb_reserve_abort_request.connection_id)))
+                scheduler.add_job(
+                    job := ReserveAbortJob(UUID(pb_reserve_abort_request.connection_id)), trigger=job.trigger()
+                )
 
         reserve_abort_response = ReserveAbortResponse(header=pb_reserve_abort_request.header)
         log.info("Sending response.", response_message=reserve_abort_response)

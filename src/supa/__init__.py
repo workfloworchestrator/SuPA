@@ -375,12 +375,7 @@ def init_app(with_scheduler: bool = True) -> None:
              and you will get an equally nice exception.
 
     If the scheduler is to be initialized as well (see: :attr:`with_scheduler`)
-    it will try to recover jobs.
-    All af SuPA's asynchronous work is performed by jobs that the scheduler schedules.
-    If SuPA is terminated before these jobs have had a chance to run to completion,
-    they might be recovered by looking at the state of their work in the database.
-
-    See Also: :class:`supa.job.shared.Job`
+    it will also be started.
 
     Args:
         with_scheduler: if True, initialize and start scheduler. If False, don't.
@@ -416,9 +411,23 @@ def init_app(with_scheduler: bool = True) -> None:
         )
         scheduler.start()
 
-        recovered_jobs = []
-        for job_type in Job.registry:
-            recovered_jobs.extend(job_type.recover())
-        logger.info("Recovering jobs.", num_recovered_jobs=len(recovered_jobs))
-        for job in recovered_jobs:
-            scheduler.add_job(job, *job.trigger())
+
+def recover_jobs() -> None:
+    """Recover jobs from a previous run with_scheduler.
+
+    :func:`recover_jobs` should only be called after :func:`init_app` was called
+    and the scheduler is running.
+
+    Try to recover all jobs that did not finish.
+    All af SuPA's asynchronous work is performed by jobs that the scheduler schedules.
+    If SuPA is terminated before these jobs have had a chance to run to completion,
+    they might be recovered by looking at the state of their work in the database.
+
+    See Also: :class:`supa.job.shared.Job`
+    """
+    recovered_jobs = []
+    for job_type in Job.registry:
+        recovered_jobs.extend(job_type.recover())
+    logger.info("Recovering jobs.", num_recovered_jobs=len(recovered_jobs))
+    for job in recovered_jobs:
+        scheduler.add_job(job, trigger=job.trigger())
