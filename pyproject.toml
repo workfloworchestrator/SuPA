@@ -12,7 +12,7 @@ force_grid_wrap = 0
 use_parentheses = true
 line_length = 120
 forced_separate = "supa"
-skip = ["venv"]
+skip = ["venv", "src/supa/grpc_nsi"]
 default_section = "THIRDPARTY"
 
 [tool.black]
@@ -28,6 +28,8 @@ exclude = '''
     | \.tox
     | \.venv
     | venv
+    | src/supa/grpc_nsi
+    | build
   )/
 )
 '''

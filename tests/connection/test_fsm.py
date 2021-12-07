@@ -1,5 +1,3 @@
-import pytest
-
 from supa.connection.fsm import LifecycleStateMachine, ProvisionStateMachine, ReservationStateMachine
 from supa.db.model import Reservation
 
@@ -56,7 +54,8 @@ def test_reservation_state_machine() -> None:  # noqa: D103
     rsm.reserve_commit_failed()
     assert reservation.reservation_state == ReservationStateMachine.ReserveStart.value
     #
-    # reserve_request -> reserve_confirmed -> reserve_timeout_notification -> reserve_commit_request -> reserve_commit_confirmed
+    # reserve_request -> reserve_confirmed -> reserve_timeout_notification -> reserve_commit_request ->
+    #   reserve_commit_confirmed
     #
     assert reservation.reservation_state == ReservationStateMachine.ReserveStart.value
     rsm.reserve_request()
@@ -70,7 +69,8 @@ def test_reservation_state_machine() -> None:  # noqa: D103
     rsm.reserve_commit_confirmed()
     assert reservation.reservation_state == ReservationStateMachine.ReserveStart.value
     #
-    # reserve_request -> reserve_confirmed -> reserve_timeout_notification -> reserve_abort_request -> reserve_abort_confirmed
+    # reserve_request -> reserve_confirmed -> reserve_timeout_notification -> reserve_abort_request ->
+    #   reserve_abort_confirmed
     #
     assert reservation.reservation_state == ReservationStateMachine.ReserveStart.value
     rsm.reserve_request()

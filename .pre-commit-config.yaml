@@ -10,7 +10,7 @@ repos:
       - id: check-json
       - id: check-merge-conflict
       - id: check-yaml
-        exclude: (charts/*|.gitlab-ci.yml)
+        exclude: (charts/|.gitlab-ci.yml)
       - id: debug-statements
       - id: detect-private-key
       - id: end-of-file-fixer
