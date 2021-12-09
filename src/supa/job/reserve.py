@@ -389,11 +389,10 @@ class ReserveCommitJob(Job):
     def _send_reserve_commit_confirmed(self, session: orm.Session) -> None:
         # the reservation is still in the session, hence no actual query will be performed
         reservation: Reservation = session.query(Reservation).get(self.connection_id)
-        pb_rcc_req = ReserveCommitConfirmedRequest()
 
+        pb_rcc_req = ReserveCommitConfirmedRequest()
         pb_rcc_req.header.CopyFrom(to_header(reservation, add_path_segment=True))  # Yes, add our segment!
         pb_rcc_req.connection_id = str(reservation.connection_id)
-
         self.log.info("Sending message.", method="ReserveCommitConfirmed", request_message=pb_rcc_req)
         stub = requester.get_stub()
         stub.ReserveCommitConfirmed(pb_rcc_req)
@@ -417,36 +416,42 @@ class ReserveCommitJob(Job):
                 session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one_or_none()
             )
             rsm = ReservationStateMachine(reservation, state_field="reservation_state")
-            try:
-                if rsm.current_state != ReservationStateMachine.ReserveCommitting:
-                    raise NsiException(
-                        InvalidTransition,
-                        rsm.current_state.name,
-                        {Variable.RESERVATION_STATE: rsm.current_state.value},
-                    )
+            if rsm.current_state != ReservationStateMachine.ReserveCommitting:
+                nsi_exc = NsiException(
+                    InvalidTransition,
+                    rsm.current_state.name,
+                    {Variable.RESERVATION_STATE: rsm.current_state.value},
+                )
+                self.log.error("Cannot commit reservation", reason=nsi_exc.text)
+                # TODO: send a Service Exception to notify requester of nsi_exc
                 #
-                # FixME: If there is a Network Resource Manager that needs to be contacted
-                #        to commit the reservation request then this is the place.
-                #        This is more or less the only thing at this point that can trigger a
-                #        rsm.reserve_commit_failed().
-                #        If this is a recovered job then try to recover the reservation state
-                #        from the NRM.
-                #
-            except NsiException as nsi_exc:
-                self.log.info("Reserve commit failed.", reason=nsi_exc.text)
-                rsm.reserve_commit_failed()
-                self._send_reserve_commit_failed(session, nsi_exc)
-            except Exception as exc:
-                self.log.exception("Unexpected error occurred.", reason=str(exc))
-                rsm.reserve_commit_failed()
-                nsi_exc = NsiException(GenericInternalError, str(exc))  # type: ignore[misc]
-                self._send_reserve_commit_failed(session, nsi_exc)  # type: ignore[misc]
+                # self._send_service_exception(nsi_exc)
             else:
-                # create new psm just before the reserveCommitConfirmed,
-                # this will set initial provision_state on reservation
-                psm = ProvisionStateMachine(reservation, state_field="provision_state")  # noqa: F841
-                rsm.reserve_commit_confirmed()
-                self._send_reserve_commit_confirmed(session)
+                try:
+                    #
+                    # FixME: If there is a Network Resource Manager that needs to be contacted
+                    #        to commit the reservation request then this is the place.
+                    #        This is more or less the only thing at this point that can trigger a
+                    #        rsm.reserve_commit_failed().
+                    #        If this is a recovered job then try to recover the reservation state
+                    #        from the NRM.
+                    #
+                    pass
+                except NsiException as nsi_exc:
+                    self.log.info("Reserve commit failed.", reason=nsi_exc.text)
+                    rsm.reserve_commit_failed()
+                    self._send_reserve_commit_failed(session, nsi_exc)
+                except Exception as exc:
+                    self.log.exception("Unexpected error occurred.", reason=str(exc))
+                    rsm.reserve_commit_failed()
+                    nsi_exc = NsiException(GenericInternalError, str(exc))  # type: ignore[misc]
+                    self._send_reserve_commit_failed(session, nsi_exc)  # type: ignore[misc]
+                else:
+                    # create new psm just before the reserveCommitConfirmed,
+                    # this will set initial provision_state on reservation
+                    psm = ProvisionStateMachine(reservation, state_field="provision_state")  # noqa: F841
+                    rsm.reserve_commit_confirmed()
+                    self._send_reserve_commit_confirmed(session)
 
     @classmethod
     def recover(cls: Type[ReserveCommitJob]) -> List[Job]:
@@ -516,35 +521,41 @@ class ReserveAbortJob(Job):
                 session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one_or_none()
             )
             rsm = ReservationStateMachine(reservation, state_field="reservation_state")
-            try:
-                if rsm.current_state != ReservationStateMachine.ReserveAborting:
-                    raise NsiException(
-                        InvalidTransition,
-                        rsm.current_state.name,
-                        {Variable.RESERVATION_STATE: rsm.current_state.value},
-                    )
+            if rsm.current_state != ReservationStateMachine.ReserveAborting:
+                nsi_exc = NsiException(
+                    InvalidTransition,
+                    rsm.current_state.name,
+                    {Variable.RESERVATION_STATE: rsm.current_state.value},
+                )
+                self.log.error("Cannot abort reservation", reason=nsi_exc.text)
+                # TODO: send a Service Exception to notify requester of nsi_exc
                 #
-                # FixME: If there is a Network Resource Manager that needs to be contacted
-                #        to abort the reservation request then this is the place.
-                #        If this is a recovered job then try to recover the reservation state
-                #        from the NRM.
-                #
-            except NsiException as nsi_exc:
-                self.log.info("Reserve abort failed.", reason=nsi_exc.text)
-                #
-                # FIXME: Send NSI serviceException
-                #
-                # self._send_service_exception(session, nsi_exc)
-            except Exception as exc:
-                self.log.exception("Unexpected error occurred.", reason=str(exc))
-                #
-                # FIXME: Send NSI serviceException
-                #
-                # nsi_exc = NsiException(GenericInternalError, str(exc))  # type: ignore[misc]
-                # self._send_service_exception(session, nsi_exc)
+                # self._send_service_exception(nsi_exc)
             else:
-                rsm.reserve_abort_confirmed()
-                self._send_reserve_abort_confirmed(session)
+                try:
+                    #
+                    # FixME: If there is a Network Resource Manager that needs to be contacted
+                    #        to abort the reservation request then this is the place.
+                    #        If this is a recovered job then try to recover the reservation state
+                    #        from the NRM.
+                    #
+                    pass
+                except NsiException as nsi_exc:
+                    self.log.info("Reserve abort failed.", reason=nsi_exc.text)
+                    #
+                    # FIXME: Send NSI serviceException
+                    #
+                    # self._send_service_exception(session, nsi_exc)
+                except Exception as exc:
+                    self.log.exception("Unexpected error occurred.", reason=str(exc))
+                    #
+                    # FIXME: Send NSI serviceException
+                    #
+                    # nsi_exc = NsiException(GenericInternalError, str(exc))  # type: ignore[misc]
+                    # self._send_service_exception(session, nsi_exc)
+                else:
+                    rsm.reserve_abort_confirmed()
+                    self._send_reserve_abort_confirmed(session)
 
     @classmethod
     def recover(cls: Type[ReserveAbortJob]) -> List[Job]:
