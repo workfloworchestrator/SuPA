@@ -25,7 +25,9 @@ def test_reserve_commit_job_invalid_transition(caplog: Any, connection_id: Colum
         assert reservation.reservation_state == ReservationStateMachine.ReserveHeld.value
 
 
-def test_reserve_commit_job_reserve_commit_confirmed(connection_id: Column, reserve_committing: None) -> None:
+def test_reserve_commit_job_reserve_commit_confirmed(
+    connection_id: Column, reserve_committing: None, get_stub: None
+) -> None:
     """Test ReserveCommitJob to transition to ReserveStart.
 
     Verify that a ReserveCommitJob will transition the reserve state machine
@@ -57,7 +59,9 @@ def test_reserve_abort_job_invalid_transition(caplog: Any, connection_id: Column
         assert reservation.reservation_state == ReservationStateMachine.ReserveHeld.value
 
 
-def test_reserve_abort_job_reserve_abort_confirmed(connection_id: Column, reserve_aborting: None) -> None:
+def test_reserve_abort_job_reserve_abort_confirmed(
+    connection_id: Column, reserve_aborting: None, get_stub: None
+) -> None:
     """Test ReserveAbortJob to transition to ReserveStart.
 
     Verify that a ReserveAbortJob will transition the reserve state machine
