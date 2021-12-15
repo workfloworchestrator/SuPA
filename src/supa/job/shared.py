@@ -158,3 +158,11 @@ class NsiException(Exception):
     def __str__(self) -> str:
         """Return the exception in a human readable format."""
         return self.text
+
+
+def send_service_exception(nsi_exc: NsiException) -> None:
+    """Send a NSI service exception with details from the NsiException."""
+    #
+    # TODO: Send NSI serviceException
+    #
+    pass
