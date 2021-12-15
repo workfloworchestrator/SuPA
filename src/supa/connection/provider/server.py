@@ -68,7 +68,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
 
         """
         log = logger.bind(method="Reserve")
-        log.info("Received message.", request_message=pb_reserve_request)
+        log.debug("Received message.", request_message=pb_reserve_request)
 
         if not pb_reserve_request.connection_id:  # new reservation
             pb_header: Header = pb_reserve_request.header
@@ -143,6 +143,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                 session.add(reservation)
                 session.flush()  # Let DB (actually SQLAlchemy) generate the connection_id for us.
                 connection_id = reservation.connection_id  # Can't reference it outside of the session, hence new var.
+                log = log.bind(connection_id=str(connection_id))
 
         # TODO modify reservation (else clause)
 
@@ -159,7 +160,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         log.info("Schedule reserve timeout", connection_id=str(connection_id), timeout=30)
         scheduler.add_job(job := ReserveTimeoutJob(connection_id), trigger=job.trigger())
 
-        log.info("Sending response.", response_message=reserve_response)
+        log.debug("Sending response.", response_message=reserve_response)
         return reserve_response
 
     def ReserveCommit(
@@ -178,11 +179,9 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         Returns:
             A response telling the caller we have received its commit request.
         """
-        log = logger.bind(method="ReserveCommit")
-        log.info("Received message.", request_message=pb_reserve_commit_request)
-
         connection_id = UUID(pb_reserve_commit_request.connection_id)
-        log = log.bind(connection_id=str(connection_id))
+        log = logger.bind(method="ReserveCommit", connection_id=str(connection_id))
+        log.debug("Received message.", request_message=pb_reserve_commit_request)
 
         from supa.db.session import db_session
 
@@ -214,7 +213,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                     scheduler.add_job(job := ReserveCommitJob(connection_id), trigger=job.trigger())
 
         reserve_commit_response = ReserveCommitResponse(header=pb_reserve_commit_request.header)
-        log.info("Sending response.", response_message=reserve_commit_response)
+        log.debug("Sending response.", response_message=reserve_commit_response)
         return reserve_commit_response
 
     def ReserveAbort(
@@ -233,11 +232,9 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         Returns:
             A response telling the caller we have received its abort request.
         """
-        log = logger.bind(method="ReserveAbort")
-        log.info("Received message.", request_message=pb_reserve_abort_request)
-
         connection_id = UUID(pb_reserve_abort_request.connection_id)
-        log = log.bind(connection_id=str(connection_id))
+        log = logger.bind(method="ReserveAbort", connection_id=str(connection_id))
+        log.debug("Received message.", request_message=pb_reserve_abort_request)
 
         from supa.db.session import db_session
 
@@ -271,5 +268,5 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                     scheduler.add_job(job := ReserveAbortJob(connection_id), trigger=job.trigger())
 
         reserve_abort_response = ReserveAbortResponse(header=pb_reserve_abort_request.header)
-        log.info("Sending response.", response_message=reserve_abort_response)
+        log.debug("Sending response.", response_message=reserve_abort_response)
         return reserve_abort_response

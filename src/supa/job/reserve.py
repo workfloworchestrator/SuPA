@@ -74,7 +74,7 @@ class ReserveJob(Job):
         Args:
            connection_id: The connection_id of the reservation request
         """
-        self.log = logger.bind(job=self.__class__.__name__)
+        self.log = logger.bind(job=self.__class__.__name__, connection_id=str(connection_id))
         self.connection_id = connection_id
 
     def _port_resources_in_use(self, session: orm.Session) -> Dict[str, PortResources]:
@@ -200,7 +200,7 @@ class ReserveJob(Job):
         pb_rf_req.connection_states.CopyFrom(to_connection_states(reservation, data_plane_active=False))
         pb_rf_req.service_exception.CopyFrom(to_service_exception(nsi_exc, reservation.connection_id))
 
-        self.log.info("Sending message.", method="ReserveFailed", request_message=pb_rf_req)
+        self.log.debug("Sending message.", method="ReserveFailed", request_message=pb_rf_req)
         stub = requester.get_stub()
         stub.ReserveFailed(pb_rf_req)
 
@@ -216,7 +216,7 @@ class ReserveJob(Job):
         # We skip setting the description, cause we have nothing specific to set it to (suggestions?)
         pb_rc_req.criteria.CopyFrom(to_confirm_criteria(reservation))
 
-        self.log.info("Sending message.", method="ReserveConfirmed", request_message=pb_rc_req)
+        self.log.debug("Sending message.", method="ReserveConfirmed", request_message=pb_rc_req)
         stub = requester.get_stub()
         stub.ReserveConfirmed(pb_rc_req)
 
@@ -369,7 +369,7 @@ class ReserveCommitJob(Job):
         Args:
            connection_id: The connection_id of the reservation commit request
         """
-        self.log = logger.bind(job=self.__class__.__name__)
+        self.log = logger.bind(job=self.__class__.__name__, connection_id=str(connection_id))
         self.connection_id = connection_id
 
     def _send_reserve_commit_failed(self, session: orm.Session, nsi_exc: NsiException) -> None:
@@ -382,7 +382,7 @@ class ReserveCommitJob(Job):
         pb_rcf_req.connection_states.CopyFrom(to_connection_states(reservation, data_plane_active=False))
         pb_rcf_req.service_exception.CopyFrom(to_service_exception(nsi_exc, reservation.connection_id))
 
-        self.log.info("Sending message.", method="ReserveCommitFailed", request_message=pb_rcf_req)
+        self.log.debug("Sending message.", method="ReserveCommitFailed", request_message=pb_rcf_req)
         stub = requester.get_stub()
         stub.ReserveCommitFailed(pb_rcf_req)
 
@@ -393,7 +393,7 @@ class ReserveCommitJob(Job):
         pb_rcc_req = ReserveCommitConfirmedRequest()
         pb_rcc_req.header.CopyFrom(to_header(reservation, add_path_segment=True))  # Yes, add our segment!
         pb_rcc_req.connection_id = str(reservation.connection_id)
-        self.log.info("Sending message.", method="ReserveCommitConfirmed", request_message=pb_rcc_req)
+        self.log.debug("Sending message.", method="ReserveCommitConfirmed", request_message=pb_rcc_req)
         stub = requester.get_stub()
         stub.ReserveCommitConfirmed(pb_rcc_req)
 
@@ -489,7 +489,7 @@ class ReserveAbortJob(Job):
         Args:
            connection_id: The connection_id of the reservation abort request
         """
-        self.log = logger.bind(job=self.__class__.__name__)
+        self.log = logger.bind(job=self.__class__.__name__, connection_id=str(connection_id))
         self.connection_id = connection_id
 
     def _send_reserve_abort_confirmed(self, session: orm.Session) -> None:
@@ -500,7 +500,7 @@ class ReserveAbortJob(Job):
         pb_rcc_req.header.CopyFrom(to_header(reservation, add_path_segment=True))  # Yes, add our segment!
         pb_rcc_req.connection_id = str(reservation.connection_id)
 
-        self.log.info("Sending message.", method="ReserveAbortConfirmed", request_message=pb_rcc_req)
+        self.log.debug("Sending message.", method="ReserveAbortConfirmed", request_message=pb_rcc_req)
         stub = requester.get_stub()
         stub.ReserveAbortConfirmed(pb_rcc_req)
 
@@ -598,7 +598,7 @@ class ReserveTimeoutJob(Job):
         # pb_rcc_req.header.CopyFrom(to_header(reservation, add_path_segment=True))  # Yes, add our segment!
         # pb_rcc_req.connection_id = str(reservation.connection_id)
         #
-        # self.log.info("Sending message.", method="ReserveAbortConfirmed", request_message=pb_rcc_req)
+        # self.log.debug("Sending message.", method="ReserveAbortConfirmed", request_message=pb_rcc_req)
         # stub = requester.get_stub()
         # stub.ReserveAbortConfirmed(pb_rcc_req)
         pass
@@ -609,7 +609,7 @@ class ReserveTimeoutJob(Job):
         Args:
            connection_id: The connection_id of the reservation to timeout
         """
-        self.log = logger.bind(job=self.__class__.__name__)
+        self.log = logger.bind(job=self.__class__.__name__, connection_id=str(connection_id))
         self.connection_id = connection_id
 
     def __call__(self) -> None:
