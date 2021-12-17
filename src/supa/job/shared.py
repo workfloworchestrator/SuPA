@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from abc import ABCMeta, abstractmethod
 from typing import ClassVar, Dict, List, Optional, Type
+from uuid import UUID
 
 from apscheduler.triggers.date import DateTrigger
 
@@ -160,9 +161,11 @@ class NsiException(Exception):
         return self.text
 
 
-def send_service_exception(nsi_exc: NsiException) -> None:
-    """Send a NSI service exception with details from the NsiException."""
-    #
-    # TODO: Send NSI serviceException
-    #
-    pass
+def send_service_exception(nsi_exc: NsiException, connection_id: UUID) -> None:
+    """Send a NSI service exception referencing the connection_id with details from the NsiException."""
+    from supa.connection import requester
+    from supa.util.converter import to_service_exception
+
+    pb_se = to_service_exception(nsi_exc, connection_id)
+    stub = requester.get_stub()
+    stub.ServiceException(pb_se)

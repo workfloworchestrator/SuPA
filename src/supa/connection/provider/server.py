@@ -194,7 +194,8 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                 send_service_exception(
                     NsiException(
                         ReservationNonExistent, str(connection_id), {Variable.CONNECTION_ID: str(connection_id)}
-                    )
+                    ),
+                    connection_id,
                 )
             else:
                 try:
@@ -205,7 +206,8 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                     send_service_exception(
                         NsiException(
                             InvalidTransition, str(tna), {Variable.RESERVATION_STATE: reservation.reservation_state}
-                        )
+                        ),
+                        connection_id,
                     )
                 else:
                     from supa import scheduler
@@ -247,7 +249,8 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                 send_service_exception(
                     NsiException(
                         ReservationNonExistent, str(connection_id), {Variable.CONNECTION_ID: str(connection_id)}
-                    )
+                    ),
+                    connection_id,
                 )
             else:
                 try:
@@ -260,7 +263,8 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                             InvalidTransition,
                             str(tna),
                             {Variable.RESERVATION_STATE: reservation.reservation_state},
-                        )
+                        ),
+                        connection_id,
                     )
                 else:
                     from supa import scheduler
