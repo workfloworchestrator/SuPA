@@ -15,7 +15,9 @@ from uuid import UUID
 
 import structlog
 from grpc import ServicerContext
+from statemachine.exceptions import TransitionNotAllowed
 
+from supa.connection.error import InvalidTransition, ReservationNonExistent, Variable
 from supa.connection.fsm import ReservationStateMachine
 from supa.db import model
 from supa.grpc_nsi import connection_provider_pb2_grpc
@@ -31,7 +33,8 @@ from supa.grpc_nsi.connection_provider_pb2 import (
 )
 from supa.grpc_nsi.policy_pb2 import PathTrace
 from supa.grpc_nsi.services_pb2 import Directionality, PointToPointService
-from supa.job.reserve import ReserveAbortJob, ReserveCommitJob, ReserveJob
+from supa.job.reserve import ReserveAbortJob, ReserveCommitJob, ReserveJob, ReserveTimeoutJob
+from supa.job.shared import Job, NsiException, send_service_exception
 from supa.util.nsi import parse_stp
 from supa.util.timestamp import as_utc_timestamp, current_timestamp, is_specified
 
@@ -65,7 +68,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
 
         """
         log = logger.bind(method="Reserve")
-        log.info("Received message.", request_message=pb_reserve_request)
+        log.debug("Received message.", request_message=pb_reserve_request)
 
         if not pb_reserve_request.connection_id:  # new reservation
             pb_header: Header = pb_reserve_request.header
@@ -140,15 +143,24 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                 session.add(reservation)
                 session.flush()  # Let DB (actually SQLAlchemy) generate the connection_id for us.
                 connection_id = reservation.connection_id  # Can't reference it outside of the session, hence new var.
+                log = log.bind(connection_id=str(connection_id))
 
         # TODO modify reservation (else clause)
 
         from supa import scheduler
 
-        scheduler.add_job(ReserveJob(connection_id))
-        reserve_response = ReserveResponse(header=pb_reserve_request.header, connection_id=str(connection_id))
+        job: Job
 
-        log.info("Sending response.", response_message=reserve_response)
+        scheduler.add_job(job := ReserveJob(connection_id), trigger=job.trigger())
+        reserve_response = ReserveResponse(header=pb_reserve_request.header, connection_id=str(connection_id))
+        #
+        # FIXME: - make timeout delta configurable
+        #        - add reservation version to timeout job so we do not accidentally timeout a modify
+        #
+        log.info("Schedule reserve timeout", connection_id=str(connection_id), timeout=30)
+        scheduler.add_job(job := ReserveTimeoutJob(connection_id), trigger=job.trigger())
+
+        log.debug("Sending response.", response_message=reserve_response)
         return reserve_response
 
     def ReserveCommit(
@@ -156,8 +168,8 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
     ) -> ReserveCommitResponse:
         """Commit reservation.
 
-        The implementation is extremely straighforward.
-        That is because 'all' the work for committing a request is done asynchronously by
+        Check if the connection ID exists and if the reservation state machine transition is
+        allowed, all real work for committing the reservation is done asynchronously by
         :class:`~supa.job.reserve.ReserveCommitJob`
 
         Args:
@@ -167,15 +179,43 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         Returns:
             A response telling the caller we have received its commit request.
         """
-        log = logger.bind(method="ReserveCommit")
-        log.info("Received message.", request_message=pb_reserve_commit_request)
+        connection_id = UUID(pb_reserve_commit_request.connection_id)
+        log = logger.bind(method="ReserveCommit", connection_id=str(connection_id))
+        log.debug("Received message.", request_message=pb_reserve_commit_request)
 
-        from supa import scheduler
+        from supa.db.session import db_session
 
-        scheduler.add_job(ReserveCommitJob(UUID(pb_reserve_commit_request.connection_id)))
+        with db_session() as session:
+            reservation = (
+                session.query(model.Reservation).filter(model.Reservation.connection_id == connection_id).one_or_none()
+            )
+            if reservation is None:
+                log.info("Connection ID does not exist")
+                send_service_exception(
+                    NsiException(
+                        ReservationNonExistent, str(connection_id), {Variable.CONNECTION_ID: str(connection_id)}
+                    ),
+                    connection_id,
+                )
+            else:
+                try:
+                    rsm = ReservationStateMachine(reservation, state_field="reservation_state")
+                    rsm.reserve_commit_request()
+                except TransitionNotAllowed as tna:
+                    log.info("Not scheduling ReserveCommitJob", reason=str(tna))
+                    send_service_exception(
+                        NsiException(
+                            InvalidTransition, str(tna), {Variable.RESERVATION_STATE: reservation.reservation_state}
+                        ),
+                        connection_id,
+                    )
+                else:
+                    from supa import scheduler
+
+                    scheduler.add_job(job := ReserveCommitJob(connection_id), trigger=job.trigger())
 
         reserve_commit_response = ReserveCommitResponse(header=pb_reserve_commit_request.header)
-        log.info("Sending response.", response_message=reserve_commit_response)
+        log.debug("Sending response.", response_message=reserve_commit_response)
         return reserve_commit_response
 
     def ReserveAbort(
@@ -183,8 +223,8 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
     ) -> ReserveAbortResponse:
         """Abort reservation.
 
-        The implementation is extremely straighforward.
-        That is because 'all' the work for aborting a request is done asynchronously by
+        Check if the connection ID exists and if the reservation state machine transition is
+        allowed, all real work for aborting the reservation is done asynchronously by
         :class:`~supa.job.reserve.ReserveAbortJob`
 
         Args:
@@ -194,13 +234,43 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         Returns:
             A response telling the caller we have received its abort request.
         """
-        log = logger.bind(method="ReserveAbort")
-        logger.info("Received message.", request_message=pb_reserve_abort_request)
+        connection_id = UUID(pb_reserve_abort_request.connection_id)
+        log = logger.bind(method="ReserveAbort", connection_id=str(connection_id))
+        log.debug("Received message.", request_message=pb_reserve_abort_request)
 
-        from supa import scheduler
+        from supa.db.session import db_session
 
-        scheduler.add_job(ReserveAbortJob(UUID(pb_reserve_abort_request.connection_id)))
+        with db_session() as session:
+            reservation = (
+                session.query(model.Reservation).filter(model.Reservation.connection_id == connection_id).one_or_none()
+            )
+            if reservation is None:
+                log.info("Connection ID does not exist")
+                send_service_exception(
+                    NsiException(
+                        ReservationNonExistent, str(connection_id), {Variable.CONNECTION_ID: str(connection_id)}
+                    ),
+                    connection_id,
+                )
+            else:
+                try:
+                    rsm = ReservationStateMachine(reservation, state_field="reservation_state")
+                    rsm.reserve_abort_request()
+                except TransitionNotAllowed as tna:
+                    log.info("Not scheduling ReserveAbortJob", reason=str(tna))
+                    send_service_exception(
+                        NsiException(
+                            InvalidTransition,
+                            str(tna),
+                            {Variable.RESERVATION_STATE: reservation.reservation_state},
+                        ),
+                        connection_id,
+                    )
+                else:
+                    from supa import scheduler
+
+                    scheduler.add_job(job := ReserveAbortJob(connection_id), trigger=job.trigger())
 
         reserve_abort_response = ReserveAbortResponse(header=pb_reserve_abort_request.header)
-        log.info("Sending response.", response_message=reserve_abort_response)
+        log.debug("Sending response.", response_message=reserve_abort_response)
         return reserve_abort_response

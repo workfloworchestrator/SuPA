@@ -13,7 +13,10 @@
 from __future__ import annotations
 
 from abc import ABCMeta, abstractmethod
-from typing import ClassVar, Dict, List, Optional, Tuple, Type
+from typing import ClassVar, Dict, List, Optional, Type
+from uuid import UUID
+
+from apscheduler.triggers.date import DateTrigger
 
 from supa.connection.error import NsiError, Variable
 
@@ -66,7 +69,7 @@ class Job(metaclass=ABCMeta):
         return []
 
     @abstractmethod
-    def trigger(self) -> Tuple:
+    def trigger(self) -> DateTrigger:
         """Trigger for recovered jobs.
 
         Recovered jobs generally know when they should be run.
@@ -82,21 +85,22 @@ class Job(metaclass=ABCMeta):
         Example::
 
             from datetime import datetime, timezone
+            from apscheduler.triggers.date import DateTrigger
 
             my_job = MyJob(...)
-            my_job.trigger()  # -> ("date", run_date=datetime(2020, 10, 8, 10, 0, tzinfo=timezone.utc))
+            my_job.trigger()  # -> DateTrigger(run_date=datetime(2020, 10, 8, 10, 0, tzinfo=timezone.utc))
 
             # Then the recovery process will do this:
 
-            scheduler.add_job(my_job, *my_job.trigger())
+            scheduler.add_job(my_job, my_job.trigger())
 
         If a job needs to be run immediately after recovery,
-        then simply return an empty tuple.
+        then simply return DateTrigger(run_date=None).
 
         Returns:
             Tuple of arguments to be supplied to the ``add_job`` scheduler method.
         """  # noqa: E501 B950
-        return ()
+        return DateTrigger(run_date=None)
 
 
 class NsiException(Exception):
@@ -155,3 +159,13 @@ class NsiException(Exception):
     def __str__(self) -> str:
         """Return the exception in a human readable format."""
         return self.text
+
+
+def send_service_exception(nsi_exc: NsiException, connection_id: UUID) -> None:
+    """Send a NSI service exception referencing the connection_id with details from the NsiException."""
+    from supa.connection import requester
+    from supa.util.converter import to_service_exception
+
+    pb_se = to_service_exception(nsi_exc, connection_id)
+    stub = requester.get_stub()
+    stub.ServiceException(pb_se)

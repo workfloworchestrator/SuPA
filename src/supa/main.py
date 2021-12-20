@@ -32,7 +32,7 @@ import structlog
 from click import Context, Option
 from tabulate import tabulate
 
-from supa import init_app, settings
+from supa import init_app, recover_jobs, settings
 from supa.grpc_nsi import connection_provider_pb2_grpc
 from supa.util.vlan import VlanRanges
 
@@ -189,6 +189,8 @@ def serve(
 
     server.start()
     log.info("Started Connection Provider gRPC Service.")
+
+    recover_jobs()
 
     server.wait_for_termination()
     # TODO Need to capture termination (Ctrl-C) and call `scheduler.shutdown`
