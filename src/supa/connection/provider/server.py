@@ -19,6 +19,7 @@ from statemachine.exceptions import TransitionNotAllowed
 
 from supa.connection.error import InvalidTransition, ReservationNonExistent, Variable
 from supa.connection.fsm import ReservationStateMachine
+from supa.connection.requester import send_error
 from supa.db import model
 from supa.grpc_nsi import connection_provider_pb2_grpc
 from supa.grpc_nsi.connection_common_pb2 import Header, Schedule
@@ -34,7 +35,7 @@ from supa.grpc_nsi.connection_provider_pb2 import (
 from supa.grpc_nsi.policy_pb2 import PathTrace
 from supa.grpc_nsi.services_pb2 import Directionality, PointToPointService
 from supa.job.reserve import ReserveAbortJob, ReserveCommitJob, ReserveJob, ReserveTimeoutJob
-from supa.job.shared import Job, NsiException, send_service_exception
+from supa.job.shared import Job, NsiException
 from supa.util.nsi import parse_stp
 from supa.util.timestamp import as_utc_timestamp, current_timestamp, is_specified
 
@@ -154,8 +155,8 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         scheduler.add_job(job := ReserveJob(connection_id), trigger=job.trigger())
         reserve_response = ReserveResponse(header=pb_reserve_request.header, connection_id=str(connection_id))
         #
-        # FIXME: - make timeout delta configurable
-        #        - add reservation version to timeout job so we do not accidentally timeout a modify
+        # TODO: - make timeout delta configurable
+        #       - add reservation version to timeout job so we do not accidentally timeout a modify
         #
         log.info("Schedule reserve timeout", connection_id=str(connection_id), timeout=30)
         scheduler.add_job(job := ReserveTimeoutJob(connection_id), trigger=job.trigger())
@@ -191,7 +192,8 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             )
             if reservation is None:
                 log.info("Connection ID does not exist")
-                send_service_exception(
+                send_error(
+                    pb_reserve_commit_request.header,
                     NsiException(
                         ReservationNonExistent, str(connection_id), {Variable.CONNECTION_ID: str(connection_id)}
                     ),
@@ -203,9 +205,15 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                     rsm.reserve_commit_request()
                 except TransitionNotAllowed as tna:
                     log.info("Not scheduling ReserveCommitJob", reason=str(tna))
-                    send_service_exception(
+                    send_error(
+                        pb_reserve_commit_request.header,
                         NsiException(
-                            InvalidTransition, str(tna), {Variable.RESERVATION_STATE: reservation.reservation_state}
+                            InvalidTransition,
+                            str(tna),
+                            {
+                                Variable.RESERVATION_STATE: reservation.reservation_state,
+                                Variable.CONNECTION_ID: str(connection_id),
+                            },
                         ),
                         connection_id,
                     )
@@ -246,7 +254,8 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             )
             if reservation is None:
                 log.info("Connection ID does not exist")
-                send_service_exception(
+                send_error(
+                    pb_reserve_abort_request.header,
                     NsiException(
                         ReservationNonExistent, str(connection_id), {Variable.CONNECTION_ID: str(connection_id)}
                     ),
@@ -258,11 +267,15 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                     rsm.reserve_abort_request()
                 except TransitionNotAllowed as tna:
                     log.info("Not scheduling ReserveAbortJob", reason=str(tna))
-                    send_service_exception(
+                    send_error(
+                        pb_reserve_abort_request.header,
                         NsiException(
                             InvalidTransition,
                             str(tna),
-                            {Variable.RESERVATION_STATE: reservation.reservation_state},
+                            {
+                                Variable.RESERVATION_STATE: reservation.reservation_state,
+                                Variable.CONNECTION_ID: str(connection_id),
+                            },
                         ),
                         connection_id,
                     )
