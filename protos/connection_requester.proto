@@ -2,8 +2,6 @@ syntax = "proto3";
 
 package connection.requester;
 
-import "google/protobuf/empty.proto";
-
 import "connection_common.proto";
 
 option java_multiple_files = true;
@@ -76,11 +74,20 @@ message ReserveAbortConfirmedResponse {
   common.Header header = 1;
 }
 
+message ErrorRequest {
+  common.Header header = 1;
+  common.ServiceException service_exception = 2;
+}
+
+message ErrorResponse {
+  common.Header header = 1;
+}
+
 service ConnectionRequester {
   rpc ReserveFailed(ReserveFailedRequest) returns (ReserveFailedResponse);
   rpc ReserveConfirmed(ReserveConfirmedRequest) returns (ReserveConfirmedResponse);
   rpc ReserveCommitConfirmed(ReserveCommitConfirmedRequest) returns (ReserveCommitConfirmedResponse);
   rpc ReserveCommitFailed(ReserveCommitFailedRequest) returns (ReserveCommitFailedResponse);
   rpc ReserveAbortConfirmed(ReserveAbortConfirmedRequest) returns (ReserveAbortConfirmedResponse);
-  rpc ServiceException(common.ServiceException) returns (google.protobuf.Empty);
+  rpc Error(ErrorRequest) returns (ErrorResponse);
 }

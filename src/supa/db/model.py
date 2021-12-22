@@ -247,6 +247,8 @@ class Reservation(Base):
         nullable=False,
         default=LifecycleStateMachine.Created.value,
     )
+    # need this because the reservation state machine is missing a state
+    reservation_timeout = Column(Boolean, nullable=False, default=False)
 
     # another header part
     path_trace = relationship(
