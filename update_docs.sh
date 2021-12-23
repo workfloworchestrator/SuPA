@@ -11,7 +11,7 @@ git stash
 
 # switch branches and pull the data we want
 git checkout gh-pages
-rm -rf .
+rm -rf *
 touch .nojekyll
 git checkout master .gitignore
 git checkout master docs/_build/html
@@ -19,7 +19,7 @@ mv ./docs/_build/html/* ./
 rm -rf ./docs
 git add -A
 git commit -m "publishing updated docs..."
-git push origin gh-pages
+git push origin gh-pages --force
 ## switch back
 git checkout master
 git stash pop
