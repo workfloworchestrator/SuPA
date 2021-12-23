@@ -469,16 +469,25 @@ If imported earlier, <a class="reference internal" href="#supa.scheduler" title=
 and you will get an equally nice exception.</p>
 </div>
 <p>If the scheduler is to be initialized as well (see: <code class="xref py py-attr docutils literal notranslate"><span class="pre">with_scheduler</span></code>)
-it will try to recover jobs.
-All af SuPA’s asynchronous work is performed by jobs that the scheduler schedules.
-If SuPA is terminated before these jobs have had a chance to run to completion,
-they might be recovered by looking at the state of their work in the database.</p>
-<p>See Also: <a class="reference internal" href="#supa.job.shared.Job" title="supa.job.shared.Job"><code class="xref py py-class docutils literal notranslate"><span class="pre">supa.job.shared.Job</span></code></a></p>
+it will also be started.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><p><strong>with_scheduler</strong> – if True, initialize and start scheduler. If False, don’t.</p>
 </dd>
 </dl>
+</dd></dl>
+
+<dl class="py function">
+<dt id="supa.recover_jobs">
+<code class="sig-prename descclassname">supa.</code><code class="sig-name descname">recover_jobs</code><span class="sig-paren">(</span><span class="sig-paren">)</span> &#x2192; None<a class="headerlink" href="#supa.recover_jobs" title="Permalink to this definition">¶</a></dt>
+<dd><p>Recover jobs from a previous run with_scheduler.</p>
+<p><a class="reference internal" href="#supa.recover_jobs" title="supa.recover_jobs"><code class="xref py py-func docutils literal notranslate"><span class="pre">recover_jobs()</span></code></a> should only be called after <a class="reference internal" href="#supa.init_app" title="supa.init_app"><code class="xref py py-func docutils literal notranslate"><span class="pre">init_app()</span></code></a> was called
+and the scheduler is running.</p>
+<p>Try to recover all jobs that did not finish.
+All af SuPA’s asynchronous work is performed by jobs that the scheduler schedules.
+If SuPA is terminated before these jobs have had a chance to run to completion,
+they might be recovered by looking at the state of their work in the database.</p>
+<p>See Also: <a class="reference internal" href="#supa.job.shared.Job" title="supa.job.shared.Job"><code class="xref py py-class docutils literal notranslate"><span class="pre">supa.job.shared.Job</span></code></a></p>
 </dd></dl>
 
 </div>
@@ -905,7 +914,7 @@ If they can, it is up to this class method to recreated these jobs.</p>
 
 <dl class="py method">
 <dt id="supa.job.shared.Job.trigger">
-<em class="property">abstract </em><code class="sig-name descname">trigger</code><span class="sig-paren">(</span><span class="sig-paren">)</span> &#x2192; Tuple<a class="headerlink" href="#supa.job.shared.Job.trigger" title="Permalink to this definition">¶</a></dt>
+<em class="property">abstract </em><code class="sig-name descname">trigger</code><span class="sig-paren">(</span><span class="sig-paren">)</span> &#x2192; apscheduler.triggers.date.DateTrigger<a class="headerlink" href="#supa.job.shared.Job.trigger" title="Permalink to this definition">¶</a></dt>
 <dd><p>Trigger for recovered jobs.</p>
 <p>Recovered jobs generally know when they should be run.
 This function provides the means to tell the recovery process exactly that.</p>
@@ -916,17 +925,18 @@ is passed to the scheduler’s
 method after the job has been passed into it.</p>
 <p>Example:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span><span class="p">,</span> <span class="n">timezone</span>
+<span class="kn">from</span> <span class="nn">apscheduler.triggers.date</span> <span class="kn">import</span> <span class="n">DateTrigger</span>
 
 <span class="n">my_job</span> <span class="o">=</span> <span class="n">MyJob</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
-<span class="n">my_job</span><span class="o">.</span><span class="n">trigger</span><span class="p">()</span>  <span class="c1"># -&gt; (&quot;date&quot;, run_date=datetime(2020, 10, 8, 10, 0, tzinfo=timezone.utc))</span>
+<span class="n">my_job</span><span class="o">.</span><span class="n">trigger</span><span class="p">()</span>  <span class="c1"># -&gt; DateTrigger(run_date=datetime(2020, 10, 8, 10, 0, tzinfo=timezone.utc))</span>
 
 <span class="c1"># Then the recovery process will do this:</span>
 
-<span class="n">scheduler</span><span class="o">.</span><span class="n">add_job</span><span class="p">(</span><span class="n">my_job</span><span class="p">,</span> <span class="o">*</span><span class="n">my_job</span><span class="o">.</span><span class="n">trigger</span><span class="p">())</span>
+<span class="n">scheduler</span><span class="o">.</span><span class="n">add_job</span><span class="p">(</span><span class="n">my_job</span><span class="p">,</span> <span class="n">my_job</span><span class="o">.</span><span class="n">trigger</span><span class="p">())</span>
 </pre></div>
 </div>
 <p>If a job needs to be run immediately after recovery,
-then simply return an empty tuple.</p>
+then simply return DateTrigger(run_date=None).</p>
 <dl class="field-list simple">
 <dt class="field-odd">Returns</dt>
 <dd class="field-odd"><p>Tuple of arguments to be supplied to the <code class="docutils literal notranslate"><span class="pre">add_job</span></code> scheduler method.</p>
@@ -983,6 +993,12 @@ and the <code class="xref py py-attr docutils literal notranslate"><span class="
 
 </dd></dl>
 
+<dl class="py function">
+<dt id="supa.job.shared.send_service_exception">
+<code class="sig-prename descclassname">supa.job.shared.</code><code class="sig-name descname">send_service_exception</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">nsi_exc</span><span class="p">:</span> <span class="n"><a class="reference internal" href="#supa.job.shared.NsiException" title="supa.job.shared.NsiException">supa.job.shared.NsiException</a></span></em>, <em class="sig-param"><span class="n">connection_id</span><span class="p">:</span> <span class="n">uuid.UUID</span></em><span class="sig-paren">)</span> &#x2192; None<a class="headerlink" href="#supa.job.shared.send_service_exception" title="Permalink to this definition">¶</a></dt>
+<dd><p>Send a NSI service exception referencing the connection_id with details from the NsiException.</p>
+</dd></dl>
+
 </div>
 <div class="section" id="supa-job-reserve">
 <h2>supa.job.reserve<a class="headerlink" href="#supa-job-reserve" title="Permalink to this headline">¶</a></h2>
@@ -996,7 +1012,7 @@ model the behaviour of the protocol.</p>
 <p>They are:</p>
 <ul class="simple">
 <li><p><a class="reference internal" href="#supa.connection.fsm.ReservationStateMachine" title="supa.connection.fsm.ReservationStateMachine"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReservationStateMachine</span></code></a> (RSM)</p></li>
-<li><p><a class="reference internal" href="#supa.connection.fsm.ProvisioningStateMachine" title="supa.connection.fsm.ProvisioningStateMachine"><code class="xref py py-class docutils literal notranslate"><span class="pre">ProvisioningStateMachine</span></code></a> (PSM)</p></li>
+<li><p><a class="reference internal" href="#supa.connection.fsm.ProvisionStateMachine" title="supa.connection.fsm.ProvisionStateMachine"><code class="xref py py-class docutils literal notranslate"><span class="pre">ProvisionStateMachine</span></code></a> (PSM)</p></li>
 <li><p><a class="reference internal" href="#supa.connection.fsm.LifecycleStateMachine" title="supa.connection.fsm.LifecycleStateMachine"><code class="xref py py-class docutils literal notranslate"><span class="pre">LifecycleStateMachine</span></code></a> (LSM)</p></li>
 </ul>
 <p>The state machines explicitly regulate the sequence in which messages are processed.
@@ -1009,22 +1025,34 @@ state machines for that specific connection.</p>
 <p>The RSM and LSM MUST be instantiated as soon as the first Connection request is received.</p>
 <p>The PSM MUST be instantiated as soon as the first version of the reservation is committed.</p>
 <dl class="py class">
+<dt id="supa.connection.fsm.SuPAStateMachine">
+<em class="property">class </em><code class="sig-prename descclassname">supa.connection.fsm.</code><code class="sig-name descname">SuPAStateMachine</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">*</span><span class="n">args</span><span class="p">:</span> <span class="n">Any</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span></em><span class="sig-paren">)</span><a class="headerlink" href="#supa.connection.fsm.SuPAStateMachine" title="Permalink to this definition">¶</a></dt>
+<dd><p>Add logging capabilities to StateMachine.</p>
+<dl class="py method">
+<dt id="supa.connection.fsm.SuPAStateMachine.on_enter_state">
+<code class="sig-name descname">on_enter_state</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">state</span><span class="p">:</span> <span class="n">statemachine.statemachine.State</span></em><span class="sig-paren">)</span> &#x2192; None<a class="headerlink" href="#supa.connection.fsm.SuPAStateMachine.on_enter_state" title="Permalink to this definition">¶</a></dt>
+<dd><p>Statemachine will call this function on every state transition.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
 <dt id="supa.connection.fsm.ReservationStateMachine">
-<em class="property">class </em><code class="sig-prename descclassname">supa.connection.fsm.</code><code class="sig-name descname">ReservationStateMachine</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">model</span><span class="p">:</span> <span class="n">Optional<span class="p">[</span>Any<span class="p">]</span></span> <span class="o">=</span> <span class="default_value">None</span></em>, <em class="sig-param"><span class="n">state_field</span><span class="p">:</span> <span class="n">str</span> <span class="o">=</span> <span class="default_value">'state'</span></em>, <em class="sig-param"><span class="n">start_value</span><span class="p">:</span> <span class="n">Optional<span class="p">[</span>V<span class="p">]</span></span> <span class="o">=</span> <span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#supa.connection.fsm.ReservationStateMachine" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="sig-prename descclassname">supa.connection.fsm.</code><code class="sig-name descname">ReservationStateMachine</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">*</span><span class="n">args</span><span class="p">:</span> <span class="n">Any</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span></em><span class="sig-paren">)</span><a class="headerlink" href="#supa.connection.fsm.ReservationStateMachine" title="Permalink to this definition">¶</a></dt>
 <dd><p>Reservation State Machine.</p>
 <img alt="_images/ReservationStateMachine.png" src="_images/ReservationStateMachine.png" />
 </dd></dl>
 
 <dl class="py class">
-<dt id="supa.connection.fsm.ProvisioningStateMachine">
-<em class="property">class </em><code class="sig-prename descclassname">supa.connection.fsm.</code><code class="sig-name descname">ProvisioningStateMachine</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">model</span><span class="p">:</span> <span class="n">Optional<span class="p">[</span>Any<span class="p">]</span></span> <span class="o">=</span> <span class="default_value">None</span></em>, <em class="sig-param"><span class="n">state_field</span><span class="p">:</span> <span class="n">str</span> <span class="o">=</span> <span class="default_value">'state'</span></em>, <em class="sig-param"><span class="n">start_value</span><span class="p">:</span> <span class="n">Optional<span class="p">[</span>V<span class="p">]</span></span> <span class="o">=</span> <span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#supa.connection.fsm.ProvisioningStateMachine" title="Permalink to this definition">¶</a></dt>
-<dd><p>Provisioning State Machine.</p>
-<img alt="_images/ProvisioningStateMachine.png" src="_images/ProvisioningStateMachine.png" />
+<dt id="supa.connection.fsm.ProvisionStateMachine">
+<em class="property">class </em><code class="sig-prename descclassname">supa.connection.fsm.</code><code class="sig-name descname">ProvisionStateMachine</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">*</span><span class="n">args</span><span class="p">:</span> <span class="n">Any</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span></em><span class="sig-paren">)</span><a class="headerlink" href="#supa.connection.fsm.ProvisionStateMachine" title="Permalink to this definition">¶</a></dt>
+<dd><p>Provision State Machine.</p>
+<img alt="_images/ProvisionStateMachine.png" src="_images/ProvisionStateMachine.png" />
 </dd></dl>
 
 <dl class="py class">
 <dt id="supa.connection.fsm.LifecycleStateMachine">
-<em class="property">class </em><code class="sig-prename descclassname">supa.connection.fsm.</code><code class="sig-name descname">LifecycleStateMachine</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">model</span><span class="p">:</span> <span class="n">Optional<span class="p">[</span>Any<span class="p">]</span></span> <span class="o">=</span> <span class="default_value">None</span></em>, <em class="sig-param"><span class="n">state_field</span><span class="p">:</span> <span class="n">str</span> <span class="o">=</span> <span class="default_value">'state'</span></em>, <em class="sig-param"><span class="n">start_value</span><span class="p">:</span> <span class="n">Optional<span class="p">[</span>V<span class="p">]</span></span> <span class="o">=</span> <span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#supa.connection.fsm.LifecycleStateMachine" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="sig-prename descclassname">supa.connection.fsm.</code><code class="sig-name descname">LifecycleStateMachine</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">*</span><span class="n">args</span><span class="p">:</span> <span class="n">Any</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span></em><span class="sig-paren">)</span><a class="headerlink" href="#supa.connection.fsm.LifecycleStateMachine" title="Permalink to this definition">¶</a></dt>
 <dd><p>Lifecycle State Machine.</p>
 <img alt="_images/LifecycleStateMachine.png" src="_images/LifecycleStateMachine.png" />
 </dd></dl>
