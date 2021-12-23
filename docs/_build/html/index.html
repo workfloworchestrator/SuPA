@@ -1,0 +1,311 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>SURFnet 8 ultimate Provider Agent (SuPA) &mdash; SuPA  documentation</title>
+  
+
+  
+  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+
+  
+  
+  
+  
+
+  
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+        <script src="_static/jquery.js"></script>
+        <script src="_static/underscore.js"></script>
+        <script src="_static/doctools.js"></script>
+        <script src="_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="_static/js/theme.js"></script>
+
+    
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Installation" href="installation.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="#" class="icon icon-home" alt="Documentation Home"> SuPA
+          
+
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="documentation.html">Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="running.html">Running</a></li>
+<li class="toctree-l1"><a class="reference internal" href="development.html">Development</a></li>
+<li class="toctree-l1"><a class="reference internal" href="changelog.html">Changelog</a></li>
+</ul>
+<p class="caption"><span class="caption-text">API Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="api.html">API</a></li>
+</ul>
+
+            
+          
+        </div>
+        
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="#">SuPA</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="#" class="icon icon-home"></a> &raquo;</li>
+        
+      <li>SURFnet 8 ultimate Provider Agent (SuPA)</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="_sources/index.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="surfnet-8-ultimate-provider-agent-supa">
+<h1>SURFnet 8 ultimate Provider Agent (SuPA)<a class="headerlink" href="#surfnet-8-ultimate-provider-agent-supa" title="Permalink to this headline">¶</a></h1>
+<p>Welcome to SuPA’s documentation.
+SuPA,
+short for SURFnet 8 ultimate Provider Agent,
+is an implementation of an NSI Network Service Agent.
+An ultimate provider agent,
+such as SuPA,
+services NSI requests by coordinating with a local Network Resource Manager (NRM).
+In case of SURFnet 8 the NRM would be the Orchestrator.</p>
+<p>NSI (Network Service Interface) is an <a class="reference external" href="https://www.ogf.org">Open Grid Forum</a> (OGF)
+<a class="reference external" href="https://www.ogf.org/documents/GFD.237.pdf">protocol (pdf)</a> that:</p>
+<blockquote>
+<div><p>… enables the reservation, creation, management and removal of circuits (connections)
+that transit several networks managed by different providers.</p>
+</div></blockquote>
+<p>It is currently mostly used to create dedicated, temporary connections between
+<a class="reference external" href="https://en.wikipedia.org/wiki/National_research_and_education_network">NRENs</a>,
+such as SURF.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>SuPA is kind of special in that it does not speak NSI’s native ‘language’ SOAP.
+Instead, it relies on an <a class="reference external" href="https://grpc.io/">gRPC</a> version of the NSI protocol
+as implemented by <a class="reference external" href="https://github.com/workfloworchestrator/polynsi/">PolyNSI</a>,
+a SOAP &lt;-&gt; gRPC translating proxy that is developed concurrently with SuPA.</p>
+<p>The idea is that a modern underlying protocol such gRPC
+should make it easier to develop NSI Network Service Agents
+in a wider range of languages than SOAP would have allowed.
+After all, due to its inherent complexity and ambiguity,
+support for SOAP was only every fully implemented for
+.NET, Java and C/C++.
+With the programming language barrier lifted
+we hope to increase the adoption of the NSI protocol.</p>
+</div>
+<div class="toctree-wrapper compound">
+<p class="caption"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#tips">Tips</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="documentation.html">Documentation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="documentation.html#semantic-line-breaks">Semantic Line Breaks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="documentation.html#api-documentation">API Documentation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="documentation.html#build-while-editting">Build while Editting</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="running.html">Running</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="running.html#configuration-file">Configuration File</a></li>
+<li class="toctree-l2"><a class="reference internal" href="running.html#environment-variables">Environment Variables</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="development.html">Development</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="development.html#importing-new-protobuf-grpc-definitions">Importing new protobuf/gRPC definitions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="development.html#pycharm">PyCharm</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="changelog.html">Changelog</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="changelog.html#version-0-1-0">Version 0.1.0</a></li>
+</ul>
+</li>
+</ul>
+</div>
+<div class="toctree-wrapper compound">
+<p class="caption"><span class="caption-text">API Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="api.html">API</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-supa">supa</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-supa.const">supa.const</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#supa-main">supa.main</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-supa.db.session">supa.db.session</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-supa.db.model">supa.db.model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-supa.job.shared">supa.job.shared</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#supa-job-reserve">supa.job.reserve</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-supa.connection.fsm">supa.connection.fsm</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-supa.connection.error">supa.connection.error</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#supa-connection-provider-server">supa.connection.provider.server</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-supa.util.bandwidth">supa.util.bandwidth</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#supa-util-converter">supa.util.converter</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-supa.util.timestamp">supa.util.timestamp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-supa.util.nsi">supa.util.nsi</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#supa-util-vlan">supa.util.vlan</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-supa.util.functional">supa.util.functional</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</div>
+<div class="section" id="indices-and-tables">
+<h1>Indices and tables<a class="headerlink" href="#indices-and-tables" title="Permalink to this headline">¶</a></h1>
+<ul class="simple">
+<li><p><a class="reference internal" href="genindex.html"><span class="std std-ref">Index</span></a></p></li>
+<li><p><a class="reference internal" href="py-modindex.html"><span class="std std-ref">Module Index</span></a></p></li>
+<li><p><a class="reference internal" href="search.html"><span class="std std-ref">Search Page</span></a></p></li>
+</ul>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="installation.html" class="btn btn-neutral float-right" title="Installation" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        
+        &copy; Copyright 2020, SURF
+
+    </p>
+  </div>
+    
+    
+    
+    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a
+    
+    <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a>
+    
+    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>
