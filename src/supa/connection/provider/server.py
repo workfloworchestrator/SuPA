@@ -17,9 +17,8 @@ import structlog
 from grpc import ServicerContext
 from statemachine.exceptions import TransitionNotAllowed
 
-from supa.connection.error import InvalidTransition, ReservationNonExistent, Variable
+from supa.connection.error import InvalidTransition, MissingParameter, ReservationNonExistent, Variable
 from supa.connection.fsm import ReservationStateMachine
-from supa.connection.requester import send_error
 from supa.db import model
 from supa.grpc_nsi import connection_provider_pb2_grpc
 from supa.grpc_nsi.connection_common_pb2 import Header, Schedule
@@ -36,6 +35,7 @@ from supa.grpc_nsi.policy_pb2 import PathTrace
 from supa.grpc_nsi.services_pb2 import Directionality, PointToPointService
 from supa.job.reserve import ReserveAbortJob, ReserveCommitJob, ReserveJob, ReserveTimeoutJob
 from supa.job.shared import Job, NsiException
+from supa.util.converter import to_service_exception
 from supa.util.nsi import parse_stp
 from supa.util.timestamp import as_utc_timestamp, current_timestamp, is_specified
 
@@ -71,12 +71,30 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         log = logger.bind(method="Reserve")
         log.debug("Received message.", request_message=pb_reserve_request)
 
+        # Sanity check on start and end time, in case of problem return ServiceException
+        pb_criteria: ReservationRequestCriteria = pb_reserve_request.criteria
+        pb_schedule: Schedule = pb_criteria.schedule
+        start_time = as_utc_timestamp(pb_schedule.start_time)
+        end_time = as_utc_timestamp(pb_schedule.end_time)
+        extra_info = ""
+        if is_specified(end_time):
+            if end_time <= start_time:
+                extra_info = f"End time cannot come before start time. {start_time=!s}, {end_time=!s}"
+            elif end_time <= current_timestamp():
+                extra_info = f"End time lies in the past. {end_time=!s}"
+        if extra_info:
+            log.info(extra_info)
+            reserve_response = ReserveResponse(
+                header=pb_reserve_request.header,
+                service_exception=to_service_exception(
+                    NsiException(MissingParameter, extra_info, {Variable.END_TIME: end_time.isoformat()})
+                ),
+            )
+            log.debug("Sending response.", response_message=reserve_response)
+            return reserve_response
+
         if not pb_reserve_request.connection_id:  # new reservation
             pb_header: Header = pb_reserve_request.header
-            pb_criteria: ReservationRequestCriteria = pb_reserve_request.criteria
-            pb_schedule: Schedule = pb_criteria.schedule
-            start_time = as_utc_timestamp(pb_schedule.start_time)
-            end_time = as_utc_timestamp(pb_schedule.end_time)
             pb_ptps: PointToPointService = pb_criteria.ptps
             pb_path_trace: PathTrace = pb_header.path_trace
 
@@ -93,11 +111,6 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                 description=pb_reserve_request.description if pb_reserve_request.description else None,
                 version=pb_criteria.version,
             )
-            if is_specified(end_time):
-                if end_time <= start_time:
-                    raise Exception(f"End time cannot come before the start time. {start_time=!s}, {end_time=!s}")
-                elif end_time <= current_timestamp():
-                    raise Exception(f"End time lies in the past. {end_time=!s}")
             if is_specified(start_time):
                 reservation.start_time = start_time
             if is_specified(end_time):
@@ -144,9 +157,12 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                 session.add(reservation)
                 session.flush()  # Let DB (actually SQLAlchemy) generate the connection_id for us.
                 connection_id = reservation.connection_id  # Can't reference it outside of the session, hence new var.
-                log = log.bind(connection_id=str(connection_id))
 
-        # TODO modify reservation (else clause)
+            log = log.bind(connection_id=str(connection_id))
+
+        else:
+            log = log.bind(connection_id=pb_reserve_request.connection_id)
+            # TODO modify reservation (else clause)
 
         from supa import scheduler
 
@@ -192,12 +208,14 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             )
             if reservation is None:
                 log.info("Connection ID does not exist")
-                send_error(
-                    pb_reserve_commit_request.header,
-                    NsiException(
-                        ReservationNonExistent, str(connection_id), {Variable.CONNECTION_ID: str(connection_id)}
+                reserve_commit_response = ReserveCommitResponse(
+                    header=pb_reserve_commit_request.header,
+                    service_exception=to_service_exception(
+                        NsiException(
+                            ReservationNonExistent, str(connection_id), {Variable.CONNECTION_ID: str(connection_id)}
+                        ),
+                        connection_id,
                     ),
-                    connection_id,
                 )
             else:
                 try:
@@ -205,24 +223,26 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                     rsm.reserve_commit_request()
                 except TransitionNotAllowed as tna:
                     log.info("Not scheduling ReserveCommitJob", reason=str(tna))
-                    send_error(
-                        pb_reserve_commit_request.header,
-                        NsiException(
-                            InvalidTransition,
-                            str(tna),
-                            {
-                                Variable.RESERVATION_STATE: reservation.reservation_state,
-                                Variable.CONNECTION_ID: str(connection_id),
-                            },
+                    reserve_commit_response = ReserveCommitResponse(
+                        header=pb_reserve_commit_request.header,
+                        service_exception=to_service_exception(
+                            NsiException(
+                                InvalidTransition,
+                                str(tna),
+                                {
+                                    Variable.RESERVATION_STATE: reservation.reservation_state,
+                                    Variable.CONNECTION_ID: str(connection_id),
+                                },
+                            ),
+                            connection_id,
                         ),
-                        connection_id,
                     )
                 else:
                     from supa import scheduler
 
                     scheduler.add_job(job := ReserveCommitJob(connection_id), trigger=job.trigger())
+                    reserve_commit_response = ReserveCommitResponse(header=pb_reserve_commit_request.header)
 
-        reserve_commit_response = ReserveCommitResponse(header=pb_reserve_commit_request.header)
         log.debug("Sending response.", response_message=reserve_commit_response)
         return reserve_commit_response
 
@@ -254,12 +274,14 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             )
             if reservation is None:
                 log.info("Connection ID does not exist")
-                send_error(
-                    pb_reserve_abort_request.header,
-                    NsiException(
-                        ReservationNonExistent, str(connection_id), {Variable.CONNECTION_ID: str(connection_id)}
+                reserve_abort_response = ReserveAbortResponse(
+                    header=pb_reserve_abort_request.header,
+                    service_exception=to_service_exception(
+                        NsiException(
+                            ReservationNonExistent, str(connection_id), {Variable.CONNECTION_ID: str(connection_id)}
+                        ),
+                        connection_id,
                     ),
-                    connection_id,
                 )
             else:
                 try:
@@ -267,23 +289,25 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                     rsm.reserve_abort_request()
                 except TransitionNotAllowed as tna:
                     log.info("Not scheduling ReserveAbortJob", reason=str(tna))
-                    send_error(
-                        pb_reserve_abort_request.header,
-                        NsiException(
-                            InvalidTransition,
-                            str(tna),
-                            {
-                                Variable.RESERVATION_STATE: reservation.reservation_state,
-                                Variable.CONNECTION_ID: str(connection_id),
-                            },
+                    reserve_abort_response = ReserveAbortResponse(
+                        header=pb_reserve_abort_request.header,
+                        service_exception=to_service_exception(
+                            NsiException(
+                                InvalidTransition,
+                                str(tna),
+                                {
+                                    Variable.RESERVATION_STATE: reservation.reservation_state,
+                                    Variable.CONNECTION_ID: str(connection_id),
+                                },
+                            ),
+                            connection_id,
                         ),
-                        connection_id,
                     )
                 else:
                     from supa import scheduler
 
                     scheduler.add_job(job := ReserveAbortJob(connection_id), trigger=job.trigger())
+                    reserve_abort_response = ReserveAbortResponse(header=pb_reserve_abort_request.header)
 
-        reserve_abort_response = ReserveAbortResponse(header=pb_reserve_abort_request.header)
         log.debug("Sending response.", response_message=reserve_abort_response)
         return reserve_abort_response

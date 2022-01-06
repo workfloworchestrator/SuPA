@@ -85,6 +85,7 @@ message ReserveRequest {
 message ReserveResponse {
   common.Header header = 1;
   string connection_id = 2; // URI
+  common.ServiceException service_exception = 3;
 }
 
 message ReserveCommitRequest {
@@ -94,6 +95,7 @@ message ReserveCommitRequest {
 
 message ReserveCommitResponse {
   common.Header header = 1;
+  common.ServiceException service_exception = 2;
 }
 
 message ReserveAbortRequest {
@@ -103,6 +105,7 @@ message ReserveAbortRequest {
 
 message ReserveAbortResponse {
   common.Header header = 1;
+  common.ServiceException service_exception = 2;
 }
 
 service ConnectionProvider {

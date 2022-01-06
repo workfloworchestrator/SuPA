@@ -11,6 +11,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 """Converter functions for converting data to and from Protobuf messages."""
+from typing import Optional
 from uuid import UUID
 
 from supa import const, settings
@@ -118,7 +119,7 @@ def to_connection_states(reservation: model.Reservation, *, data_plane_active: b
     return pb_cs
 
 
-def to_service_exception(nsi_exc: NsiException, connection_id: UUID) -> ServiceException:
+def to_service_exception(nsi_exc: NsiException, connection_id: Optional[UUID] = None) -> ServiceException:
     """Create Protobuf ``ServiceException`` out of an NsiException.
 
     Args:
@@ -130,7 +131,8 @@ def to_service_exception(nsi_exc: NsiException, connection_id: UUID) -> ServiceE
     """
     pb_se = ServiceException()
     pb_se.nsa_id = settings.nsa_id
-    pb_se.connection_id = str(connection_id)
+    if connection_id:
+        pb_se.connection_id = str(connection_id)
     pb_se.error_id = nsi_exc.nsi_error.error_id
     pb_se.text = nsi_exc.text
     for var in nsi_exc.variables:
