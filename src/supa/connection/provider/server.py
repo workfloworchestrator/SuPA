@@ -18,11 +18,15 @@ from grpc import ServicerContext
 from statemachine.exceptions import TransitionNotAllowed
 
 from supa.connection.error import InvalidTransition, MissingParameter, ReservationNonExistent, Variable
-from supa.connection.fsm import ReservationStateMachine
+from supa.connection.fsm import LifecycleStateMachine, ProvisionStateMachine, ReservationStateMachine
 from supa.db import model
 from supa.grpc_nsi import connection_provider_pb2_grpc
 from supa.grpc_nsi.connection_common_pb2 import Header, Schedule
 from supa.grpc_nsi.connection_provider_pb2 import (
+    ProvisionRequest,
+    ProvisionResponse,
+    ReleaseRequest,
+    ReleaseResponse,
     ReservationRequestCriteria,
     ReserveAbortRequest,
     ReserveAbortResponse,
@@ -30,9 +34,12 @@ from supa.grpc_nsi.connection_provider_pb2 import (
     ReserveCommitResponse,
     ReserveRequest,
     ReserveResponse,
+    TerminateRequest,
+    TerminateResponse,
 )
 from supa.grpc_nsi.policy_pb2 import PathTrace
 from supa.grpc_nsi.services_pb2 import Directionality, PointToPointService
+from supa.job.provision import ProvisionJob
 from supa.job.reserve import ReserveAbortJob, ReserveCommitJob, ReserveJob, ReserveTimeoutJob
 from supa.job.shared import Job, NsiException
 from supa.util.converter import to_response_header, to_service_exception
@@ -317,3 +324,84 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
 
         log.debug("Sending response.", response_message=reserve_abort_response)
         return reserve_abort_response
+
+    def Provision(self, pb_provision_request: ProvisionRequest, context: ServicerContext) -> ProvisionResponse:
+        """Provision reservation.
+
+        Check if the connection ID exists, if the provision state machine exists (as an indication
+        that the reservation was committed, and if the provision state machine transition is
+        allowed, all real work for provisioning the reservation is done asynchronously by
+        :class:`~supa.job.reserve.ProvisionJob`
+
+        Args:
+            pb_provision_request: Basically the connection id wrapped in a request like object
+            context: gRPC server context object.
+
+        Returns:
+            A response telling the caller we have received its provision request.
+        """
+        connection_id = UUID(pb_provision_request.connection_id)
+        log = logger.bind(method="Provision", connection_id=str(connection_id))
+        log.debug("Received message.", request_message=pb_provision_request)
+
+        from supa.db.session import db_session
+
+        with db_session() as session:
+            reservation = (
+                session.query(model.Reservation).filter(model.Reservation.connection_id == connection_id).one_or_none()
+            )
+            if reservation is None:
+                log.info("Connection ID does not exist")
+                provision_response = ProvisionResponse(
+                    header=to_response_header(pb_provision_request.header),
+                    service_exception=to_service_exception(
+                        NsiException(
+                            ReservationNonExistent, str(connection_id), {Variable.CONNECTION_ID: str(connection_id)}
+                        ),
+                        connection_id,
+                    ),
+                )
+            elif not reservation.provision_state:
+                log.info("First version of reservation not committed yet")
+                provision_response = ProvisionResponse(
+                    header=to_response_header(pb_provision_request.header),
+                    service_exception=to_service_exception(
+                        NsiException(
+                            InvalidTransition,
+                            "First version of reservation not committed yet",
+                            {
+                                Variable.RESERVATION_STATE: reservation.reservation_state,
+                                Variable.CONNECTION_ID: str(connection_id),
+                            },
+                        ),
+                        connection_id,
+                    ),
+                )
+            else:
+                try:
+                    rsm = ProvisionStateMachine(reservation, state_field="provision_state")
+                    rsm.provision_request()
+                except TransitionNotAllowed as tna:
+                    log.info("Not scheduling ProvisionJob", reason=str(tna))
+                    provision_response = ProvisionResponse(
+                        header=to_response_header(pb_provision_request.header),
+                        service_exception=to_service_exception(
+                            NsiException(
+                                InvalidTransition,
+                                str(tna),
+                                {
+                                    Variable.PROVISION_STATE: reservation.provision_state,
+                                    Variable.CONNECTION_ID: str(connection_id),
+                                },
+                            ),
+                            connection_id,
+                        ),
+                    )
+                else:
+                    from supa import scheduler
+
+                    scheduler.add_job(job := ProvisionJob(connection_id), trigger=job.trigger())
+                    provision_response = ProvisionResponse(header=to_response_header(pb_provision_request.header))
+
+        log.debug("Sending response.", response_message=provision_response)
+        return provision_response

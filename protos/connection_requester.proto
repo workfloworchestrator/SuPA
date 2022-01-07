@@ -74,6 +74,33 @@ message ReserveAbortConfirmedResponse {
   common.Header header = 1;
 }
 
+message ProvisionConfirmedRequest {
+  common.Header header = 1;
+  string connection_id = 2; // URI
+}
+
+message ProvisionConfirmedResponse {
+  common.Header header = 1;
+}
+
+message ReleaseConfirmedRequest {
+  common.Header header = 1;
+  string connection_id = 2; // URI
+}
+
+message ReleaseConfirmedResponse {
+  common.Header header = 1;
+}
+
+message TerminateConfirmedRequest {
+  common.Header header = 1;
+  string connection_id = 2; // URI
+}
+
+message TerminateConfirmedResponse {
+  common.Header header = 1;
+}
+
 message ErrorRequest {
   common.Header header = 1;
   common.ServiceException service_exception = 2;
@@ -89,5 +116,8 @@ service ConnectionRequester {
   rpc ReserveCommitConfirmed(ReserveCommitConfirmedRequest) returns (ReserveCommitConfirmedResponse);
   rpc ReserveCommitFailed(ReserveCommitFailedRequest) returns (ReserveCommitFailedResponse);
   rpc ReserveAbortConfirmed(ReserveAbortConfirmedRequest) returns (ReserveAbortConfirmedResponse);
+  rpc ProvisionConfirmed(ProvisionConfirmedRequest) returns (ProvisionConfirmedResponse);
+  rpc ReleaseConfirmed(ReleaseConfirmedRequest) returns (ReleaseConfirmedResponse);
+  rpc TerminateConfirmed(TerminateConfirmedRequest) returns (TerminateConfirmedResponse);
   rpc Error(ErrorRequest) returns (ErrorResponse);
 }

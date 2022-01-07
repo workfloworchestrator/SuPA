@@ -103,6 +103,8 @@ class Variable(Enum):
     QUERY_RECURSIVE = "queryRecursive", PROVIDER_NS
     REQUESTER_NSA = "requesterNSA", HEADERS_NS
     RESERVATION_STATE = "reservationState", TYPES_NS
+    PROVISION_STATE = "provisionState", TYPES_NS
+    LIFECYCLE_STATE = "lifecycleState", TYPES_NS
     SOURCE_STP = "sourceSTP", P2P_NS
     STP = "stp", P2P_NS
 

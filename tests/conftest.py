@@ -9,7 +9,7 @@ import pytest
 from sqlalchemy import Column
 
 from supa import init_app, settings
-from supa.connection.fsm import ReservationStateMachine
+from supa.connection.fsm import ProvisionStateMachine, ReservationStateMachine
 from supa.db.model import Reservation
 from supa.db.session import db_session
 from supa.grpc_nsi import connection_provider_pb2_grpc
@@ -94,3 +94,19 @@ def reserve_aborting(connection_id: Column) -> None:
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
         reservation.reservation_state = ReservationStateMachine.ReserveAborting.value
+
+
+@pytest.fixture
+def released(connection_id: Column) -> None:
+    """Set provision state machine of reservation identified by connection_id to state Released."""
+    with db_session() as session:
+        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
+        reservation.provision_state = ProvisionStateMachine.Released.value
+
+
+@pytest.fixture
+def provisioned(connection_id: Column) -> None:
+    """Set provision state machine of reservation identified by connection_id to state Provisioned."""
+    with db_session() as session:
+        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
+        reservation.provision_state = ProvisionStateMachine.Provisioned.value

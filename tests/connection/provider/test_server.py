@@ -15,6 +15,7 @@ from supa.db.model import Port
 from supa.db.session import db_session
 from supa.grpc_nsi.connection_common_pb2 import Header, Schedule
 from supa.grpc_nsi.connection_provider_pb2 import (
+    ProvisionRequest,
     ReservationRequestCriteria,
     ReserveAbortRequest,
     ReserveCommitRequest,
@@ -104,7 +105,7 @@ def pb_reserve_request_end_time_in_past(pb_reserve_request: ReserveRequest) -> R
 
 
 @pytest.fixture()
-def pb_reserve_commit_request(pb_header: Header, connection_id: Column, reserve_held: None) -> ReserveCommitRequest:
+def pb_reserve_commit_request(pb_header: Header, connection_id: Column) -> ReserveCommitRequest:
     """Create protobuf reserve commit request for connection id in state reserve held."""
     pb_request = ReserveCommitRequest()
     pb_request.header.CopyFrom(pb_header)
@@ -113,27 +114,7 @@ def pb_reserve_commit_request(pb_header: Header, connection_id: Column, reserve_
 
 
 @pytest.fixture()
-def pb_reserve_commit_request_random_connection_id(pb_header: Header) -> ReserveCommitRequest:
-    """Create protobuf reserve commit request for random (not existing) connection id."""
-    pb_request = ReserveCommitRequest()
-    pb_request.header.CopyFrom(pb_header)
-    pb_request.connection_id = str(uuid4())
-    return pb_request
-
-
-@pytest.fixture()
-def pb_reserve_commit_request_invalid_transition(
-    pb_header: Header, connection_id: Column, reserve_committing: None
-) -> ReserveCommitRequest:
-    """Create protobuf reserve commit request for connection id in state reserve commiting."""
-    pb_request = ReserveCommitRequest()
-    pb_request.header.CopyFrom(pb_header)
-    pb_request.connection_id = str(connection_id)
-    return pb_request
-
-
-@pytest.fixture()
-def pb_reserve_abort_request(pb_header: Header, connection_id: Column, reserve_held: None) -> ReserveAbortRequest:
+def pb_reserve_abort_request(pb_header: Header, connection_id: Column) -> ReserveAbortRequest:
     """Create protobuf reserve abort request for connection id in state reserve held."""
     pb_request = ReserveAbortRequest()
     pb_request.header.CopyFrom(pb_header)
@@ -142,20 +123,9 @@ def pb_reserve_abort_request(pb_header: Header, connection_id: Column, reserve_h
 
 
 @pytest.fixture()
-def pb_reserve_abort_request_random_connection_id(pb_header: Header) -> ReserveAbortRequest:
-    """Create protobuf reserve abort request for random (not existing) connection id."""
-    pb_request = ReserveAbortRequest()
-    pb_request.header.CopyFrom(pb_header)
-    pb_request.connection_id = str(uuid4())
-    return pb_request
-
-
-@pytest.fixture()
-def pb_reserve_abort_request_invalid_transition(
-    pb_header: Header, connection_id: Column, reserve_aborting: None
-) -> ReserveAbortRequest:
-    """Create protobuf reserve abort request for random (not existing) connection id."""
-    pb_request = ReserveAbortRequest()
+def pb_provision_request(pb_header: Header, connection_id: Column) -> ProvisionRequest:
+    """Create protobuf provision request for connection id in state released."""
+    pb_request = ProvisionRequest()
     pb_request.header.CopyFrom(pb_header)
     pb_request.connection_id = str(connection_id)
     return pb_request
@@ -208,7 +178,7 @@ def test_reserve_request_end_time_in_past(pb_reserve_request_end_time_in_past: R
     assert reserve_response.service_exception.error_id == "00101"
 
 
-def test_reserve_commit(pb_reserve_commit_request: ReserveCommitRequest, caplog: Any) -> None:
+def test_reserve_commit(pb_reserve_commit_request: ReserveCommitRequest, reserve_held: None, caplog: Any) -> None:
     """Test the connection provider ReserveCommit happy path."""
     service = ConnectionProviderService()
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
@@ -220,43 +190,37 @@ def test_reserve_commit(pb_reserve_commit_request: ReserveCommitRequest, caplog:
 
 
 def test_reserve_commit_random_connection_id(
-    pb_reserve_commit_request_random_connection_id: ReserveCommitRequest,
+    pb_reserve_commit_request: ReserveCommitRequest,
 ) -> None:
     """Test the connection provider ReserveCommit returns service exception for random connection id."""
     service = ConnectionProviderService()
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
-    request_connection_id = pb_reserve_commit_request_random_connection_id.connection_id
-    reserve_commit_response = service.ReserveCommit(pb_reserve_commit_request_random_connection_id, mock_context)
-    assert (
-        pb_reserve_commit_request_random_connection_id.header.correlation_id
-        == reserve_commit_response.header.correlation_id
-    )
+    # overwrite connection id from reservation in db with random UUID
+    pb_reserve_commit_request.connection_id = str(uuid4())
+    reserve_commit_response = service.ReserveCommit(pb_reserve_commit_request, mock_context)
+    assert pb_reserve_commit_request.header.correlation_id == reserve_commit_response.header.correlation_id
     assert not reserve_commit_response.header.reply_to
     assert reserve_commit_response.HasField("service_exception")
     assert reserve_commit_response.service_exception.error_id == "00203"
-    assert request_connection_id == reserve_commit_response.service_exception.connection_id
+    assert pb_reserve_commit_request.connection_id == reserve_commit_response.service_exception.connection_id
 
 
 def test_reserve_commit_invalid_transition(
-    pb_reserve_commit_request_invalid_transition: ReserveCommitRequest, caplog: Any
+    pb_reserve_commit_request: ReserveCommitRequest, reserve_committing: None, caplog: Any
 ) -> None:
     """Test the connection provider ReserveCommit returns service exception when in invalid state for request."""
     service = ConnectionProviderService()
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
-    request_connection_id = pb_reserve_commit_request_invalid_transition.connection_id
-    reserve_commit_response = service.ReserveCommit(pb_reserve_commit_request_invalid_transition, mock_context)
-    assert (
-        pb_reserve_commit_request_invalid_transition.header.correlation_id
-        == reserve_commit_response.header.correlation_id
-    )
+    reserve_commit_response = service.ReserveCommit(pb_reserve_commit_request, mock_context)
+    assert pb_reserve_commit_request.header.correlation_id == reserve_commit_response.header.correlation_id
     assert not reserve_commit_response.header.reply_to
     assert reserve_commit_response.HasField("service_exception")
     assert reserve_commit_response.service_exception.error_id == "00201"
-    assert request_connection_id == reserve_commit_response.service_exception.connection_id
+    assert pb_reserve_commit_request.connection_id == reserve_commit_response.service_exception.connection_id
     assert "Not scheduling ReserveCommitJob" in caplog.text
 
 
-def test_reserve_abort(pb_reserve_abort_request: ReserveAbortRequest, caplog: Any) -> None:
+def test_reserve_abort(pb_reserve_abort_request: ReserveAbortRequest, reserve_held: None, caplog: Any) -> None:
     """Test the connection provider ReserveAbort happy path."""
     service = ConnectionProviderService()
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
@@ -267,36 +231,68 @@ def test_reserve_abort(pb_reserve_abort_request: ReserveAbortRequest, caplog: An
     assert 'Added job "ReserveAbortJob" to job store' in caplog.text
 
 
-def test_reserve_abort_random_connection_id(pb_reserve_abort_request_random_connection_id: ReserveAbortRequest) -> None:
+def test_reserve_abort_random_connection_id(pb_reserve_abort_request: ReserveAbortRequest) -> None:
     """Test the connection provider ReserveAbort returns service exception for random connection id."""
     service = ConnectionProviderService()
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
-    request_connection_id = pb_reserve_abort_request_random_connection_id.connection_id
-    reserve_abort_response = service.ReserveAbort(pb_reserve_abort_request_random_connection_id, mock_context)
-    assert (
-        pb_reserve_abort_request_random_connection_id.header.correlation_id
-        == reserve_abort_response.header.correlation_id
-    )
+    # overwrite connection id from reservation in db with random UUID
+    pb_reserve_abort_request.connection_id = str(uuid4())
+    reserve_abort_response = service.ReserveAbort(pb_reserve_abort_request, mock_context)
+    assert pb_reserve_abort_request.header.correlation_id == reserve_abort_response.header.correlation_id
     assert not reserve_abort_response.header.reply_to
     assert reserve_abort_response.HasField("service_exception")
     assert reserve_abort_response.service_exception.error_id == "00203"
-    assert request_connection_id == reserve_abort_response.service_exception.connection_id
+    assert pb_reserve_abort_request.connection_id == reserve_abort_response.service_exception.connection_id
 
 
 def test_reserve_abort_invalid_transition(
-    pb_reserve_abort_request_invalid_transition: ReserveAbortRequest, caplog: Any
+    pb_reserve_abort_request: ReserveAbortRequest, reserve_aborting: None, caplog: Any
 ) -> None:
     """Test the connection provider ReserveAbort returns service exception when in invalid state for request."""
     service = ConnectionProviderService()
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
-    request_connection_id = pb_reserve_abort_request_invalid_transition.connection_id
-    reserve_abort_response = service.ReserveAbort(pb_reserve_abort_request_invalid_transition, mock_context)
-    assert (
-        pb_reserve_abort_request_invalid_transition.header.correlation_id
-        == reserve_abort_response.header.correlation_id
-    )
+    reserve_abort_response = service.ReserveAbort(pb_reserve_abort_request, mock_context)
+    assert pb_reserve_abort_request.header.correlation_id == reserve_abort_response.header.correlation_id
     assert not reserve_abort_response.header.reply_to
     assert reserve_abort_response.HasField("service_exception")
     assert reserve_abort_response.service_exception.error_id == "00201"
-    assert request_connection_id == reserve_abort_response.service_exception.connection_id
+    assert pb_reserve_abort_request.connection_id == reserve_abort_response.service_exception.connection_id
     assert "Not scheduling ReserveAbortJob" in caplog.text
+
+
+def test_provision(pb_provision_request: ProvisionRequest, released: None, caplog: Any) -> None:
+    """Test the connection provider Provision happy path."""
+    service = ConnectionProviderService()
+    mock_context = unittest.mock.create_autospec(spec=ServicerContext)
+    provision_response = service.Provision(pb_provision_request, mock_context)
+    assert pb_provision_request.header.correlation_id == provision_response.header.correlation_id
+    assert not provision_response.header.reply_to
+    assert not provision_response.HasField("service_exception")
+    assert 'Added job "ProvisionJob" to job store' in caplog.text
+
+
+def test_provision_random_connection_id(pb_provision_request: ProvisionRequest) -> None:
+    """Test the connection provider Provision returns service exception for random connection id."""
+    service = ConnectionProviderService()
+    mock_context = unittest.mock.create_autospec(spec=ServicerContext)
+    # overwrite connection id from reservation in db with random UUID
+    pb_provision_request.connection_id = str(uuid4())
+    provision_response = service.Provision(pb_provision_request, mock_context)
+    assert pb_provision_request.header.correlation_id == provision_response.header.correlation_id
+    assert not provision_response.header.reply_to
+    assert provision_response.HasField("service_exception")
+    assert provision_response.service_exception.error_id == "00203"
+    assert pb_provision_request.connection_id == provision_response.service_exception.connection_id
+
+
+def test_provision_invalid_transition(pb_provision_request: ProvisionRequest, provisioned: None, caplog: Any) -> None:
+    """Test the connection provider Provision returns service exception when in invalid state for request."""
+    service = ConnectionProviderService()
+    mock_context = unittest.mock.create_autospec(spec=ServicerContext)
+    provision_response = service.Provision(pb_provision_request, mock_context)
+    assert pb_provision_request.header.correlation_id == provision_response.header.correlation_id
+    assert not provision_response.header.reply_to
+    assert provision_response.HasField("service_exception")
+    assert provision_response.service_exception.error_id == "00201"
+    assert pb_provision_request.connection_id == provision_response.service_exception.connection_id
+    assert "Not scheduling ProvisionJob" in caplog.text

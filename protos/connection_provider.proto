@@ -85,7 +85,7 @@ message ReserveRequest {
 message ReserveResponse {
   common.Header header = 1;
   string connection_id = 2; // URI
-  common.ServiceException service_exception = 3;
+  common.ServiceException service_exception = 3; // MUST be translated to ServiceException by PolyNSI
 }
 
 message ReserveCommitRequest {
@@ -95,7 +95,7 @@ message ReserveCommitRequest {
 
 message ReserveCommitResponse {
   common.Header header = 1;
-  common.ServiceException service_exception = 2;
+  common.ServiceException service_exception = 2;  // MUST be translated to ServiceException by PolyNSI
 }
 
 message ReserveAbortRequest {
@@ -105,11 +105,44 @@ message ReserveAbortRequest {
 
 message ReserveAbortResponse {
   common.Header header = 1;
-  common.ServiceException service_exception = 2;
+  common.ServiceException service_exception = 2; // MUST be translated to ServiceException by PolyNSI
+}
+
+message ProvisionRequest {
+  common.Header header = 1;
+  string connection_id = 2; // URI
+}
+
+message ProvisionResponse {
+  common.Header header = 1;
+  common.ServiceException service_exception = 2; // MUST be translated to ServiceException by PolyNSI
+}
+
+message ReleaseRequest {
+  common.Header header = 1;
+  string connection_id = 2; // URI
+}
+
+message ReleaseResponse {
+  common.Header header = 1;
+  common.ServiceException service_exception = 2; // MUST be translated to ServiceException by PolyNSI
+}
+
+message TerminateRequest {
+  common.Header header = 1;
+  string connection_id = 2; // URI
+}
+
+message TerminateResponse {
+  common.Header header = 1;
+  common.ServiceException service_exception = 2; // MUST be translated to ServiceException by PolyNSI
 }
 
 service ConnectionProvider {
   rpc Reserve(ReserveRequest) returns (ReserveResponse);
   rpc ReserveCommit(ReserveCommitRequest) returns (ReserveCommitResponse);
   rpc ReserveAbort(ReserveAbortRequest) returns (ReserveAbortResponse);
+  rpc Provision(ProvisionRequest) returns (ProvisionResponse);
+  rpc Release(ReleaseRequest) returns (ReleaseResponse);
+  rpc Terminate(TerminateRequest) returns (TerminateResponse);
 }
