@@ -7,7 +7,6 @@ from supa.db.model import Reservation
 from supa.db.session import db_session
 from supa.job.reserve import ReserveAbortJob, ReserveCommitJob, ReserveTimeoutJob
 
-
 #
 # TODO rewrite test to check correct reservation timeout handling
 #
@@ -43,6 +42,7 @@ def test_reserve_commit_job_reserve_commit_confirmed(
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
         assert reservation.reservation_state == ReservationStateMachine.ReserveStart.value
+
 
 #
 # TODO removed this check from ReserveAbortJob, what else should we check here?
