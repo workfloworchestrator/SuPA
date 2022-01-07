@@ -199,3 +199,24 @@ def to_confirm_criteria(reservation: model.Reservation) -> ReservationConfirmCri
     pb_rcc.serviceType = const.SERVICE_TYPE
     pb_rcc.ptps.CopyFrom(to_p2p_service(reservation))
     return pb_rcc
+
+
+def to_response_header(request_header: Header) -> Header:
+    """Create Protobuf response ``Header`` out of a Protobuf request ``Header``.
+
+    The reply_to field holds the Requester NSA's SOAP endpoint address to which
+    asynchronous messages associated with this operation request will be delivered.
+    This is only populated for the original operation request (reserve, provision,
+    release, terminate and query), and not for any additional messaging associated
+    with the operation.
+
+    Args:
+        request_header: Protobuf Header from request messsage.
+
+    Returns:
+        A ``Header`` copy of the input with reply_to cleared.
+    """
+    response_header = Header()
+    response_header.CopyFrom(request_header)
+    response_header.ClearField("reply_to")
+    return response_header
