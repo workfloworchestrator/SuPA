@@ -1,6 +1,7 @@
 import unittest.mock
 from datetime import datetime, timedelta, timezone
 from json import dumps
+from typing import Any
 from uuid import uuid4
 
 import pytest
@@ -13,35 +14,14 @@ from supa.connection.provider.server import ConnectionProviderService
 from supa.db.model import Port
 from supa.db.session import db_session
 from supa.grpc_nsi.connection_common_pb2 import Header, Schedule
-from supa.grpc_nsi.connection_provider_pb2 import ReservationRequestCriteria, ReserveCommitRequest, ReserveRequest
+from supa.grpc_nsi.connection_provider_pb2 import (
+    ReservationRequestCriteria,
+    ReserveAbortRequest,
+    ReserveCommitRequest,
+    ReserveRequest,
+)
 from supa.grpc_nsi.services_pb2 import PointToPointService
-
-msg = {
-    "header": {
-        "protocol_version": "application/vnd.ogf.nsi.cs.v2.provider+soap",
-        "correlation_id": "urn:uuid:1ee6db2e-6278-11ec-b38f-acde48001122",
-        "requester_nsa": "urn:ogf:network:surf.nl:2020:onsaclient",
-        "provider_nsa": "urn:ogf:network:test.domain:2001:supa",
-        "reply_to": "http://127.0.0.1:7080/NSI/services/RequesterService2",
-    },
-    "description": "Test Connection",
-    "criteria": {
-        "schedule": {
-            "start_time": {
-                "seconds": 1640102919,
-            },
-            "end_time": {
-                "seconds": 1640102979,
-            },
-        },
-        "serviceType": "http://services.ogf.org/nsi/2013/12/descriptions/EVTS.A-GOLE",
-        "ptps": {
-            "capacity": 10,
-            "source_stp": "urn:ogf:network:netherlight.net:2013:production8:port1?vlan=1783",
-            "dest_stp": "urn:ogf:network:netherlight.net:2013:production8:port2?vlan=1783",
-        },
-    },
-}
+from supa.util.timestamp import EPOCH
 
 
 @pytest.fixture()
@@ -108,9 +88,74 @@ def pb_reserve_request(
 
 
 @pytest.fixture()
-def pb_reserve_commit_request(pb_header: Header, connection_id: Column, reserve_held: None) -> ReserveRequest:
-    """Create protobuf reserve request with filled in header and criteria."""
+def pb_reserve_request_end_time_before_start_time(pb_reserve_request: ReserveRequest) -> ReserveRequest:
+    """Modify schedule of reserve request so that end time is before start time."""
+    pb_reserve_request.criteria.schedule.start_time.FromDatetime(datetime.now(timezone.utc) + timedelta(hours=2))
+    pb_reserve_request.criteria.schedule.end_time.FromDatetime(datetime.now(timezone.utc) + timedelta(hours=1))
+    return pb_reserve_request
+
+
+@pytest.fixture()
+def pb_reserve_request_end_time_in_past(pb_reserve_request: ReserveRequest) -> ReserveRequest:
+    """Modify schedule of reserve request so that end time is in the past."""
+    pb_reserve_request.criteria.schedule.start_time.FromDatetime(EPOCH)
+    pb_reserve_request.criteria.schedule.end_time.FromDatetime(datetime.now(timezone.utc) - timedelta(hours=1))
+    return pb_reserve_request
+
+
+@pytest.fixture()
+def pb_reserve_commit_request(pb_header: Header, connection_id: Column, reserve_held: None) -> ReserveCommitRequest:
+    """Create protobuf reserve commit request for connection id in state reserve held."""
     pb_request = ReserveCommitRequest()
+    pb_request.header.CopyFrom(pb_header)
+    pb_request.connection_id = str(connection_id)
+    return pb_request
+
+
+@pytest.fixture()
+def pb_reserve_commit_request_random_connection_id(pb_header: Header) -> ReserveCommitRequest:
+    """Create protobuf reserve commit request for random (not existing) connection id."""
+    pb_request = ReserveCommitRequest()
+    pb_request.header.CopyFrom(pb_header)
+    pb_request.connection_id = str(uuid4())
+    return pb_request
+
+
+@pytest.fixture()
+def pb_reserve_commit_request_invalid_transition(
+    pb_header: Header, connection_id: Column, reserve_committing: None
+) -> ReserveCommitRequest:
+    """Create protobuf reserve commit request for connection id in state reserve commiting."""
+    pb_request = ReserveCommitRequest()
+    pb_request.header.CopyFrom(pb_header)
+    pb_request.connection_id = str(connection_id)
+    return pb_request
+
+
+@pytest.fixture()
+def pb_reserve_abort_request(pb_header: Header, connection_id: Column, reserve_held: None) -> ReserveAbortRequest:
+    """Create protobuf reserve abort request for connection id in state reserve held."""
+    pb_request = ReserveAbortRequest()
+    pb_request.header.CopyFrom(pb_header)
+    pb_request.connection_id = str(connection_id)
+    return pb_request
+
+
+@pytest.fixture()
+def pb_reserve_abort_request_random_connection_id(pb_header: Header) -> ReserveAbortRequest:
+    """Create protobuf reserve abort request for random (not existing) connection id."""
+    pb_request = ReserveAbortRequest()
+    pb_request.header.CopyFrom(pb_header)
+    pb_request.connection_id = str(uuid4())
+    return pb_request
+
+
+@pytest.fixture()
+def pb_reserve_abort_request_invalid_transition(
+    pb_header: Header, connection_id: Column, reserve_aborting: None
+) -> ReserveAbortRequest:
+    """Create protobuf reserve abort request for random (not existing) connection id."""
+    pb_request = ReserveAbortRequest()
     pb_request.header.CopyFrom(pb_header)
     pb_request.connection_id = str(connection_id)
     return pb_request
@@ -124,41 +169,134 @@ def add_ports() -> None:
         session.add(Port(port_id=uuid4(), name="port2", vlans="1779-1799", bandwidth=1000, enabled=True))
 
 
-def test_reserve_request(pb_reserve_request: ReserveRequest) -> None:
-    """Test the connection provider ReserveRequest."""
+def test_reserve_request(pb_reserve_request: ReserveRequest, caplog: Any) -> None:
+    """Test the connection provider Reserve happy path returns connection id."""
     service = ConnectionProviderService()
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
-    #
-    # Test happy path with correct reservation request returning a reservation response with the connection_id.
-    #
+    request_correlation_id = pb_reserve_request.header.correlation_id
     reserve_response = service.Reserve(pb_reserve_request, mock_context)
+    assert request_correlation_id == reserve_response.header.correlation_id
+    assert not reserve_response.header.reply_to
     assert reserve_response.connection_id
-    #
-    # Test reservation request with end time before start time.
-    # TODO: Enable and finish test after Reserve() is returning a proper service exception.
-    #
-    # pb_reserve_request.criteria.schedule.start_time.FromDatetime(datetime.now(timezone.utc) + timedelta(hours=2))
-    # pb_reserve_request.criteria.schedule.end_time.FromDatetime(datetime.now(timezone.utc) + timedelta(hours=1))
-    # pb_reserve_request.header.correlation_id = uuid4().urn
-    # reserve_response = service.Reserve(pb_reserve_request, mock_context)
-    # assert reserve_respone == "correct service exception"
-    #
-    # Test reservation request with end time in the past.
-    # TODO: Enable and finish test after Reserve() is returning a proper service exception.
-    #
-    # pb_reserve_request.criteria.schedule.start_time.FromDatetime(datetime.now(timezone.utc) - timedelta(hours=2))
-    # pb_reserve_request.criteria.schedule.end_time.FromDatetime(datetime.now(timezone.utc) - timedelta(hours=1))
-    # pb_reserve_request.header.correlation_id = uuid4().urn
-    # reserve_response = service.Reserve(pb_reserve_request, mock_context)
-    # assert reserve_respone == "correct service exception"
+    assert not reserve_response.HasField("service_exception")
+    assert 'Added job "ReserveJob" to job store' in caplog.text
 
 
-def test_reserve_commit(pb_reserve_commit_request: ReserveRequest) -> None:
-    """Test the connection provider ReserveRequest."""
+def test_reserve_request_end_time_before_start_time(
+    pb_reserve_request_end_time_before_start_time: ReserveRequest,
+) -> None:
+    """Test the connection provider Reserve returns service exception when end time before start time."""
     service = ConnectionProviderService()
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
-    #
-    # Test happy path with reservation commit request for a reservation in the correct state.
-    #
-    reserve_response = service.ReserveCommit(pb_reserve_commit_request, mock_context)
-    assert reserve_response.header.correlation_id == pb_reserve_commit_request.header.correlation_id
+    reserve_response = service.Reserve(pb_reserve_request_end_time_before_start_time, mock_context)
+    assert pb_reserve_request_end_time_before_start_time.header.correlation_id == reserve_response.header.correlation_id
+    assert not reserve_response.header.reply_to
+    assert not reserve_response.connection_id
+    assert reserve_response.HasField("service_exception")
+    assert reserve_response.service_exception.error_id == "00101"
+
+
+def test_reserve_request_end_time_in_past(pb_reserve_request_end_time_in_past: ReserveRequest) -> None:
+    """Test the connection provider Reserve returns service exception when end time before start time."""
+    service = ConnectionProviderService()
+    mock_context = unittest.mock.create_autospec(spec=ServicerContext)
+    reserve_response = service.Reserve(pb_reserve_request_end_time_in_past, mock_context)
+    assert pb_reserve_request_end_time_in_past.header.correlation_id == reserve_response.header.correlation_id
+    assert not reserve_response.header.reply_to
+    assert not reserve_response.connection_id
+    assert reserve_response.HasField("service_exception")
+    assert reserve_response.service_exception.error_id == "00101"
+
+
+def test_reserve_commit(pb_reserve_commit_request: ReserveCommitRequest, caplog: Any) -> None:
+    """Test the connection provider ReserveCommit happy path."""
+    service = ConnectionProviderService()
+    mock_context = unittest.mock.create_autospec(spec=ServicerContext)
+    reserve_commit_response = service.ReserveCommit(pb_reserve_commit_request, mock_context)
+    assert pb_reserve_commit_request.header.correlation_id == reserve_commit_response.header.correlation_id
+    assert not reserve_commit_response.header.reply_to
+    assert not reserve_commit_response.HasField("service_exception")
+    assert 'Added job "ReserveCommitJob" to job store' in caplog.text
+
+
+def test_reserve_commit_random_connection_id(
+    pb_reserve_commit_request_random_connection_id: ReserveCommitRequest,
+) -> None:
+    """Test the connection provider ReserveCommit returns service exception for random connection id."""
+    service = ConnectionProviderService()
+    mock_context = unittest.mock.create_autospec(spec=ServicerContext)
+    request_connection_id = pb_reserve_commit_request_random_connection_id.connection_id
+    reserve_commit_response = service.ReserveCommit(pb_reserve_commit_request_random_connection_id, mock_context)
+    assert (
+        pb_reserve_commit_request_random_connection_id.header.correlation_id
+        == reserve_commit_response.header.correlation_id
+    )
+    assert not reserve_commit_response.header.reply_to
+    assert reserve_commit_response.HasField("service_exception")
+    assert reserve_commit_response.service_exception.error_id == "00203"
+    assert request_connection_id == reserve_commit_response.service_exception.connection_id
+
+
+def test_reserve_commit_invalid_transition(
+    pb_reserve_commit_request_invalid_transition: ReserveCommitRequest, caplog: Any
+) -> None:
+    """Test the connection provider ReserveCommit returns service exception when in invalid state for request."""
+    service = ConnectionProviderService()
+    mock_context = unittest.mock.create_autospec(spec=ServicerContext)
+    request_connection_id = pb_reserve_commit_request_invalid_transition.connection_id
+    reserve_commit_response = service.ReserveCommit(pb_reserve_commit_request_invalid_transition, mock_context)
+    assert (
+        pb_reserve_commit_request_invalid_transition.header.correlation_id
+        == reserve_commit_response.header.correlation_id
+    )
+    assert not reserve_commit_response.header.reply_to
+    assert reserve_commit_response.HasField("service_exception")
+    assert reserve_commit_response.service_exception.error_id == "00201"
+    assert request_connection_id == reserve_commit_response.service_exception.connection_id
+    assert "Not scheduling ReserveCommitJob" in caplog.text
+
+
+def test_reserve_abort(pb_reserve_abort_request: ReserveAbortRequest, caplog: Any) -> None:
+    """Test the connection provider ReserveAbort happy path."""
+    service = ConnectionProviderService()
+    mock_context = unittest.mock.create_autospec(spec=ServicerContext)
+    reserve_abort_response = service.ReserveAbort(pb_reserve_abort_request, mock_context)
+    assert pb_reserve_abort_request.header.correlation_id == reserve_abort_response.header.correlation_id
+    assert not reserve_abort_response.header.reply_to
+    assert not reserve_abort_response.HasField("service_exception")
+    assert 'Added job "ReserveAbortJob" to job store' in caplog.text
+
+
+def test_reserve_abort_random_connection_id(pb_reserve_abort_request_random_connection_id: ReserveAbortRequest) -> None:
+    """Test the connection provider ReserveAbort returns service exception for random connection id."""
+    service = ConnectionProviderService()
+    mock_context = unittest.mock.create_autospec(spec=ServicerContext)
+    request_connection_id = pb_reserve_abort_request_random_connection_id.connection_id
+    reserve_abort_response = service.ReserveAbort(pb_reserve_abort_request_random_connection_id, mock_context)
+    assert (
+        pb_reserve_abort_request_random_connection_id.header.correlation_id
+        == reserve_abort_response.header.correlation_id
+    )
+    assert not reserve_abort_response.header.reply_to
+    assert reserve_abort_response.HasField("service_exception")
+    assert reserve_abort_response.service_exception.error_id == "00203"
+    assert request_connection_id == reserve_abort_response.service_exception.connection_id
+
+
+def test_reserve_abort_invalid_transition(
+    pb_reserve_abort_request_invalid_transition: ReserveAbortRequest, caplog: Any
+) -> None:
+    """Test the connection provider ReserveAbort returns service exception when in invalid state for request."""
+    service = ConnectionProviderService()
+    mock_context = unittest.mock.create_autospec(spec=ServicerContext)
+    request_connection_id = pb_reserve_abort_request_invalid_transition.connection_id
+    reserve_abort_response = service.ReserveAbort(pb_reserve_abort_request_invalid_transition, mock_context)
+    assert (
+        pb_reserve_abort_request_invalid_transition.header.correlation_id
+        == reserve_abort_response.header.correlation_id
+    )
+    assert not reserve_abort_response.header.reply_to
+    assert reserve_abort_response.HasField("service_exception")
+    assert reserve_abort_response.service_exception.error_id == "00201"
+    assert request_connection_id == reserve_abort_response.service_exception.connection_id
+    assert "Not scheduling ReserveAbortJob" in caplog.text

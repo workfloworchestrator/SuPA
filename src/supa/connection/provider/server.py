@@ -35,7 +35,7 @@ from supa.grpc_nsi.policy_pb2 import PathTrace
 from supa.grpc_nsi.services_pb2 import Directionality, PointToPointService
 from supa.job.reserve import ReserveAbortJob, ReserveCommitJob, ReserveJob, ReserveTimeoutJob
 from supa.job.shared import Job, NsiException
-from supa.util.converter import to_service_exception
+from supa.util.converter import to_response_header, to_service_exception
 from supa.util.nsi import parse_stp
 from supa.util.timestamp import as_utc_timestamp, current_timestamp, is_specified
 
@@ -85,7 +85,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         if extra_info:
             log.info(extra_info)
             reserve_response = ReserveResponse(
-                header=pb_reserve_request.header,
+                header=to_response_header(pb_reserve_request.header),
                 service_exception=to_service_exception(
                     NsiException(MissingParameter, extra_info, {Variable.END_TIME: end_time.isoformat()})
                 ),
@@ -169,7 +169,9 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         job: Job
 
         scheduler.add_job(job := ReserveJob(connection_id), trigger=job.trigger())
-        reserve_response = ReserveResponse(header=pb_reserve_request.header, connection_id=str(connection_id))
+        reserve_response = ReserveResponse(
+            header=to_response_header(pb_reserve_request.header), connection_id=str(connection_id)
+        )
         #
         # TODO: - make timeout delta configurable
         #       - add reservation version to timeout job so we do not accidentally timeout a modify
@@ -209,7 +211,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             if reservation is None:
                 log.info("Connection ID does not exist")
                 reserve_commit_response = ReserveCommitResponse(
-                    header=pb_reserve_commit_request.header,
+                    header=to_response_header(pb_reserve_commit_request.header),
                     service_exception=to_service_exception(
                         NsiException(
                             ReservationNonExistent, str(connection_id), {Variable.CONNECTION_ID: str(connection_id)}
@@ -224,7 +226,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                 except TransitionNotAllowed as tna:
                     log.info("Not scheduling ReserveCommitJob", reason=str(tna))
                     reserve_commit_response = ReserveCommitResponse(
-                        header=pb_reserve_commit_request.header,
+                        header=to_response_header(pb_reserve_commit_request.header),
                         service_exception=to_service_exception(
                             NsiException(
                                 InvalidTransition,
@@ -241,7 +243,9 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                     from supa import scheduler
 
                     scheduler.add_job(job := ReserveCommitJob(connection_id), trigger=job.trigger())
-                    reserve_commit_response = ReserveCommitResponse(header=pb_reserve_commit_request.header)
+                    reserve_commit_response = ReserveCommitResponse(
+                        header=to_response_header(pb_reserve_commit_request.header)
+                    )
 
         log.debug("Sending response.", response_message=reserve_commit_response)
         return reserve_commit_response
@@ -275,7 +279,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             if reservation is None:
                 log.info("Connection ID does not exist")
                 reserve_abort_response = ReserveAbortResponse(
-                    header=pb_reserve_abort_request.header,
+                    header=to_response_header(pb_reserve_abort_request.header),
                     service_exception=to_service_exception(
                         NsiException(
                             ReservationNonExistent, str(connection_id), {Variable.CONNECTION_ID: str(connection_id)}
@@ -290,7 +294,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                 except TransitionNotAllowed as tna:
                     log.info("Not scheduling ReserveAbortJob", reason=str(tna))
                     reserve_abort_response = ReserveAbortResponse(
-                        header=pb_reserve_abort_request.header,
+                        header=to_response_header(pb_reserve_abort_request.header),
                         service_exception=to_service_exception(
                             NsiException(
                                 InvalidTransition,
@@ -307,7 +311,9 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                     from supa import scheduler
 
                     scheduler.add_job(job := ReserveAbortJob(connection_id), trigger=job.trigger())
-                    reserve_abort_response = ReserveAbortResponse(header=pb_reserve_abort_request.header)
+                    reserve_abort_response = ReserveAbortResponse(
+                        header=to_response_header(pb_reserve_abort_request.header)
+                    )
 
         log.debug("Sending response.", response_message=reserve_abort_response)
         return reserve_abort_response
