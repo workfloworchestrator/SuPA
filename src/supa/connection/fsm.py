@@ -122,6 +122,23 @@ class LifecycleStateMachine(SuPAStateMachine):
     terminate_confirmed = Terminating.to(Terminated)
 
 
+class DataPlaneStateMachine(SuPAStateMachine):
+    """DataPlane State Machine.
+
+    .. image:: /images/DataPlaneStateMachine.png
+    """
+
+    Inactive = State("Inactive", "INACTIVE", initial=True)
+    Activating = State("Activating", "ACTIVATING")
+    Active = State("Active", "ACTIVE")
+    Deactivating = State("Deactivating", "DEACTIVATING")
+
+    data_plane_up = Inactive.to(Activating)
+    data_plane_activated = Activating.to(Active)
+    data_plane_down = Active.to(Deactivating)
+    data_plane_deactivated = Deactivating.to(Inactive)
+
+
 if __name__ == "__main__":  # pragma: no cover
     # If you have Graphviz and the corresponding Python package ``graphviz`` installed,
     # generating a graphical representation of the state machines is as easy as running this module.
@@ -149,3 +166,4 @@ if __name__ == "__main__":  # pragma: no cover
     plot_fsm(ReservationStateMachine(), "ReservationStateMachine")
     plot_fsm(ProvisionStateMachine(), "ProvisionStateMachine")
     plot_fsm(LifecycleStateMachine(), "LifecycleStateMachine")
+    plot_fsm(DataPlaneStateMachine(), "DataPlaneStateMachine")

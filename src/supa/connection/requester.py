@@ -14,12 +14,20 @@
 from uuid import UUID
 
 import grpc
+from sqlalchemy import orm
 
 from supa import settings
-from supa.grpc_nsi.connection_common_pb2 import Header
-from supa.grpc_nsi.connection_requester_pb2 import ErrorRequest
+from supa.connection.fsm import DataPlaneStateMachine
+from supa.db.model import Reservation
+from supa.grpc_nsi.connection_common_pb2 import DataPlaneStatus, Header
+from supa.grpc_nsi.connection_requester_pb2 import DataPlaneStateChangeRequest, ErrorRequest
 from supa.grpc_nsi.connection_requester_pb2_grpc import ConnectionRequesterStub
 from supa.job.shared import NsiException
+from supa.util.converter import to_header
+from supa.util.timestamp import current_timestamp
+import structlog
+
+logger = structlog.get_logger(__name__)
 
 
 def get_stub() -> ConnectionRequesterStub:
@@ -45,3 +53,28 @@ def send_error(request_header: Header, nsi_exc: NsiException, connection_id: UUI
 
     stub = get_stub()
     stub.Error(pb_e_req)
+
+
+def send_data_plane_state_change(session: orm.Session, connection_id: UUID) -> None:
+    """Send a NSI dataPlaneStateChange notification.
+
+    The dataPlaneStateChange is an autonomous notification sent from a PA to an RA
+    to inform about a change in status of the data plane.
+    """
+    reservation: Reservation = session.query(Reservation).get(connection_id)
+    dpsm = DataPlaneStateMachine(reservation, state_field="data_plane_state")
+
+    pb_dpsc_req = DataPlaneStateChangeRequest()
+
+    pb_dpsc_req.header.CopyFrom(to_header(reservation, add_path_segment=True))  # Yes, add our segment!
+    pb_dpsc_req.connection_id = str(reservation.connection_id)
+    pb_dpsc_req.notification_id = 1  # TODO Add Column to database for unique notification ID for this reservation.
+    pb_dpsc_req.time_stamp.FromDatetime(current_timestamp())
+    pb_dpsc_req.data_plane_status.version = reservation.version
+    pb_dpsc_req.data_plane_status.version_consistent = True  # always True for an uPA
+    pb_dpsc_req.data_plane_status.active = dpsm.current_state == DataPlaneStateMachine.Active
+
+    logger.debug("Sending message", method="DataPlaneStateChange", connection_id=connection_id, request_message=pb_dpsc_req)
+
+    stub = get_stub()
+    stub.DataPlaneStateChange(pb_dpsc_req)

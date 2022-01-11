@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package connection.requester;
 
+import "google/protobuf/timestamp.proto";
+
 import "connection_common.proto";
 
 option java_multiple_files = true;
@@ -110,6 +112,18 @@ message ErrorResponse {
   common.Header header = 1;
 }
 
+message DataPlaneStateChangeRequest {
+  common.Header header = 1;
+  string connection_id = 2;
+  int32 notification_id = 3;
+  google.protobuf.Timestamp time_stamp = 4;
+  common.DataPlaneStatus data_plane_status = 5;
+}
+
+message DataPlaneStateChangeResponse {
+  common.Header header = 1;
+}
+
 service ConnectionRequester {
   rpc ReserveFailed(ReserveFailedRequest) returns (ReserveFailedResponse);
   rpc ReserveConfirmed(ReserveConfirmedRequest) returns (ReserveConfirmedResponse);
@@ -120,4 +134,5 @@ service ConnectionRequester {
   rpc ReleaseConfirmed(ReleaseConfirmedRequest) returns (ReleaseConfirmedResponse);
   rpc TerminateConfirmed(TerminateConfirmedRequest) returns (TerminateConfirmedResponse);
   rpc Error(ErrorRequest) returns (ErrorResponse);
+  rpc DataPlaneStateChange(DataPlaneStateChangeRequest) returns (DataPlaneStateChangeResponse);
 }

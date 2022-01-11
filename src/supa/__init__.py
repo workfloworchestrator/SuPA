@@ -403,7 +403,9 @@ def init_app(with_scheduler: bool = True) -> None:
         jobstores = {"default": MemoryJobStore()}
         logger.info("Configuring scheduler executor.", scheduler_max_workers=settings.scheduler_max_workers)
         executors = {"default": ThreadPoolExecutor(settings.scheduler_max_workers)}
-        job_defaults = {"coalesce": False, "max_instances": 1}
+        # misfire_grace_time (int) – the time (in seconds) how much this job’s execution is allowed to be late
+        # (None means “allow the job to run no matter how late it is”)
+        job_defaults = {"coalesce": False, "max_instances": 1, "misfire_grace_time": None}
 
         global scheduler
         scheduler = BackgroundScheduler(

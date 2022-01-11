@@ -84,7 +84,12 @@ from sqlalchemy.ext.orderinglist import ordering_list
 from sqlalchemy.orm import relationship
 from sqlalchemy.orm.state import InstanceState
 
-from supa.connection.fsm import LifecycleStateMachine, ProvisionStateMachine, ReservationStateMachine
+from supa.connection.fsm import (
+    DataPlaneStateMachine,
+    LifecycleStateMachine,
+    ProvisionStateMachine,
+    ReservationStateMachine,
+)
 from supa.util import nsi
 from supa.util.timestamp import NO_END_DATE, current_timestamp
 
@@ -247,6 +252,7 @@ class Reservation(Base):
         nullable=False,
         default=LifecycleStateMachine.Created.value,
     )
+    data_plane_state = Column(Enum(*[s.value for s in DataPlaneStateMachine.states]))
     # need this because the reservation state machine is missing a state
     reservation_timeout = Column(Boolean, nullable=False, default=False)
 

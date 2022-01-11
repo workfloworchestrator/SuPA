@@ -18,58 +18,45 @@ from uuid import UUID
 import structlog
 from apscheduler.triggers.date import DateTrigger
 from more_itertools import flatten
-from sqlalchemy import orm
+from sqlalchemy import or_, orm
 from structlog.stdlib import BoundLogger
 
 from supa.connection import requester
 from supa.connection.error import GenericInternalError, Variable
 from supa.connection.fsm import DataPlaneStateMachine, LifecycleStateMachine, ProvisionStateMachine
-from supa.connection.requester import send_error
+from supa.connection.requester import send_data_plane_state_change, send_error
 from supa.db.model import Reservation
 from supa.grpc_nsi.connection_requester_pb2 import ProvisionConfirmedRequest, ReleaseConfirmedRequest
-from supa.job.dataplane import ActivateJob
 from supa.job.shared import Job, NsiException
 from supa.util.converter import to_header
 
 logger = structlog.get_logger(__name__)
 
 
-class ProvisionJob(Job):
-    """Handle provision requests."""
+class ActivateJob(Job):
+    """Handle data plane activation requests."""
 
     connection_id: UUID
     log: BoundLogger
 
     def __init__(self, connection_id: UUID):
-        """Initialize the ProvisionJob.
+        """Initialize the ActivateJob.
 
         Args:
-           connection_id: The connection_id of the reservation provision request
+           connection_id: The connection_id of the reservation activation request
         """
         self.log = logger.bind(job=self.__class__.__name__, connection_id=str(connection_id))
         self.connection_id = connection_id
 
-    def _send_provision_confirmed(self, session: orm.Session) -> None:
-        # the reservation is still in the session, hence no actual query will be performed
-        reservation: Reservation = session.query(Reservation).get(self.connection_id)
-        pb_pc_req = ProvisionConfirmedRequest()
-
-        pb_pc_req.header.CopyFrom(to_header(reservation, add_path_segment=True))  # Yes, add our segment!
-        pb_pc_req.connection_id = str(reservation.connection_id)
-
-        self.log.debug("Sending message.", method="ProvisionConfirmed", request_message=pb_pc_req)
-        stub = requester.get_stub()
-        stub.ProvisionConfirmed(pb_pc_req)
-
     def __call__(self) -> None:
-        """Provision reservation request.
+        """Activate data plane request.
 
-        The reservation will be provisioned and
-        a ProvisionConfirmed message will be sent to the NSA/AG.
-        If the provision state machine is not in the correct state for a Provision
+        Activate the data plane according to the reservation criteria and
+        send a data plane status notitication to the NSA/AG.
+        If the data plane state machine is not in the correct state for a Activate
         an NSI exception is returned leaving the state machine unchanged.
         """
-        self.log.info("Provisioning reservation")
+        self.log.info("Activating data plane")
 
         from supa.db.session import db_session
 
@@ -77,51 +64,44 @@ class ProvisionJob(Job):
             reservation = (
                 session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one_or_none()
             )
-            psm = ProvisionStateMachine(reservation, state_field="provision_state")
             dpsm = DataPlaneStateMachine(reservation, state_field="data_plane_state")
             try:
                 #
-                # TODO:  If there is a Network Resource Manager that needs to be contacted
-                #        to provision the reservation request then this is the place.
-                #        If this is a recovered job then try to recover the reservation state
+                # TODO:  Call the Network Resource Manager to activate the data plane.
+                #        If this is a recovered job then try to recover the data plane state
                 #        from the NRM.
                 #
                 pass
             except NsiException as nsi_exc:
-                self.log.info("Provision failed.", reason=nsi_exc.text)
+                self.log.info("Data plane activation failed", reason=nsi_exc.text)
                 send_error(
                     to_header(reservation),
                     nsi_exc,
                     self.connection_id,
                 )
             except Exception as exc:
-                self.log.exception("Unexpected error occurred.", reason=str(exc))
+                self.log.exception("Unexpected error occurred", reason=str(exc))
                 send_error(
                     to_header(reservation),
                     NsiException(
                         GenericInternalError,
                         str(exc),
                         {
-                            Variable.PROVISION_STATE: reservation.provsion_state,
                             Variable.CONNECTION_ID: str(self.connection_id),
                         },
                     ),
                     self.connection_id,
                 )
             else:
-                from supa import scheduler
-
-                psm.provision_confirmed()
-                dpsm.data_plane_up()
-                scheduler.add_job(job := ActivateJob(self.connection_id), trigger=job.trigger())
-                self._send_provision_confirmed(session)
+                dpsm.data_plane_activated()
+                send_data_plane_state_change(session, self.connection_id)
 
     @classmethod
-    def recover(cls: Type[ProvisionJob]) -> List[Job]:
-        """Recover ProvisionJob's that did not get to run before SuPA was terminated.
+    def recover(cls: Type[ActivateJob]) -> List[Job]:
+        """Recover ActivationJob's that did not get to run before SuPA was terminated.
 
         Returns:
-            List of ProvisionJob's that still need to be run.
+            List of ActivationJob's that still need to be run.
         """
         from supa.db.session import db_session
 
@@ -129,12 +109,33 @@ class ProvisionJob(Job):
             connection_ids: List[UUID] = list(
                 flatten(
                     session.query(Reservation.connection_id)
-                    .filter(Reservation.provision_state == ProvisionStateMachine.Provisioning.value)
+                    .filter(
+                        Reservation.lifecycle_state == LifecycleStateMachine.Created.value,
+                        Reservation.provision_state == ProvisionStateMachine.Provisioned.value,
+                        or_(
+                            Reservation.data_plane_state == DataPlaneStateMachine.Inactive.value,
+                            Reservation.data_plane_state == DataPlaneStateMachine.Activating.value,
+                        ),
+                    )
                     .all()
                 )
             )
-        return [ProvisionJob(cid) for cid in connection_ids]
+        for cid in connection_ids:
+            logger.debug("Recover job", job="ActivateJob", connection_id=str(cid))
+
+        return [ActivateJob(cid) for cid in connection_ids]
 
     def trigger(self) -> DateTrigger:
-        """Trigger for ReserveAbortJobs."""
-        return DateTrigger(run_date=None)  # Run immediately
+        """Trigger for ActivateJob's.
+
+        Returns:
+            DateTrigger set to start_time of reservation.
+        """
+        from supa.db.session import db_session
+
+        with db_session() as session:
+            reservation = (
+                session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one_or_none()
+            )
+            # If start_time is in the past then the job will run immediately.
+            return DateTrigger(run_date=reservation.start_time)
