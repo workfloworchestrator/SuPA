@@ -18,15 +18,13 @@ from grpc import ServicerContext
 from statemachine.exceptions import TransitionNotAllowed
 
 from supa.connection.error import InvalidTransition, MissingParameter, ReservationNonExistent, Variable
-from supa.connection.fsm import LifecycleStateMachine, ProvisionStateMachine, ReservationStateMachine
+from supa.connection.fsm import ProvisionStateMachine, ReservationStateMachine
 from supa.db import model
 from supa.grpc_nsi import connection_provider_pb2_grpc
 from supa.grpc_nsi.connection_common_pb2 import Header, Schedule
 from supa.grpc_nsi.connection_provider_pb2 import (
     ProvisionRequest,
     ProvisionResponse,
-    ReleaseRequest,
-    ReleaseResponse,
     ReservationRequestCriteria,
     ReserveAbortRequest,
     ReserveAbortResponse,
@@ -34,8 +32,6 @@ from supa.grpc_nsi.connection_provider_pb2 import (
     ReserveCommitResponse,
     ReserveRequest,
     ReserveResponse,
-    TerminateRequest,
-    TerminateResponse,
 )
 from supa.grpc_nsi.policy_pb2 import PathTrace
 from supa.grpc_nsi.services_pb2 import Directionality, PointToPointService

@@ -18,15 +18,13 @@ from uuid import UUID
 import structlog
 from apscheduler.triggers.date import DateTrigger
 from more_itertools import flatten
-from sqlalchemy import or_, orm
+from sqlalchemy import or_
 from structlog.stdlib import BoundLogger
 
-from supa.connection import requester
 from supa.connection.error import GenericInternalError, Variable
 from supa.connection.fsm import DataPlaneStateMachine, LifecycleStateMachine, ProvisionStateMachine
 from supa.connection.requester import send_data_plane_state_change, send_error
 from supa.db.model import Reservation
-from supa.grpc_nsi.connection_requester_pb2 import ProvisionConfirmedRequest, ReleaseConfirmedRequest
 from supa.job.shared import Job, NsiException
 from supa.util.converter import to_header
 

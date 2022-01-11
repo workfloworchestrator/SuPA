@@ -23,10 +23,10 @@ from structlog.stdlib import BoundLogger
 
 from supa.connection import requester
 from supa.connection.error import GenericInternalError, Variable
-from supa.connection.fsm import DataPlaneStateMachine, LifecycleStateMachine, ProvisionStateMachine
+from supa.connection.fsm import DataPlaneStateMachine, ProvisionStateMachine
 from supa.connection.requester import send_error
 from supa.db.model import Reservation
-from supa.grpc_nsi.connection_requester_pb2 import ProvisionConfirmedRequest, ReleaseConfirmedRequest
+from supa.grpc_nsi.connection_requester_pb2 import ProvisionConfirmedRequest
 from supa.job.dataplane import ActivateJob
 from supa.job.shared import Job, NsiException
 from supa.util.converter import to_header

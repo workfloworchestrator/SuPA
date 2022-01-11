@@ -20,7 +20,7 @@ from sqlalchemy import orm
 from supa import settings
 from supa.connection.fsm import DataPlaneStateMachine
 from supa.db.model import Reservation
-from supa.grpc_nsi.connection_common_pb2 import DataPlaneStatus, Header
+from supa.grpc_nsi.connection_common_pb2 import Header
 from supa.grpc_nsi.connection_requester_pb2 import DataPlaneStateChangeRequest, ErrorRequest
 from supa.grpc_nsi.connection_requester_pb2_grpc import ConnectionRequesterStub
 from supa.job.shared import NsiException
