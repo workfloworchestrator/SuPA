@@ -14,6 +14,7 @@
 from uuid import UUID
 
 import grpc
+import structlog
 from sqlalchemy import orm
 
 from supa import settings
@@ -25,7 +26,6 @@ from supa.grpc_nsi.connection_requester_pb2_grpc import ConnectionRequesterStub
 from supa.job.shared import NsiException
 from supa.util.converter import to_header
 from supa.util.timestamp import current_timestamp
-import structlog
 
 logger = structlog.get_logger(__name__)
 
@@ -74,7 +74,9 @@ def send_data_plane_state_change(session: orm.Session, connection_id: UUID) -> N
     pb_dpsc_req.data_plane_status.version_consistent = True  # always True for an uPA
     pb_dpsc_req.data_plane_status.active = dpsm.current_state == DataPlaneStateMachine.Active
 
-    logger.debug("Sending message", method="DataPlaneStateChange", connection_id=connection_id, request_message=pb_dpsc_req)
+    logger.debug(
+        "Sending message", method="DataPlaneStateChange", connection_id=connection_id, request_message=pb_dpsc_req
+    )
 
     stub = get_stub()
     stub.DataPlaneStateChange(pb_dpsc_req)
