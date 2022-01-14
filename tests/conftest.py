@@ -13,7 +13,8 @@ from supa.connection.fsm import ProvisionStateMachine, ReservationStateMachine
 from supa.db.model import Reservation
 from supa.db.session import db_session
 from supa.grpc_nsi import connection_provider_pb2_grpc
-
+from supa.job.reserve import ReserveTimeoutJob
+from apscheduler.jobstores.base import JobLookupError
 
 @pytest.fixture(autouse=True, scope="session")
 def init(tmp_path_factory: pytest.TempPathFactory) -> Generator:
@@ -79,6 +80,20 @@ def reserve_held(connection_id: Column) -> None:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
         reservation.reservation_state = ReservationStateMachine.ReserveHeld.value
 
+    from supa import scheduler
+
+    job_handle = scheduler.add_job(
+        job := ReserveTimeoutJob(connection_id),
+        trigger=job.trigger(),
+        id=f"{str(connection_id)}-ReserveTimeoutJob",
+    )
+
+    yield
+
+    try:
+        job_handle.remove()
+    except JobLookupError:
+        pass  # job already removed from job store
 
 @pytest.fixture
 def reserve_committing(connection_id: Column) -> None:
