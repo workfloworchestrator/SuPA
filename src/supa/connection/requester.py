@@ -72,10 +72,10 @@ def send_data_plane_state_change(session: orm.Session, connection_id: UUID) -> N
     pb_dpsc_req.time_stamp.FromDatetime(current_timestamp())
     pb_dpsc_req.data_plane_status.version = reservation.version
     pb_dpsc_req.data_plane_status.version_consistent = True  # always True for an uPA
-    pb_dpsc_req.data_plane_status.active = dpsm.current_state == DataPlaneStateMachine.Active
+    pb_dpsc_req.data_plane_status.active = dpsm.current_state == DataPlaneStateMachine.Activated
 
     logger.debug(
-        "Sending message", method="DataPlaneStateChange", connection_id=connection_id, request_message=pb_dpsc_req
+        "Sending message", method="DataPlaneStateChange", connection_id=str(connection_id), request_message=pb_dpsc_req
     )
 
     stub = get_stub()

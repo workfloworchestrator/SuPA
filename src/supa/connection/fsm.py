@@ -128,15 +128,23 @@ class DataPlaneStateMachine(SuPAStateMachine):
     .. image:: /images/DataPlaneStateMachine.png
     """
 
-    Inactive = State("Inactive", "INACTIVE", initial=True)
+    Deactivated = State("Deactivated", "DEACTIVATED", initial=True)
+    AutoStart = State("AutoStart", "AUTO_START")
     Activating = State("Activating", "ACTIVATING")
-    Active = State("Active", "ACTIVE")
+    Activated = State("Activated", "ACTIVATED")
+    AutoEnd = State("AutoEnd", "AUTO_END")
     Deactivating = State("Deactivating", "DEACTIVATING")
+    ActivateFailed = State("ActivateFailed", "ACTIVATE_FAILED")
+    DeactivateFailed = State("DeactivateFailed", "DEACTIVATE_FAILED")
 
-    data_plane_up = Inactive.to(Activating)
-    data_plane_activated = Activating.to(Active)
-    data_plane_down = Active.to(Deactivating)
-    data_plane_deactivated = Deactivating.to(Inactive)
+    auto_start_request = Deactivated.to(AutoStart)
+    activate_request = Deactivated.to(Activating) | AutoStart.to(Activating)
+    activate_confirmed = Activating.to(Activated)
+    auto_end_request = Activated.to(AutoEnd)
+    deactivate_request = Activated.to(Deactivating) | AutoEnd.to(Deactivating) | AutoStart.to(Deactivated)
+    deactivate_confirm = Deactivating.to(Deactivated)
+    activate_failed = Activating.to(ActivateFailed)
+    deactivate_failed = Deactivating.to(DeactivateFailed)
 
 
 if __name__ == "__main__":  # pragma: no cover
