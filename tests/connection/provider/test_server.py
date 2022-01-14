@@ -153,7 +153,6 @@ def test_reserve_request(pb_reserve_request: ReserveRequest, caplog: Any) -> Non
     assert 'Added job "ReserveTimeoutJob" to job store' in caplog.text
 
 
-
 def test_reserve_request_end_time_before_start_time(
     pb_reserve_request_end_time_before_start_time: ReserveRequest,
 ) -> None:
@@ -188,7 +187,7 @@ def test_reserve_commit(pb_reserve_commit_request: ReserveCommitRequest, reserve
     assert pb_reserve_commit_request.header.correlation_id == reserve_commit_response.header.correlation_id
     assert not reserve_commit_response.header.reply_to
     assert not reserve_commit_response.HasField("service_exception")
-    assert 'Canceled reservation timeout timer' in caplog.text
+    assert "Canceled reservation timeout timer" in caplog.text
     assert 'Added job "ReserveCommitJob" to job store' in caplog.text
 
 

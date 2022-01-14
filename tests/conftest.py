@@ -6,6 +6,7 @@ from uuid import uuid4
 
 import grpc
 import pytest
+from apscheduler.jobstores.base import JobLookupError
 from sqlalchemy import Column
 
 from supa import init_app, settings
@@ -14,7 +15,7 @@ from supa.db.model import Reservation
 from supa.db.session import db_session
 from supa.grpc_nsi import connection_provider_pb2_grpc
 from supa.job.reserve import ReserveTimeoutJob
-from apscheduler.jobstores.base import JobLookupError
+
 
 @pytest.fixture(autouse=True, scope="session")
 def init(tmp_path_factory: pytest.TempPathFactory) -> Generator:
@@ -88,12 +89,13 @@ def reserve_held(connection_id: Column) -> None:
         id=f"{str(connection_id)}-ReserveTimeoutJob",
     )
 
-    yield
+    yield None
 
     try:
         job_handle.remove()
     except JobLookupError:
         pass  # job already removed from job store
+
 
 @pytest.fixture
 def reserve_committing(connection_id: Column) -> None:
