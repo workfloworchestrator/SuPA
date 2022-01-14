@@ -30,7 +30,6 @@ from supa.connection import requester
 from supa.connection.error import (
     CapacityUnavailable,
     GenericInternalError,
-    GenericServiceError,
     InvalidLabelFormat,
     InvalidTransition,
     NoServiceplanePathFound,
@@ -352,6 +351,9 @@ class ReserveJob(Job):
                     .all()
                 )
             )
+        for cid in connection_ids:
+            logger.info("Recovering job", job="ReserveJob", connection_id=str(cid))
+
         return [ReserveJob(cid) for cid in connection_ids]
 
     def trigger(self) -> DateTrigger:
@@ -419,17 +421,13 @@ class ReserveCommitJob(Job):
             )
             rsm = ReservationStateMachine(reservation, state_field="reservation_state")
             try:
-                if reservation.reservation_timeout:
-                    # we use this column because the reserve state machine is actually missing a state
-                    raise NsiException(GenericServiceError, "Cannot commit a timed out reservation.")
-                else:
-                    #
-                    # TODO:  If there is a Network Resource Manager that needs to be contacted
-                    #        to commit the reservation request then this is the place.
-                    #        If this is a recovered job then try to recover the reservation state
-                    #        from the NRM.
-                    #
-                    pass
+                #
+                # TODO:  If there is a Network Resource Manager that needs to be contacted
+                #        to commit the reservation request then this is the place.
+                #        If this is a recovered job then try to recover the reservation state
+                #        from the NRM.
+                #
+                pass
             except NsiException as nsi_exc:
                 self.log.info("Reserve commit failed.", reason=nsi_exc.text)
                 rsm.reserve_commit_failed()
@@ -463,6 +461,9 @@ class ReserveCommitJob(Job):
                     .all()
                 )
             )
+        for cid in connection_ids:
+            logger.info("Recovering job", job="ReserveCommitJob", connection_id=str(cid))
+
         return [ReserveCommitJob(cid) for cid in connection_ids]
 
     def trigger(self) -> DateTrigger:
@@ -564,7 +565,10 @@ class ReserveAbortJob(Job):
                     .all()
                 )
             )
-        return [ReserveJob(cid) for cid in connection_ids]
+        for cid in connection_ids:
+            logger.info("Recovering job", job="ReserveAbortJob", connection_id=str(cid))
+
+        return [ReserveAbortJob(cid) for cid in connection_ids]
 
     def trigger(self) -> DateTrigger:
         """Trigger for ReserveAbortJobs."""
@@ -685,6 +689,9 @@ class ReserveTimeoutJob(Job):
                     .all()
                 )
             )
+        for cid in connection_ids:
+            logger.info("Recovering job", job="ReserveTimeoutJob", connection_id=str(cid))
+
         return [ReserveTimeoutJob(cid) for cid in connection_ids]
 
     def trigger(self) -> DateTrigger:
