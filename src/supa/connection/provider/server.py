@@ -254,10 +254,6 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                     ),
                 )
             else:
-                from supa import scheduler
-
-                scheduler.remove_job(job_id=f"{str(connection_id)}-ReserveTimeoutJob")
-                log.info("Canceled reservation timeout timer")
                 try:
                     rsm = ReservationStateMachine(reservation, state_field="reservation_state")
                     rsm.reserve_commit_request()
@@ -280,6 +276,8 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                 else:
                     from supa import scheduler
 
+                    scheduler.remove_job(job_id=f"{str(connection_id)}-ReserveTimeoutJob")
+                    log.info("Canceled reservation timeout timer")
                     scheduler.add_job(
                         job := ReserveCommitJob(connection_id),
                         trigger=job.trigger(),
