@@ -75,7 +75,7 @@ def connection_id() -> Column:
 
 
 @pytest.fixture()
-def reserve_held(connection_id: Column) -> None:
+def reserve_held(connection_id: Column) -> Generator:
     """Set reserve state machine of reservation identified by connection_id to state ReserveHeld."""
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
@@ -127,3 +127,11 @@ def provisioned(connection_id: Column) -> None:
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
         reservation.provision_state = ProvisionStateMachine.Provisioned.value
+
+
+@pytest.fixture
+def flag_reservation_timeout(connection_id: Column) -> None:
+    """Set reservation timeout flag of reservation identified by connection_id to True."""
+    with db_session() as session:
+        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
+        reservation.reservation_timeout = True
