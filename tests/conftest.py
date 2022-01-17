@@ -10,7 +10,7 @@ from apscheduler.jobstores.base import JobLookupError
 from sqlalchemy import Column
 
 from supa import init_app, settings
-from supa.connection.fsm import ProvisionStateMachine, ReservationStateMachine
+from supa.connection.fsm import LifecycleStateMachine, ProvisionStateMachine, ReservationStateMachine
 from supa.db.model import Reservation
 from supa.db.session import db_session
 from supa.grpc_nsi import connection_provider_pb2_grpc
@@ -127,6 +127,22 @@ def provisioned(connection_id: Column) -> None:
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
         reservation.provision_state = ProvisionStateMachine.Provisioned.value
+
+
+@pytest.fixture
+def terminated(connection_id: Column) -> None:
+    """Set lifecycle state machine of reservation identified by connection_id to state Terminated."""
+    with db_session() as session:
+        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
+        reservation.lifecycle_state = LifecycleStateMachine.Terminated.value
+
+
+@pytest.fixture
+def passed_end_time(connection_id: Column) -> None:
+    """Set lifecycle state machine of reservation identified by connection_id to state PassedEndTime."""
+    with db_session() as session:
+        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
+        reservation.lifecycle_state = LifecycleStateMachine.PassedEndTime.value
 
 
 @pytest.fixture

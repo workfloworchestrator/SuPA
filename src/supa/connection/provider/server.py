@@ -266,8 +266,8 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                                 InvalidTransition,
                                 str(tna),
                                 {
-                                    Variable.RESERVATION_STATE: reservation.reservation_state,
                                     Variable.CONNECTION_ID: str(connection_id),
+                                    Variable.RESERVATION_STATE: reservation.reservation_state,
                                 },
                             ),
                             connection_id,
@@ -340,8 +340,8 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                                 InvalidTransition,
                                 str(tna),
                                 {
-                                    Variable.RESERVATION_STATE: reservation.reservation_state,
                                     Variable.CONNECTION_ID: str(connection_id),
+                                    Variable.RESERVATION_STATE: reservation.reservation_state,
                                 },
                             ),
                             connection_id,
@@ -408,6 +408,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                             "First version of reservation not committed yet",
                             {
                                 Variable.CONNECTION_ID: str(connection_id),
+                                Variable.RESERVATION_STATE: reservation.reservation_state,
                             },
                         ),
                         connection_id,
@@ -441,8 +442,8 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                                 InvalidTransition,
                                 str(tna),
                                 {
-                                    Variable.PROVISION_STATE: reservation.provision_state,
                                     Variable.CONNECTION_ID: str(connection_id),
+                                    Variable.PROVISION_STATE: reservation.provision_state,
                                 },
                             ),
                             connection_id,
@@ -506,7 +507,22 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                             InvalidTransition,
                             "First version of reservation not committed yet",
                             {
+                                Variable.CONNECTION_ID: str(connection_id),
                                 Variable.RESERVATION_STATE: reservation.reservation_state,
+                            },
+                        ),
+                        connection_id,
+                    ),
+                )
+            elif current_timestamp() > reservation.end_time:
+                log.info("Cannot release a reservation that is passed end time")
+                release_response = ReleaseResponse(
+                    header=to_response_header(pb_release_request.header),
+                    service_exception=to_service_exception(
+                        NsiException(
+                            GenericServiceError,
+                            "Cannot release a reservation that is passed end time",
+                            {
                                 Variable.CONNECTION_ID: str(connection_id),
                             },
                         ),
@@ -526,8 +542,8 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                                 InvalidTransition,
                                 str(tna),
                                 {
-                                    Variable.PROVISION_STATE: reservation.provision_state,
                                     Variable.CONNECTION_ID: str(connection_id),
+                                    Variable.PROVISION_STATE: reservation.provision_state,
                                 },
                             ),
                             connection_id,
@@ -594,8 +610,8 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                                 InvalidTransition,
                                 str(tna),
                                 {
-                                    Variable.PROVISION_STATE: reservation.lifecycle_state,
                                     Variable.CONNECTION_ID: str(connection_id),
+                                    Variable.LIFECYCLE_STATE: reservation.lifecycle_state,
                                 },
                             ),
                             connection_id,
