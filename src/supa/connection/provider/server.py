@@ -407,7 +407,6 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                             InvalidTransition,
                             "First version of reservation not committed yet",
                             {
-                                Variable.RESERVATION_STATE: reservation.reservation_state,
                                 Variable.CONNECTION_ID: str(connection_id),
                             },
                         ),
@@ -415,13 +414,13 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                     ),
                 )
             elif current_timestamp() > reservation.end_time:
-                log.info("Cannot provision a timed out reservation")
+                log.info("Cannot provision a reservation that is passed end time")
                 provision_response = ProvisionResponse(
                     header=to_response_header(pb_provision_request.header),
                     service_exception=to_service_exception(
                         NsiException(
                             GenericServiceError,
-                            "Cannot provision a timed out reservation",
+                            "Cannot provision a reservation that is passed end time",
                             {
                                 Variable.CONNECTION_ID: str(connection_id),
                             },

@@ -78,7 +78,7 @@ logging.config.dictConfig(
             },
         },
         "handlers": {
-            "default": {"level": "INFO", "class": "logging.StreamHandler", "formatter": "colored"},
+            "default": {"level": "DEBUG", "class": "logging.StreamHandler", "formatter": "colored"},
             #     "file": {
             #         "level": "DEBUG",
             #         "class": "logging.handlers.WatchedFileHandler",

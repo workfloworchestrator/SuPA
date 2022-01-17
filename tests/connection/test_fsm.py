@@ -1,4 +1,9 @@
-from supa.connection.fsm import LifecycleStateMachine, ProvisionStateMachine, ReservationStateMachine
+from supa.connection.fsm import (
+    DataPlaneStateMachine,
+    LifecycleStateMachine,
+    ProvisionStateMachine,
+    ReservationStateMachine,
+)
 from supa.db.model import Reservation
 
 
@@ -137,3 +142,53 @@ def test_lifecycle_state_machine() -> None:  # noqa: D103
     assert reservation.lifecycle_state == LifecycleStateMachine.Terminating.value
     lsm.terminate_confirmed()
     assert reservation.lifecycle_state == LifecycleStateMachine.Terminated.value
+
+
+def test_data_plane_state_machine() -> None:  # noqa: D103
+    reservation = Reservation()
+    dpsm = DataPlaneStateMachine(reservation, state_field="data_plane_state")
+    #
+    # auto_start_request -> deactivate_request
+    #
+    assert reservation.data_plane_state == DataPlaneStateMachine.Deactivated.value
+    dpsm.auto_start_request()
+    assert reservation.data_plane_state == DataPlaneStateMachine.AutoStart.value
+    dpsm.deactivate_request()
+    assert reservation.data_plane_state == DataPlaneStateMachine.Deactivated.value
+    #
+    #  auto_start_request -> activate_request -> activate_failed
+    #
+    dpsm = DataPlaneStateMachine(reservation, state_field="data_plane_state")
+    assert reservation.data_plane_state == DataPlaneStateMachine.Deactivated.value
+    dpsm.auto_start_request()
+    assert reservation.data_plane_state == DataPlaneStateMachine.AutoStart.value
+    dpsm.activate_request()
+    assert reservation.data_plane_state == DataPlaneStateMachine.Activating.value
+    dpsm.activate_failed()
+    assert reservation.data_plane_state == DataPlaneStateMachine.ActivateFailed.value
+    #
+    # activate_request -> activate_confirmed
+    #
+    reservation.data_plane_state = DataPlaneStateMachine.Deactivated.value
+    dpsm.activate_request()
+    assert reservation.data_plane_state == DataPlaneStateMachine.Activating.value
+    dpsm.activate_confirmed()
+    assert reservation.data_plane_state == DataPlaneStateMachine.Activated.value
+    #
+    # auto_end_request -> deactivate_request -> deactivate_failed
+    #
+    reservation.data_plane_state = DataPlaneStateMachine.Activated.value
+    dpsm.auto_end_request()
+    assert reservation.data_plane_state == DataPlaneStateMachine.AutoEnd.value
+    dpsm.deactivate_request()
+    assert reservation.data_plane_state == DataPlaneStateMachine.Deactivating.value
+    dpsm.deactivate_failed()
+    assert reservation.data_plane_state == DataPlaneStateMachine.DeactivateFailed.value
+    #
+    # deactivate_request -> deactivate_confirm
+    #
+    reservation.data_plane_state = DataPlaneStateMachine.Activated.value
+    dpsm.deactivate_request()
+    assert reservation.data_plane_state == DataPlaneStateMachine.Deactivating.value
+    dpsm.deactivate_confirm()
+    assert reservation.data_plane_state == DataPlaneStateMachine.Deactivated.value
