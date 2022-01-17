@@ -21,6 +21,7 @@ from supa.grpc_nsi.connection_provider_pb2 import (
     ReserveAbortRequest,
     ReserveCommitRequest,
     ReserveRequest,
+    TerminateRequest,
 )
 from supa.grpc_nsi.services_pb2 import PointToPointService
 from supa.util.timestamp import EPOCH
@@ -141,6 +142,15 @@ def pb_release_request(pb_header: Header, connection_id: Column) -> ReleaseReque
     return pb_request
 
 
+@pytest.fixture()
+def pb_terminate_request(pb_header: Header, connection_id: Column) -> TerminateRequest:
+    """Create protobuf terminate request for connection_id."""
+    pb_request = TerminateRequest()
+    pb_request.header.CopyFrom(pb_header)
+    pb_request.connection_id = str(connection_id)
+    return pb_request
+
+
 @pytest.fixture(autouse=True, scope="module")
 def add_ports() -> None:
     """Add standard STPs to database."""
@@ -211,10 +221,13 @@ def test_reserve_commit_random_connection_id(pb_reserve_commit_request: ReserveC
     pb_reserve_commit_request.connection_id = str(uuid4())
     reserve_commit_response = service.ReserveCommit(pb_reserve_commit_request, mock_context)
     assert pb_reserve_commit_request.header.correlation_id == reserve_commit_response.header.correlation_id
+    assert pb_reserve_commit_request.connection_id == reserve_commit_response.service_exception.connection_id
     assert not reserve_commit_response.header.reply_to
     assert reserve_commit_response.HasField("service_exception")
     assert reserve_commit_response.service_exception.error_id == "00203"
-    assert pb_reserve_commit_request.connection_id == reserve_commit_response.service_exception.connection_id
+    assert len(reserve_commit_response.service_exception.variables) == 1
+    assert reserve_commit_response.service_exception.variables[0].type == "connectionId"
+    assert reserve_commit_response.service_exception.variables[0].value == pb_reserve_commit_request.connection_id
     assert "Connection ID does not exist" in caplog.text
 
 
@@ -226,10 +239,15 @@ def test_reserve_commit_invalid_transition(
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
     reserve_commit_response = service.ReserveCommit(pb_reserve_commit_request, mock_context)
     assert pb_reserve_commit_request.header.correlation_id == reserve_commit_response.header.correlation_id
+    assert pb_reserve_commit_request.connection_id == reserve_commit_response.service_exception.connection_id
     assert not reserve_commit_response.header.reply_to
     assert reserve_commit_response.HasField("service_exception")
     assert reserve_commit_response.service_exception.error_id == "00201"
-    assert pb_reserve_commit_request.connection_id == reserve_commit_response.service_exception.connection_id
+    assert len(reserve_commit_response.service_exception.variables) == 2
+    assert reserve_commit_response.service_exception.variables[0].type == "connectionId"
+    assert reserve_commit_response.service_exception.variables[0].value == pb_reserve_commit_request.connection_id
+    assert reserve_commit_response.service_exception.variables[1].type == "reservationState"
+    assert reserve_commit_response.service_exception.variables[1].value == "RESERVE_COMMITTING"
     assert "Not scheduling ReserveCommitJob" in caplog.text
 
 
@@ -241,10 +259,13 @@ def test_reserve_commit_timed_out(
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
     reserve_commit_response = service.ReserveCommit(pb_reserve_commit_request, mock_context)
     assert pb_reserve_commit_request.header.correlation_id == reserve_commit_response.header.correlation_id
+    assert pb_reserve_commit_request.connection_id == reserve_commit_response.service_exception.connection_id
     assert not reserve_commit_response.header.reply_to
     assert reserve_commit_response.HasField("service_exception")
     assert reserve_commit_response.service_exception.error_id == "00700"
-    assert pb_reserve_commit_request.connection_id == reserve_commit_response.service_exception.connection_id
+    assert len(reserve_commit_response.service_exception.variables) == 1
+    assert reserve_commit_response.service_exception.variables[0].type == "connectionId"
+    assert reserve_commit_response.service_exception.variables[0].value == pb_reserve_commit_request.connection_id
     assert "Cannot commit a timed out reservation" in caplog.text
 
 
@@ -267,10 +288,13 @@ def test_reserve_abort_random_connection_id(pb_reserve_abort_request: ReserveAbo
     pb_reserve_abort_request.connection_id = str(uuid4())
     reserve_abort_response = service.ReserveAbort(pb_reserve_abort_request, mock_context)
     assert pb_reserve_abort_request.header.correlation_id == reserve_abort_response.header.correlation_id
+    assert pb_reserve_abort_request.connection_id == reserve_abort_response.service_exception.connection_id
     assert not reserve_abort_response.header.reply_to
     assert reserve_abort_response.HasField("service_exception")
     assert reserve_abort_response.service_exception.error_id == "00203"
-    assert pb_reserve_abort_request.connection_id == reserve_abort_response.service_exception.connection_id
+    assert len(reserve_abort_response.service_exception.variables) == 1
+    assert reserve_abort_response.service_exception.variables[0].type == "connectionId"
+    assert reserve_abort_response.service_exception.variables[0].value == pb_reserve_abort_request.connection_id
     assert "Connection ID does not exist" in caplog.text
 
 
@@ -282,10 +306,15 @@ def test_reserve_abort_invalid_transition(
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
     reserve_abort_response = service.ReserveAbort(pb_reserve_abort_request, mock_context)
     assert pb_reserve_abort_request.header.correlation_id == reserve_abort_response.header.correlation_id
+    assert pb_reserve_abort_request.connection_id == reserve_abort_response.service_exception.connection_id
     assert not reserve_abort_response.header.reply_to
     assert reserve_abort_response.HasField("service_exception")
     assert reserve_abort_response.service_exception.error_id == "00201"
-    assert pb_reserve_abort_request.connection_id == reserve_abort_response.service_exception.connection_id
+    assert len(reserve_abort_response.service_exception.variables) == 2
+    assert reserve_abort_response.service_exception.variables[0].type == "connectionId"
+    assert reserve_abort_response.service_exception.variables[0].value == pb_reserve_abort_request.connection_id
+    assert reserve_abort_response.service_exception.variables[1].type == "reservationState"
+    assert reserve_abort_response.service_exception.variables[1].value == "RESERVE_ABORTING"
     assert "Not scheduling ReserveAbortJob" in caplog.text
 
 
@@ -308,10 +337,14 @@ def test_provision_random_connection_id(pb_provision_request: ProvisionRequest, 
     pb_provision_request.connection_id = str(uuid4())
     provision_response = service.Provision(pb_provision_request, mock_context)
     assert pb_provision_request.header.correlation_id == provision_response.header.correlation_id
+    assert pb_provision_request.connection_id == provision_response.service_exception.connection_id
     assert not provision_response.header.reply_to
     assert provision_response.HasField("service_exception")
     assert provision_response.service_exception.error_id == "00203"
     assert pb_provision_request.connection_id == provision_response.service_exception.connection_id
+    assert len(provision_response.service_exception.variables) == 1
+    assert provision_response.service_exception.variables[0].type == "connectionId"
+    assert provision_response.service_exception.variables[0].value == pb_provision_request.connection_id
     assert "Connection ID does not exist" in caplog.text
 
 
@@ -321,23 +354,34 @@ def test_provision_invalid_transition(pb_provision_request: ProvisionRequest, pr
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
     provision_response = service.Provision(pb_provision_request, mock_context)
     assert pb_provision_request.header.correlation_id == provision_response.header.correlation_id
+    assert pb_provision_request.connection_id == provision_response.service_exception.connection_id
     assert not provision_response.header.reply_to
     assert provision_response.HasField("service_exception")
     assert provision_response.service_exception.error_id == "00201"
     assert pb_provision_request.connection_id == provision_response.service_exception.connection_id
+    assert len(provision_response.service_exception.variables) == 2
+    assert provision_response.service_exception.variables[0].type == "connectionId"
+    assert provision_response.service_exception.variables[0].value == pb_provision_request.connection_id
+    assert provision_response.service_exception.variables[1].type == "provisionState"
+    assert provision_response.service_exception.variables[1].value == "PROVISIONED"
     assert "Not scheduling ProvisionJob" in caplog.text
 
 
-def test_provision_not_committed(pb_provision_request: ProvisionRequest, caplog: Any) -> None:
+def test_provision_not_committed(pb_provision_request: ProvisionRequest, reserve_held: None, caplog: Any) -> None:
     """Test the connection provider Provision returns service exception when reservation not committed yet."""
     service = ConnectionProviderService()
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
     provision_response = service.Provision(pb_provision_request, mock_context)
     assert pb_provision_request.header.correlation_id == provision_response.header.correlation_id
+    assert pb_provision_request.connection_id == provision_response.service_exception.connection_id
     assert not provision_response.header.reply_to
     assert provision_response.HasField("service_exception")
     assert provision_response.service_exception.error_id == "00201"
-    assert pb_provision_request.connection_id == provision_response.service_exception.connection_id
+    assert len(provision_response.service_exception.variables) == 2
+    assert provision_response.service_exception.variables[0].type == "connectionId"
+    assert provision_response.service_exception.variables[0].value == pb_provision_request.connection_id
+    assert provision_response.service_exception.variables[1].type == "reservationState"
+    assert provision_response.service_exception.variables[1].value == "RESERVE_HELD"
     assert "First version of reservation not committed yet" in caplog.text
 
 
@@ -353,10 +397,13 @@ def test_provision_passed_end_time(
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
     provision_response = service.Provision(pb_provision_request, mock_context)
     assert pb_provision_request.header.correlation_id == provision_response.header.correlation_id
+    assert pb_provision_request.connection_id == provision_response.service_exception.connection_id
     assert not provision_response.header.reply_to
     assert provision_response.HasField("service_exception")
     assert provision_response.service_exception.error_id == "00700"
-    assert pb_provision_request.connection_id == provision_response.service_exception.connection_id
+    assert len(provision_response.service_exception.variables) == 1
+    assert provision_response.service_exception.variables[0].type == "connectionId"
+    assert provision_response.service_exception.variables[0].value == pb_provision_request.connection_id
     assert "Cannot provision a reservation that is passed end time" in caplog.text
 
 
@@ -379,7 +426,116 @@ def test_release_random_connection_id(pb_release_request: ReleaseRequest, caplog
     pb_release_request.connection_id = str(uuid4())
     release_response = service.Release(pb_release_request, mock_context)
     assert pb_release_request.header.correlation_id == release_response.header.correlation_id
+    assert pb_release_request.connection_id == release_response.service_exception.connection_id
     assert not release_response.header.reply_to
     assert release_response.HasField("service_exception")
     assert release_response.service_exception.error_id == "00203"
+    assert len(release_response.service_exception.variables) == 1
+    assert release_response.service_exception.variables[0].type == "connectionId"
+    assert release_response.service_exception.variables[0].value == pb_release_request.connection_id
     assert "Connection ID does not exist" in caplog.text
+
+
+def test_release_invalid_transition(pb_release_request: ReleaseRequest, released: None, caplog: Any) -> None:
+    """Test the connection provider release returns service exception when in invalid state for request."""
+    service = ConnectionProviderService()
+    mock_context = unittest.mock.create_autospec(spec=ServicerContext)
+    release_response = service.Release(pb_release_request, mock_context)
+    assert pb_release_request.header.correlation_id == release_response.header.correlation_id
+    assert pb_release_request.connection_id == release_response.service_exception.connection_id
+    assert not release_response.header.reply_to
+    assert release_response.HasField("service_exception")
+    assert release_response.service_exception.error_id == "00201"
+    assert len(release_response.service_exception.variables) == 2
+    assert release_response.service_exception.variables[0].type == "connectionId"
+    assert release_response.service_exception.variables[0].value == pb_release_request.connection_id
+    assert release_response.service_exception.variables[1].type == "provisionState"
+    assert release_response.service_exception.variables[1].value == "RELEASED"
+    assert "Not scheduling ReleaseJob" in caplog.text
+
+
+def test_release_not_committed(pb_release_request: ReleaseRequest, reserve_held: None, caplog: Any) -> None:
+    """Test the connection provider Release returns service exception when reservation not committed yet."""
+    service = ConnectionProviderService()
+    mock_context = unittest.mock.create_autospec(spec=ServicerContext)
+    release_response = service.Release(pb_release_request, mock_context)
+    assert pb_release_request.header.correlation_id == release_response.header.correlation_id
+    assert pb_release_request.connection_id == release_response.service_exception.connection_id
+    assert not release_response.header.reply_to
+    assert release_response.HasField("service_exception")
+    assert release_response.service_exception.error_id == "00201"
+    assert len(release_response.service_exception.variables) == 2
+    assert release_response.service_exception.variables[0].type == "connectionId"
+    assert release_response.service_exception.variables[0].value == pb_release_request.connection_id
+    assert release_response.service_exception.variables[1].type == "reservationState"
+    assert release_response.service_exception.variables[1].value == "RESERVE_HELD"
+    assert "First version of reservation not committed yet" in caplog.text
+
+
+def test_release_passed_end_time(
+    pb_release_request: ReleaseRequest, connection_id: Column, provisioned: None, caplog: Any
+) -> None:
+    """Test the connection provider Release returns service exception when reservation is passed end time."""
+    with db_session() as session:
+        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
+        reservation.start_time = datetime.now(timezone.utc) - timedelta(hours=2)
+        reservation.end_time = datetime.now(timezone.utc) - timedelta(hours=1)
+    service = ConnectionProviderService()
+    mock_context = unittest.mock.create_autospec(spec=ServicerContext)
+    release_response = service.Release(pb_release_request, mock_context)
+    assert pb_release_request.header.correlation_id == release_response.header.correlation_id
+    assert pb_release_request.connection_id == release_response.service_exception.connection_id
+    assert not release_response.header.reply_to
+    assert release_response.HasField("service_exception")
+    assert release_response.service_exception.error_id == "00700"
+    assert len(release_response.service_exception.variables) == 1
+    assert release_response.service_exception.variables[0].type == "connectionId"
+    assert release_response.service_exception.variables[0].value == pb_release_request.connection_id
+    assert "Cannot release a reservation that is passed end time" in caplog.text
+
+
+def test_terminate(pb_terminate_request: TerminateRequest, provisioned: None, caplog: Any) -> None:
+    """Test the connection provider Terminate happy path."""
+    service = ConnectionProviderService()
+    mock_context = unittest.mock.create_autospec(spec=ServicerContext)
+    terminate_response = service.Terminate(pb_terminate_request, mock_context)
+    assert pb_terminate_request.header.correlation_id == terminate_response.header.correlation_id
+    assert not terminate_response.header.reply_to
+    assert not terminate_response.HasField("service_exception")
+    assert 'Added job "TerminateJob" to job store' in caplog.text
+
+
+def test_terminate_random_connection_id(pb_terminate_request: TerminateRequest, caplog: Any) -> None:
+    """Test the connection provider Release returns service exception for random connection id."""
+    service = ConnectionProviderService()
+    mock_context = unittest.mock.create_autospec(spec=ServicerContext)
+    # overwrite connection id from reservation in db with random UUID
+    pb_terminate_request.connection_id = str(uuid4())
+    terminate_response = service.Terminate(pb_terminate_request, mock_context)
+    assert pb_terminate_request.header.correlation_id == terminate_response.header.correlation_id
+    assert pb_terminate_request.connection_id == terminate_response.service_exception.connection_id
+    assert not terminate_response.header.reply_to
+    assert terminate_response.HasField("service_exception")
+    assert terminate_response.service_exception.error_id == "00203"
+    assert len(terminate_response.service_exception.variables) == 1
+    assert terminate_response.service_exception.variables[0].type == "connectionId"
+    assert terminate_response.service_exception.variables[0].value == pb_terminate_request.connection_id
+    assert "Connection ID does not exist" in caplog.text
+
+
+def test_terminate_invalid_transition(pb_terminate_request: TerminateRequest, terminated: None, caplog: Any) -> None:
+    """Test the connection provider Release returns service exception for random connection id."""
+    service = ConnectionProviderService()
+    mock_context = unittest.mock.create_autospec(spec=ServicerContext)
+    terminate_response = service.Terminate(pb_terminate_request, mock_context)
+    assert pb_terminate_request.header.correlation_id == terminate_response.header.correlation_id
+    assert pb_terminate_request.connection_id == terminate_response.service_exception.connection_id
+    assert not terminate_response.header.reply_to
+    assert terminate_response.HasField("service_exception")
+    assert terminate_response.service_exception.error_id == "00201"
+    assert len(terminate_response.service_exception.variables) == 2
+    assert terminate_response.service_exception.variables[0].type == "connectionId"
+    assert terminate_response.service_exception.variables[0].value == pb_terminate_request.connection_id
+    assert terminate_response.service_exception.variables[1].type == "lifecycleState"
+    assert terminate_response.service_exception.variables[1].value == "TERMINATED"
+    assert "Not scheduling TerminateJob" in caplog.text
