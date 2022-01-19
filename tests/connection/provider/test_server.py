@@ -11,8 +11,7 @@ from sqlalchemy import Column
 
 from supa import const
 from supa.connection.provider.server import ConnectionProviderService
-from supa.db.model import Port, Reservation
-from supa.db.session import db_session
+from supa.db.model import Reservation
 from supa.grpc_nsi.connection_common_pb2 import Header, Schedule
 from supa.grpc_nsi.connection_provider_pb2 import (
     ProvisionRequest,
@@ -149,14 +148,6 @@ def pb_terminate_request(pb_header: Header, connection_id: Column) -> TerminateR
     pb_request.header.CopyFrom(pb_header)
     pb_request.connection_id = str(connection_id)
     return pb_request
-
-
-@pytest.fixture(autouse=True, scope="module")
-def add_ports() -> None:
-    """Add standard STPs to database."""
-    with db_session() as session:
-        session.add(Port(port_id=uuid4(), name="port1", vlans="1779-1799", bandwidth=1000, enabled=True))
-        session.add(Port(port_id=uuid4(), name="port2", vlans="1779-1799", bandwidth=1000, enabled=True))
 
 
 def test_reserve_request(pb_reserve_request: ReserveRequest, caplog: Any) -> None:
@@ -389,6 +380,8 @@ def test_provision_passed_end_time(
     pb_provision_request: ProvisionRequest, connection_id: Column, released: None, caplog: Any
 ) -> None:
     """Test the connection provider Provision returns service exception when reservation is passed end time."""
+    from supa.db.session import db_session
+
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
         reservation.start_time = datetime.now(timezone.utc) - timedelta(hours=2)
@@ -476,6 +469,8 @@ def test_release_passed_end_time(
     pb_release_request: ReleaseRequest, connection_id: Column, provisioned: None, caplog: Any
 ) -> None:
     """Test the connection provider Release returns service exception when reservation is passed end time."""
+    from supa.db.session import db_session
+
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
         reservation.start_time = datetime.now(timezone.utc) - timedelta(hours=2)

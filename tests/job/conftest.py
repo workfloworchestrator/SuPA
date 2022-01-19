@@ -1,14 +1,10 @@
+# from fake_servicer import Servicer
 from typing import Any
 
 import pytest
+from fake_servicer import Servicer
 
-from supa.grpc_nsi.connection_requester_pb2 import (
-    ReserveAbortConfirmedRequest,
-    ReserveAbortConfirmedResponse,
-    ReserveCommitConfirmedRequest,
-    ReserveCommitConfirmedResponse,
-)
-from supa.grpc_nsi.connection_requester_pb2_grpc import ConnectionRequesterServicer, ConnectionRequesterStub
+from supa.grpc_nsi.connection_requester_pb2_grpc import ConnectionRequesterStub
 
 
 @pytest.fixture(scope="module")
@@ -40,19 +36,3 @@ def get_stub(grpc_stub_cls: Any, grpc_channel: Any, monkeypatch: Any) -> Any:
         return grpc_stub_cls(grpc_channel)
 
     monkeypatch.setattr(requester, "get_stub", mock_get_stub)
-
-
-class Servicer(ConnectionRequesterServicer):
-    """Fake servicer to mock replies."""
-
-    def ReserveCommitConfirmed(
-        self, request: ReserveCommitConfirmedRequest, context: Any
-    ) -> ReserveCommitConfirmedResponse:
-        """Fake ReserveCommitConfirmed to return mocked ReserveCommitConfirmedResponse."""
-        return ReserveCommitConfirmedResponse(header=request.header)
-
-    def ReserveAbortConfirmed(
-        self, request: ReserveAbortConfirmedRequest, context: Any
-    ) -> ReserveAbortConfirmedResponse:
-        """Fake ReserveAbortConfirmed to return mocked ReserveAbortConfirmedResponse."""
-        return ReserveAbortConfirmedResponse(header=request.header)
