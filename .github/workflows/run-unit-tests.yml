@@ -15,6 +15,8 @@ jobs:
         uses: actions/checkout@v2
       - name: Install dependencies
         run: |
+          apt update
+          apt install curl git
           python -m pip install --upgrade pip
           pip install -e '.[dev]'
       - name: Run Unit tests
@@ -22,7 +24,6 @@ jobs:
       - name: "Upload coverage to Codecov"
         uses: codecov/codecov-action@v2
         with:
-          fail_ci_if_error: false
+          fail_ci_if_error: true
           files: ./coverage.xml
           verbose: true
-          override_branch: master
