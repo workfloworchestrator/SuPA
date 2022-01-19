@@ -38,7 +38,12 @@ def get_stub() -> ConnectionRequesterStub:
 
 
 def send_error(request_header: Header, nsi_exc: NsiException, connection_id: UUID) -> None:
-    """Send a NSI Error referencing the request correlation_id together with details from the NsiException.
+    """Send nothing, use to_error_request() instead."""
+    logger.warn("should not use send_error()")
+
+
+def to_error_request(request_header: Header, nsi_exc: NsiException, connection_id: UUID) -> ErrorRequest:
+    """Return a NSI ErrorRequest referencing the request correlation_id together with details from the NsiException.
 
     The error message is sent from a PA to an RA in response to an outstanding operation request
     when an error condition encountered, and as a result, the operation cannot be successfully completed.
@@ -51,8 +56,7 @@ def send_error(request_header: Header, nsi_exc: NsiException, connection_id: UUI
     pb_e_req.header.CopyFrom(request_header)
     pb_e_req.service_exception.CopyFrom(to_service_exception(nsi_exc, connection_id))
 
-    stub = get_stub()
-    stub.Error(pb_e_req)
+    return pb_e_req
 
 
 def send_data_plane_state_change(session: orm.Session, connection_id: UUID) -> None:

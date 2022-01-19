@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import random
 from datetime import timedelta
-from typing import Dict, List, NamedTuple, Type
+from typing import Dict, List, NamedTuple, Type, Union
 from uuid import UUID
 
 import structlog
@@ -31,16 +31,15 @@ from supa.connection.error import (
     CapacityUnavailable,
     GenericInternalError,
     InvalidLabelFormat,
-    InvalidTransition,
     NoServiceplanePathFound,
     StpUnavailable,
     UnknownStp,
     Variable,
 )
 from supa.connection.fsm import LifecycleStateMachine, ProvisionStateMachine, ReservationStateMachine
-from supa.connection.requester import send_error
 from supa.db.model import Path, PathTrace, Port, Reservation, Segment
 from supa.grpc_nsi.connection_requester_pb2 import (
+    ErrorRequest,
     ReserveAbortConfirmedRequest,
     ReserveCommitConfirmedRequest,
     ReserveCommitFailedRequest,
@@ -191,24 +190,17 @@ class ReserveJob(Job):
             for rec in port_resources_in_use
         }
 
-    def _send_reserve_failed(self, session: orm.Session, nsi_exc: NsiException) -> None:
-        # the reservation is still in the session, hence no actual query will be performed
-        reservation: Reservation = session.query(Reservation).get(self.connection_id)
+    def _to_reserve_failed_request(self, reservation: Reservation, nsi_exc: NsiException) -> ReserveFailedRequest:
+        """Create a protobuf reserve failed request from a Reservation and NsiException."""
         pb_rf_req = ReserveFailedRequest()
-
         pb_rf_req.header.CopyFrom(to_header(reservation, add_path_segment=False))
         pb_rf_req.connection_id = str(reservation.connection_id)
         pb_rf_req.connection_states.CopyFrom(to_connection_states(reservation, data_plane_active=False))
         pb_rf_req.service_exception.CopyFrom(to_service_exception(nsi_exc, reservation.connection_id))
+        return pb_rf_req
 
-        self.log.debug("Sending message.", method="ReserveFailed", request_message=pb_rf_req)
-        stub = requester.get_stub()
-        stub.ReserveFailed(pb_rf_req)
-
-    def _send_reserve_confirmed(self, session: orm.Session) -> None:
-        # the reservation is still in the session, hence no actual query will be performed
-        reservation: Reservation = session.query(Reservation).get(self.connection_id)
-
+    def _to_reserve_confirmed_request(self, reservation: Reservation) -> ReserveConfirmedRequest:
+        """Create a protobuf reserve confirmed request from a Reservation."""
         pb_rc_req = ReserveConfirmedRequest()
         # Confirming the reservation means we have a Path. hence we should add it to the Header.
         pb_rc_req.header.CopyFrom(to_header(reservation, add_path_segment=True))
@@ -216,10 +208,7 @@ class ReserveJob(Job):
         pb_rc_req.global_reservation_id = reservation.global_reservation_id
         # We skip setting the description, cause we have nothing specific to set it to (suggestions?)
         pb_rc_req.criteria.CopyFrom(to_confirm_criteria(reservation))
-
-        self.log.debug("Sending message.", method="ReserveConfirmed", request_message=pb_rc_req)
-        stub = requester.get_stub()
-        stub.ReserveConfirmed(pb_rc_req)
+        return pb_rc_req
 
     def __call__(self) -> None:
         """Check reservation request.
@@ -228,9 +217,11 @@ class ReserveJob(Job):
         a ReserveConfirmed message will be send to the NSA/AG.
         If not, a ReserveFailed message will be send instead.
         """
-        self.log.info("Checking reservation request.")
         from supa.db.session import db_session
 
+        self.log.info("Checking reservation request")
+
+        response = Union[ReserveConfirmedRequest, ReserveFailedRequest]
         with db_session() as session:
             reservation: Reservation = (
                 session.query(Reservation)
@@ -247,12 +238,6 @@ class ReserveJob(Job):
             port_resources_in_use = self._port_resources_in_use(session)
 
             try:
-                if rsm.current_state != ReservationStateMachine.ReserveChecking:
-                    raise NsiException(
-                        InvalidTransition,
-                        rsm.current_state.name,
-                        {Variable.RESERVATION_STATE: rsm.current_state.value},
-                    )
                 if reservation.src_port == reservation.dst_port:
                     raise NsiException(
                         # Not sure if this is the correct error to use.
@@ -323,16 +308,25 @@ class ReserveJob(Job):
                     #
             except NsiException as nsi_exc:
                 self.log.info("Reservation failed.", reason=nsi_exc.text)
+                response = self._to_reserve_failed_request(reservation, nsi_exc)  # type: ignore[misc]
                 rsm.reserve_failed()
-                self._send_reserve_failed(session, nsi_exc)
             except Exception as exc:
                 self.log.exception("Unexpected error occurred.", reason=str(exc))
-                rsm.reserve_failed()
                 nsi_exc = NsiException(GenericInternalError, str(exc))  # type: ignore[misc]
-                self._send_reserve_failed(session, nsi_exc)  # type: ignore[misc]
+                response = self._to_reserve_failed_request(reservation, nsi_exc)  # type: ignore[misc]
+                rsm.reserve_failed()
             else:
+                response = self._to_reserve_confirmed_request(reservation)  # type: ignore[misc]
                 rsm.reserve_confirmed()
-                self._send_reserve_confirmed(session)
+
+        if type(response) == ReserveConfirmedRequest:
+            self.log.debug("Sending message.", method="ReserveConfirmed", request_message=response)
+            stub = requester.get_stub()
+            stub.ReserveConfirmed(response)
+        else:
+            self.log.debug("Sending message.", method="ReserveFailed", request_message=response)
+            stub = requester.get_stub()
+            stub.ReserveFailed(response)
 
     @classmethod
     def recover(cls: Type[ReserveJob]) -> List[Job]:
@@ -376,30 +370,23 @@ class ReserveCommitJob(Job):
         self.log = logger.bind(job=self.__class__.__name__, connection_id=str(connection_id))
         self.connection_id = connection_id
 
-    def _send_reserve_commit_failed(self, session: orm.Session, nsi_exc: NsiException) -> None:
-        # the reservation is still in the session, hence no actual query will be performed
-        reservation: Reservation = session.query(Reservation).get(self.connection_id)
+    def _to_reserve_commit_failed_request(
+        self, reservation: Reservation, nsi_exc: NsiException
+    ) -> ReserveCommitFailedRequest:
+        """Create a protobuf reserve commit failed request from a Reservation and NsiException."""
         pb_rcf_req = ReserveCommitFailedRequest()
-
         pb_rcf_req.header.CopyFrom(to_header(reservation, add_path_segment=False))
         pb_rcf_req.connection_id = str(reservation.connection_id)
         pb_rcf_req.connection_states.CopyFrom(to_connection_states(reservation, data_plane_active=False))
         pb_rcf_req.service_exception.CopyFrom(to_service_exception(nsi_exc, reservation.connection_id))
+        return pb_rcf_req
 
-        self.log.debug("Sending message.", method="ReserveCommitFailed", request_message=pb_rcf_req)
-        stub = requester.get_stub()
-        stub.ReserveCommitFailed(pb_rcf_req)
-
-    def _send_reserve_commit_confirmed(self, session: orm.Session) -> None:
-        # the reservation is still in the session, hence no actual query will be performed
-        reservation: Reservation = session.query(Reservation).get(self.connection_id)
-
+    def _to_reserve_commit_confirmed_request(self, reservation: Reservation) -> ReserveCommitConfirmedRequest:
+        """Create a protobuf reserve commit confirmed request from a Reservation and NsiException."""
         pb_rcc_req = ReserveCommitConfirmedRequest()
         pb_rcc_req.header.CopyFrom(to_header(reservation, add_path_segment=True))  # Yes, add our segment!
         pb_rcc_req.connection_id = str(reservation.connection_id)
-        self.log.debug("Sending message.", method="ReserveCommitConfirmed", request_message=pb_rcc_req)
-        stub = requester.get_stub()
-        stub.ReserveCommitConfirmed(pb_rcc_req)
+        return pb_rcc_req
 
     def __call__(self) -> None:
         """Commit reservation request.
@@ -411,10 +398,11 @@ class ReserveCommitJob(Job):
         If the reservation state machine is not in the correct state for a ReserveCommit
         an NSI error is returned leaving the state machine unchanged.
         """
-        self.log.info("Committing reservation")
-
         from supa.db.session import db_session
 
+        self.log.info("Committing reservation")
+
+        response: Union[ReserveCommitConfirmedRequest, ReserveCommitFailedRequest]
         with db_session() as session:
             reservation = (
                 session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one_or_none()
@@ -430,19 +418,27 @@ class ReserveCommitJob(Job):
                 pass
             except NsiException as nsi_exc:
                 self.log.info("Reserve commit failed.", reason=nsi_exc.text)
+                response = self._to_reserve_commit_failed_request(session, nsi_exc)
                 rsm.reserve_commit_failed()
-                self._send_reserve_commit_failed(session, nsi_exc)
             except Exception as exc:
                 self.log.exception("Unexpected error occurred.", reason=str(exc))
-                rsm.reserve_commit_failed()
                 nsi_exc = NsiException(GenericInternalError, str(exc))  # type: ignore[misc]
-                self._send_reserve_commit_failed(session, nsi_exc)  # type: ignore[misc]
+                response = self._to_reserve_commit_failed_request(session, nsi_exc)  # type: ignore[misc]
+                rsm.reserve_commit_failed()
             else:
+                response = self._to_reserve_commit_confirmed_request(reservation)
                 # create new psm just before the reserveCommitConfirmed,
                 # this will set initial provision_state on reservation
                 psm = ProvisionStateMachine(reservation, state_field="provision_state")  # noqa: F841
                 rsm.reserve_commit_confirmed()
-                self._send_reserve_commit_confirmed(session)
+
+        stub = requester.get_stub()
+        if type(response) == ReserveCommitConfirmedRequest:
+            self.log.debug("Sending message", method="ReserveCommitConfirmed", request_message=response)
+            stub.ReserveCommitConfirmed(response)
+        else:
+            self.log.debug("Sending message.", method="ReserveCommitFailed", request_message=response)
+            stub.ReserveCommitFailed(response)
 
     @classmethod
     def recover(cls: Type[ReserveCommitJob]) -> List[Job]:
@@ -486,17 +482,14 @@ class ReserveAbortJob(Job):
         self.log = logger.bind(job=self.__class__.__name__, connection_id=str(connection_id))
         self.connection_id = connection_id
 
-    def _send_reserve_abort_confirmed(self, session: orm.Session) -> None:
+    def _to_reserve_abort_confirmed_request(self, reservation: Reservation) -> ReserveAbortConfirmedRequest:
         # the reservation is still in the session, hence no actual query will be performed
-        reservation: Reservation = session.query(Reservation).get(self.connection_id)
         pb_rcc_req = ReserveAbortConfirmedRequest()
 
         pb_rcc_req.header.CopyFrom(to_header(reservation, add_path_segment=True))  # Yes, add our segment!
         pb_rcc_req.connection_id = str(reservation.connection_id)
 
-        self.log.debug("Sending message.", method="ReserveAbortConfirmed", request_message=pb_rcc_req)
-        stub = requester.get_stub()
-        stub.ReserveAbortConfirmed(pb_rcc_req)
+        return pb_rcc_req
 
     def __call__(self) -> None:
         """Abort reservation request.
@@ -510,6 +503,7 @@ class ReserveAbortJob(Job):
 
         from supa.db.session import db_session
 
+        response: Union[ReserveAbortConfirmedRequest, ErrorRequest]
         with db_session() as session:
             reservation = (
                 session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one_or_none()
@@ -525,14 +519,14 @@ class ReserveAbortJob(Job):
                 pass
             except NsiException as nsi_exc:
                 self.log.info("Reserve abort failed.", reason=nsi_exc.text)
-                send_error(
+                response = requester.to_error_request(
                     to_header(reservation),
                     nsi_exc,
                     self.connection_id,
                 )
             except Exception as exc:
                 self.log.exception("Unexpected error occurred.", reason=str(exc))
-                send_error(
+                response = requester.to_error_request(
                     to_header(reservation),
                     NsiException(
                         GenericInternalError,
@@ -545,8 +539,16 @@ class ReserveAbortJob(Job):
                     self.connection_id,
                 )
             else:
+                response = self._to_reserve_abort_confirmed_request(reservation)
                 rsm.reserve_abort_confirmed()
-                self._send_reserve_abort_confirmed(session)
+
+        stub = requester.get_stub()
+        if type(response) == ReserveAbortConfirmedRequest:
+            self.log.debug("Sending message", method="ReserveAbortConfirmed", request_message=response)
+            stub.ReserveAbortConfirmed(response)
+        else:
+            self.log.debug("Sending message", method="Error", request_message=response)
+            stub.Error(response)
 
     @classmethod
     def recover(cls: Type[ReserveAbortJob]) -> List[Job]:
@@ -581,21 +583,17 @@ class ReserveTimeoutJob(Job):
     connection_id: UUID
     log: BoundLogger
 
-    def _send_reserve_timeout_notification(self, session: orm.Session) -> None:
-        # the reservation is still in the session, hence no actual query will be performed
-        #
-        # TODO: implement reserve timeout notification
-        #
-        # reservation: Reservation = session.query(Reservation).get(self.connection_id)
-        # pb_rcc_req = ReserveAbortConfirmedRequest()
-        #
-        # pb_rcc_req.header.CopyFrom(to_header(reservation, add_path_segment=True))  # Yes, add our segment!
-        # pb_rcc_req.connection_id = str(reservation.connection_id)
-        #
-        # self.log.debug("Sending message.", method="ReserveAbortConfirmed", request_message=pb_rcc_req)
-        # stub = requester.get_stub()
-        # stub.ReserveAbortConfirmed(pb_rcc_req)
-        pass
+    #
+    # TODO: implement reserve timeout notification request
+    #
+    # def _to_reserve_timeout_request(self, reservation: Reservation) -> ReserveTimeoutRequest:
+    #     pb_rt_req = ReserveTimeoutRequest()
+    #
+    #     pb_rt_req.header.CopyFrom(to_header(reservation, add_path_segment=True))  # Yes, add our segment!
+    #     pb_rt_req.notification = #  TODO implement generic create_notification()
+    #     pb_rt_req.....  # TODO add reserve timeout values
+    #
+    #     return pb_rt_req
 
     def __init__(self, connection_id: UUID):
         """Initialize the ReserveTimeoutJob.
@@ -619,6 +617,7 @@ class ReserveTimeoutJob(Job):
 
         from supa.db.session import db_session
 
+        # response: Union[ReserveTimeoutRequest, ErrorRequest]  # TODO enable when implemented
         with db_session() as session:
             reservation = (
                 session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one_or_none()
@@ -641,14 +640,14 @@ class ReserveTimeoutJob(Job):
                 )
             except NsiException as nsi_exc:
                 self.log.info("Reserve timeout failed.", reason=nsi_exc.text)
-                send_error(
+                response = requester.to_error_request(
                     to_header(reservation),
                     nsi_exc,
                     self.connection_id,
                 )
             except Exception as exc:
                 self.log.exception("Unexpected error occurred.", reason=str(exc))
-                send_error(
+                response = requester.to_error_request(
                     to_header(reservation),
                     NsiException(
                         GenericInternalError,
@@ -665,8 +664,18 @@ class ReserveTimeoutJob(Job):
                 # TODO: release reserved resources(?)
                 #
                 self.log.debug("setting reservation.reservation_timeout to true in db")
+                # response = self._send_reserve_timeout_notification(session)  #  TODO activate this response
                 reservation.reservation_timeout = True
-                self._send_reserve_timeout_notification(session)
+
+        # TODO activate when implemented
+        self.log.debug("Sending message", method="TODO", request_message=response)
+        # stub = requester.get_stub()
+        # if type(response) == ReserveTimeoutRequest:
+        #     self.log.debug("Sending message", method="ReserveTimeout", request_message=response)
+        #     stub.ReserveTimeout(response)
+        # else:
+        #     self.log.debug("Sending message", method="Error", request_message=response)
+        #     stub.Error(response)
 
     @classmethod
     def recover(cls: Type[ReserveTimeoutJob]) -> List[Job]:
