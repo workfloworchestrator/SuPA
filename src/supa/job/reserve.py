@@ -618,6 +618,7 @@ class ReserveTimeoutJob(Job):
         from supa.db.session import db_session
 
         # response: Union[ReserveTimeoutRequest, ErrorRequest]  # TODO enable when implemented
+        response: Union[None, ErrorRequest]  # TODO enable when implemented
         with db_session() as session:
             reservation = (
                 session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one_or_none()
@@ -638,6 +639,7 @@ class ReserveTimeoutJob(Job):
                     state=rsm.current_state.identifier,
                     connection_id=str(self.connection_id),
                 )
+                return
             except NsiException as nsi_exc:
                 self.log.info("Reserve timeout failed.", reason=nsi_exc.text)
                 response = requester.to_error_request(
@@ -665,6 +667,7 @@ class ReserveTimeoutJob(Job):
                 #
                 self.log.debug("setting reservation.reservation_timeout to true in db")
                 # response = self._send_reserve_timeout_notification(session)  #  TODO activate this response
+                response = None
                 reservation.reservation_timeout = True
 
         # TODO activate when implemented
