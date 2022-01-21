@@ -12,22 +12,21 @@
 #  limitations under the License.
 from __future__ import annotations
 
-from typing import List, Type
+from typing import List, Type, Union
 from uuid import UUID
 
 import structlog
 from apscheduler.triggers.date import DateTrigger
 from more_itertools import flatten
-from sqlalchemy import orm
 from statemachine.exceptions import TransitionNotAllowed
 from structlog.stdlib import BoundLogger
 
 from supa.connection import requester
 from supa.connection.error import GenericInternalError, Variable
 from supa.connection.fsm import DataPlaneStateMachine, LifecycleStateMachine
-from supa.connection.requester import send_error
+from supa.connection.requester import to_error_request
 from supa.db.model import Reservation
-from supa.grpc_nsi.connection_requester_pb2 import TerminateConfirmedRequest
+from supa.grpc_nsi.connection_requester_pb2 import ErrorRequest, TerminateConfirmedRequest
 from supa.job.dataplane import DeactivateJob
 from supa.job.shared import Job, NsiException
 from supa.util.converter import to_header
@@ -50,17 +49,13 @@ class TerminateJob(Job):
         self.log = logger.bind(job=self.__class__.__name__, connection_id=str(connection_id))
         self.connection_id = connection_id
 
-    def _send_terminate_confirmed(self, session: orm.Session) -> None:
-        # the reservation is still in the session, hence no actual query will be performed
-        reservation: Reservation = session.query(Reservation).get(self.connection_id)
+    def _to_terminate_confirmed_request(self, reservation: Reservation) -> TerminateConfirmedRequest:
         pb_tc_req = TerminateConfirmedRequest()
 
         pb_tc_req.header.CopyFrom(to_header(reservation, add_path_segment=True))  # Yes, add our segment!
         pb_tc_req.connection_id = str(reservation.connection_id)
 
-        self.log.debug("Sending message.", method="TerminateConfirmed", request_message=pb_tc_req)
-        stub = requester.get_stub()
-        stub.TerminateConfirmed(pb_tc_req)
+        return pb_tc_req
 
     def __call__(self) -> None:
         """Terminate reservation request.
@@ -73,6 +68,7 @@ class TerminateJob(Job):
 
         from supa.db.session import db_session
 
+        response: Union[TerminateConfirmedRequest, ErrorRequest]
         with db_session() as session:
             reservation = (
                 session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one_or_none()
@@ -89,14 +85,14 @@ class TerminateJob(Job):
                 pass
             except NsiException as nsi_exc:
                 self.log.info("Terminate failed.", reason=nsi_exc.text)
-                send_error(
+                response = to_error_request(
                     to_header(reservation),
                     nsi_exc,
                     self.connection_id,
                 )
             except Exception as exc:
                 self.log.exception("Unexpected error occurred.", reason=str(exc))
-                send_error(
+                response = to_error_request(
                     to_header(reservation),
                     NsiException(
                         GenericInternalError,
@@ -132,8 +128,16 @@ class TerminateJob(Job):
                             trigger=DateTrigger(run_date=None),
                             id=f"{str(self.connection_id)}-DeactivateJob",
                         )
+                response = self._to_terminate_confirmed_request(reservation)
                 lsm.terminate_confirmed()
-                self._send_terminate_confirmed(session)
+
+        stub = requester.get_stub()
+        if type(response) == TerminateConfirmedRequest:
+            self.log.debug("Sending message", method="TerminateConfirmed", request_message=response)
+            stub.TerminateConfirmed(response)
+        else:
+            self.log.debug("Sending message", method="Error", request_message=response)
+            stub.Error(response)
 
     @classmethod
     def recover(cls: Type[TerminateJob]) -> List[Job]:

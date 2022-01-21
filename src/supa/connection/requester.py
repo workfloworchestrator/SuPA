@@ -15,12 +15,11 @@ from uuid import UUID
 
 import grpc
 import structlog
-from sqlalchemy import orm
 
 from supa import settings
 from supa.connection.fsm import DataPlaneStateMachine
 from supa.db.model import Reservation
-from supa.grpc_nsi.connection_common_pb2 import Header
+from supa.grpc_nsi.connection_common_pb2 import Header, Notification
 from supa.grpc_nsi.connection_requester_pb2 import DataPlaneStateChangeRequest, ErrorRequest
 from supa.grpc_nsi.connection_requester_pb2_grpc import ConnectionRequesterStub
 from supa.job.shared import NsiException
@@ -35,11 +34,6 @@ def get_stub() -> ConnectionRequesterStub:
     channel = grpc.insecure_channel(settings.grpc_client_insecure_address_port)
     stub = ConnectionRequesterStub(channel)
     return stub
-
-
-def send_error(request_header: Header, nsi_exc: NsiException, connection_id: UUID) -> None:
-    """Send nothing, use to_error_request() instead."""
-    logger.warn("should not use send_error()")
 
 
 def to_error_request(request_header: Header, nsi_exc: NsiException, connection_id: UUID) -> ErrorRequest:
@@ -59,28 +53,30 @@ def to_error_request(request_header: Header, nsi_exc: NsiException, connection_i
     return pb_e_req
 
 
-def send_data_plane_state_change(session: orm.Session, connection_id: UUID) -> None:
+def new_notification_header(reservation: Reservation) -> Notification:
+    """Return new notification with unique id in the context of the reservation."""
+    pb_n_header = Notification()
+
+    pb_n_header.connection_id = str(reservation.connection_id)
+    pb_n_header.notification_id = 1  # TODO Add Column to database for unique notification ID for this reservation.
+    pb_n_header.time_stamp.FromDatetime(current_timestamp())
+
+    return pb_n_header
+
+
+def to_data_plane_state_change_request(reservation: Reservation) -> DataPlaneStateChangeRequest:
     """Send a NSI dataPlaneStateChange notification.
 
     The dataPlaneStateChange is an autonomous notification sent from a PA to an RA
     to inform about a change in status of the data plane.
     """
-    reservation: Reservation = session.query(Reservation).get(connection_id)
     dpsm = DataPlaneStateMachine(reservation, state_field="data_plane_state")
-
     pb_dpsc_req = DataPlaneStateChangeRequest()
 
     pb_dpsc_req.header.CopyFrom(to_header(reservation, add_path_segment=True))  # Yes, add our segment!
-    pb_dpsc_req.connection_id = str(reservation.connection_id)
-    pb_dpsc_req.notification_id = 1  # TODO Add Column to database for unique notification ID for this reservation.
-    pb_dpsc_req.time_stamp.FromDatetime(current_timestamp())
+    pb_dpsc_req.notification.CopyFrom(new_notification_header(reservation))
     pb_dpsc_req.data_plane_status.version = reservation.version
     pb_dpsc_req.data_plane_status.version_consistent = True  # always True for an uPA
     pb_dpsc_req.data_plane_status.active = dpsm.current_state == DataPlaneStateMachine.Activated
 
-    logger.debug(
-        "Sending message", method="DataPlaneStateChange", connection_id=str(connection_id), request_message=pb_dpsc_req
-    )
-
-    stub = get_stub()
-    stub.DataPlaneStateChange(pb_dpsc_req)
+    return pb_dpsc_req
