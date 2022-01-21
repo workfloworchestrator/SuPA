@@ -184,7 +184,9 @@ def test_reserve_timeout_job_invalid_transition(caplog: Any, connection_id: Colu
         assert reservation.reservation_state == ReservationStateMachine.ReserveCommitting.value
 
 
-def test_reserve_timeout_job_reserve_timeout_notification(connection_id: Column, reserve_held: None) -> None:
+def test_reserve_timeout_job_reserve_timeout_notification(
+    connection_id: Column, reserve_held: None, get_stub: None
+) -> None:
     """Test ReserveTimeoutJob to transition to ReserveTimeout.
 
     Verify that a ReserveTimeoutJob will transition the reserve state machine
