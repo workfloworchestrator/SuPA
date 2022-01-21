@@ -1,10 +1,21 @@
 from typing import Any
 from uuid import UUID
 
-from supa.connection.fsm import ReservationStateMachine
+from supa.connection.fsm import (
+    DataPlaneStateMachine,
+    LifecycleStateMachine,
+    ProvisionStateMachine,
+    ReservationStateMachine,
+)
 from supa.db.model import Port, Reservation
 from supa.grpc_nsi.connection_common_pb2 import RESERVE_CHECKING
 from supa.grpc_nsi.connection_requester_pb2 import (
+    DataPlaneStateChangeRequest,
+    DataPlaneStateChangeResponse,
+    ErrorRequest,
+    ErrorResponse,
+    ProvisionConfirmedRequest,
+    ProvisionConfirmedResponse,
     ReserveAbortConfirmedRequest,
     ReserveAbortConfirmedResponse,
     ReserveCommitConfirmedRequest,
@@ -141,3 +152,76 @@ class Servicer(ConnectionRequesterServicer):
     def ReserveTimeout(self, request: ReserveTimeoutRequest, context: Any) -> ReserveTimeoutResponse:
         """Fake ReserveTimeout to return mocked ReserveTimeoutResponse."""
         return ReserveTimeoutResponse(header=request.header)
+
+    def ProvisionConfirmed(self, request: ProvisionConfirmedRequest, context: Any) -> ProvisionConfirmedResponse:
+        """Fake ProvisionConfirmed to return mocked ProvisionConfirmedResponse."""
+        from supa.db.session import db_session
+
+        assert request.connection_id
+
+        with db_session() as session:
+            reservation = (
+                session.query(Reservation).filter(Reservation.connection_id == UUID(request.connection_id)).one()
+            )
+            # test_provision_job_provision_confirmed()
+            assert reservation.provision_state == ProvisionStateMachine.Provisioned.value
+
+        return ReserveConfirmedResponse(header=request.header)
+
+    def Error(self, request: ErrorRequest, context: Any) -> ErrorResponse:
+        """Fake Error to return mocked ErrorResponse.
+
+        The correlationId carried in the NSI CS header structure
+        will identify the original request associated with this error message.
+        """
+        from supa.db.session import db_session
+
+        assert request.HasField("service_exception")
+
+        test_hit_count = 0
+        with db_session() as session:
+            reservation = (
+                session.query(Reservation)
+                .filter(Reservation.correlation_id == UUID(request.header.correlation_id))
+                .one()
+            )
+            # test_provision_job_already_terminated()
+            if (
+                reservation.provision_state == ProvisionStateMachine.Provisioning.value
+                and reservation.lifecycle_state == LifecycleStateMachine.Terminated.value
+            ):
+                test_hit_count += 1
+                assert request.service_exception.error_id == "00200"
+                assert len(request.service_exception.variables) == 1
+                assert request.service_exception.variables[0].type == "connectionId"
+                assert "Reservation already terminated" in request.service_exception.text
+            # test_provision_cannot_auto_start()
+            if (
+                reservation.provision_state == ProvisionStateMachine.Provisioning.value
+                and reservation.data_plane_state == DataPlaneStateMachine.Activated.value
+            ):
+                test_hit_count += 1
+                assert request.service_exception.error_id == "00201"
+                assert len(request.service_exception.variables) == 1
+                assert request.service_exception.variables[0].type == "connectionId"
+                assert (
+                    "Connection state machine is in invalid state for received message"
+                    in request.service_exception.text
+                )
+            # test_provision_cannot_activate()
+            if (
+                reservation.provision_state == ProvisionStateMachine.Provisioning.value
+                and reservation.data_plane_state == DataPlaneStateMachine.ActivateFailed.value
+            ):
+                test_hit_count += 1
+                assert request.service_exception.error_id == "00201"
+                assert len(request.service_exception.variables) == 1
+                assert request.service_exception.variables[0].type == "connectionId"
+                assert "Can't activate_request when in ActivateFailed" in request.service_exception.text
+        assert test_hit_count == 1
+
+        return ErrorResponse(header=request.header)
+
+    def DataPlaneStateChange(self, request: DataPlaneStateChangeRequest, context: Any) -> DataPlaneStateChangeResponse:
+        """Fake DataPlaneStateChange to return mocked DataPlaneStateChangeResponse."""
+        return DataPlaneStateChangeResponse(header=request.header)

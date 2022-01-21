@@ -10,9 +10,15 @@ from apscheduler.jobstores.base import JobLookupError
 from sqlalchemy import Column
 
 from supa import init_app, settings
-from supa.connection.fsm import LifecycleStateMachine, ProvisionStateMachine, ReservationStateMachine
+from supa.connection.fsm import (
+    DataPlaneStateMachine,
+    LifecycleStateMachine,
+    ProvisionStateMachine,
+    ReservationStateMachine,
+)
 from supa.db.model import Port, Reservation
 from supa.grpc_nsi import connection_provider_pb2_grpc
+from supa.job.dataplane import AutoStartJob
 from supa.job.reserve import ReserveTimeoutJob
 
 
@@ -258,6 +264,16 @@ def released(connection_id: Column) -> None:
 
 
 @pytest.fixture
+def releasing(connection_id: Column) -> None:
+    """Set provision state machine of reservation identified by connection_id to state Releasing."""
+    from supa.db.session import db_session
+
+    with db_session() as session:
+        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
+        reservation.provision_state = ProvisionStateMachine.Releasing.value
+
+
+@pytest.fixture
 def provisioned(connection_id: Column) -> None:
     """Set provision state machine of reservation identified by connection_id to state Provisioned."""
     from supa.db.session import db_session
@@ -265,6 +281,16 @@ def provisioned(connection_id: Column) -> None:
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
         reservation.provision_state = ProvisionStateMachine.Provisioned.value
+
+
+@pytest.fixture
+def provisioning(connection_id: Column) -> None:
+    """Set provision state machine of reservation identified by connection_id to state Provisioning."""
+    from supa.db.session import db_session
+
+    with db_session() as session:
+        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
+        reservation.provision_state = ProvisionStateMachine.Provisioning.value
 
 
 @pytest.fixture
@@ -285,6 +311,61 @@ def passed_end_time(connection_id: Column) -> None:
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
         reservation.lifecycle_state = LifecycleStateMachine.PassedEndTime.value
+
+
+@pytest.fixture
+def activated(connection_id: Column) -> None:
+    """Set data plane state machine of reservation identified by connection_id to state Activated."""
+    from supa.db.session import db_session
+
+    with db_session() as session:
+        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
+        reservation.data_plane_state = DataPlaneStateMachine.Activated.value
+
+
+@pytest.fixture
+def activate_failed(connection_id: Column) -> None:
+    """Set data plane state machine of reservation identified by connection_id to state ActivateFailed."""
+    from supa.db.session import db_session
+
+    with db_session() as session:
+        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
+        reservation.data_plane_state = DataPlaneStateMachine.ActivateFailed.value
+
+
+@pytest.fixture
+def auto_start(connection_id: Column) -> Generator:
+    """Set data plane state machine of reservation identified by connection_id to state AutoStart."""
+    from supa.db.session import db_session
+
+    with db_session() as session:
+        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
+        reservation.data_plane_state = DataPlaneStateMachine.AutoStart.value
+
+    from supa import scheduler
+
+    job_handle = scheduler.add_job(
+        job := AutoStartJob(connection_id),
+        trigger=job.trigger(),
+        id=f"{str(connection_id)}-AutoStartJob",
+    )
+
+    yield None
+
+    try:
+        job_handle.remove()
+    except JobLookupError:
+        pass  # job already removed from job store
+
+
+@pytest.fixture
+def deactivated(connection_id: Column) -> None:
+    """Set data plane state machine of reservation identified by connection_id to state Deactivated."""
+    from supa.db.session import db_session
+
+    with db_session() as session:
+        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
+        reservation.data_plane_state = DataPlaneStateMachine.Deactivated.value
 
 
 @pytest.fixture
