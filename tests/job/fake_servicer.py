@@ -13,6 +13,8 @@ from supa.grpc_nsi.connection_requester_pb2 import (
     ReserveConfirmedResponse,
     ReserveFailedRequest,
     ReserveFailedResponse,
+    ReserveTimeoutRequest,
+    ReserveTimeoutResponse,
 )
 from supa.grpc_nsi.connection_requester_pb2_grpc import ConnectionRequesterServicer
 
@@ -135,3 +137,7 @@ class Servicer(ConnectionRequesterServicer):
     ) -> ReserveAbortConfirmedResponse:
         """Fake ReserveAbortConfirmed to return mocked ReserveAbortConfirmedResponse."""
         return ReserveAbortConfirmedResponse(header=request.header)
+
+    def ReserveTimeout(self, request: ReserveTimeoutRequest, context: Any) -> ReserveTimeoutResponse:
+        """Fake ReserveTimeout to return mocked ReserveTimeoutResponse."""
+        return ReserveTimeoutResponse(header=request.header)
