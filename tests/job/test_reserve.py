@@ -2,8 +2,8 @@ from typing import Any
 
 from sqlalchemy import Column
 
-from supa.connection.fsm import ReservationStateMachine
-from supa.db.model import Reservation
+import tests.shared.state_machine as state_machine
+
 from supa.job.reserve import ReserveAbortJob, ReserveCommitJob, ReserveJob, ReserveTimeoutJob
 
 
@@ -11,6 +11,7 @@ def test_reserve_job_reserve_confirmed(connection_id: Column, reserve_checking: 
     """Test ReserveJob to transition to ReserveHeld."""
     reserve_job = ReserveJob(connection_id)
     reserve_job.__call__()
+    assert state_machine.is_reserve_held(connection_id)
 
 
 def test_reserve_job_reserve_failed_src_port_equals_dst_port(
@@ -20,6 +21,7 @@ def test_reserve_job_reserve_failed_src_port_equals_dst_port(
     reserve_job = ReserveJob(connection_id)
     reserve_job.__call__()
     assert "Reservation failed" in caplog.text
+    assert state_machine.is_reserve_failed(connection_id)
 
 
 def test_reserve_job_reserve_failed_unknown_port(
@@ -29,6 +31,7 @@ def test_reserve_job_reserve_failed_unknown_port(
     reserve_job = ReserveJob(connection_id)
     reserve_job.__call__()
     assert "Reservation failed" in caplog.text
+    assert state_machine.is_reserve_failed(connection_id)
 
 
 def test_reserve_job_reserve_failed_disabled_port(
@@ -38,6 +41,7 @@ def test_reserve_job_reserve_failed_disabled_port(
     reserve_job = ReserveJob(connection_id)
     reserve_job.__call__()
     assert "Reservation failed" in caplog.text
+    assert state_machine.is_reserve_failed(connection_id)
 
 
 def test_reserve_job_reserve_failed_unknown_domain_port(
@@ -47,6 +51,7 @@ def test_reserve_job_reserve_failed_unknown_domain_port(
     reserve_job = ReserveJob(connection_id)
     reserve_job.__call__()
     assert "Reservation failed" in caplog.text
+    assert state_machine.is_reserve_failed(connection_id)
 
 
 def test_reserve_job_reserve_failed_unknown_topology_port(
@@ -56,6 +61,7 @@ def test_reserve_job_reserve_failed_unknown_topology_port(
     reserve_job = ReserveJob(connection_id)
     reserve_job.__call__()
     assert "Reservation failed" in caplog.text
+    assert state_machine.is_reserve_failed(connection_id)
 
 
 def test_reserve_job_reserve_failed_empty_vlans_port(
@@ -65,6 +71,7 @@ def test_reserve_job_reserve_failed_empty_vlans_port(
     reserve_job = ReserveJob(connection_id)
     reserve_job.__call__()
     assert "Reservation failed" in caplog.text
+    assert state_machine.is_reserve_failed(connection_id)
 
 
 def test_reserve_job_reserve_failed_to_much_bandwidth(
@@ -74,6 +81,7 @@ def test_reserve_job_reserve_failed_to_much_bandwidth(
     reserve_job = ReserveJob(connection_id)
     reserve_job.__call__()
     assert "Reservation failed" in caplog.text
+    assert state_machine.is_reserve_failed(connection_id)
 
 
 def test_reserve_job_reserve_failed_no_matching_vlan(
@@ -83,6 +91,7 @@ def test_reserve_job_reserve_failed_no_matching_vlan(
     reserve_job = ReserveJob(connection_id)
     reserve_job.__call__()
     assert "Reservation failed" in caplog.text
+    assert state_machine.is_reserve_failed(connection_id)
 
 
 def test_reserve_job_reserve_failed_all_vlans_in_use(
@@ -92,6 +101,7 @@ def test_reserve_job_reserve_failed_all_vlans_in_use(
     reserve_job = ReserveJob(connection_id)
     reserve_job.__call__()
     assert "Reservation failed" in caplog.text
+    assert state_machine.is_reserve_failed(connection_id)
 
 
 #
@@ -124,6 +134,7 @@ def test_reserve_commit_job_reserve_commit_confirmed(
     """
     reserve_commit_job = ReserveCommitJob(connection_id)
     reserve_commit_job.__call__()
+    assert state_machine.is_reserve_start(connection_id)
 
 
 #
@@ -156,13 +167,7 @@ def test_reserve_abort_job_reserve_abort_confirmed(
     """
     reserve_abort_job = ReserveAbortJob(connection_id)
     reserve_abort_job.__call__()
-
-    from supa.db.session import db_session
-
-    # verify that reservation is transitioned to ReserveStart
-    with db_session() as session:
-        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        assert reservation.reservation_state == ReservationStateMachine.ReserveStart.value
+    assert state_machine.is_reserve_start(connection_id)
 
 
 def test_reserve_timeout_job_invalid_transition(caplog: Any, connection_id: Column, reserve_committing: None) -> None:
@@ -175,13 +180,7 @@ def test_reserve_timeout_job_invalid_transition(caplog: Any, connection_id: Colu
     caplog.clear()
     reserve_timeout_job.__call__()
     assert "Reservation not timed out" in caplog.text
-
-    from supa.db.session import db_session
-
-    # verify that reservation is still in state ReserveHeld
-    with db_session() as session:
-        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        assert reservation.reservation_state == ReservationStateMachine.ReserveCommitting.value
+    assert state_machine.is_reserve_committing(connection_id)
 
 
 def test_reserve_timeout_job_reserve_timeout_notification(
@@ -194,10 +193,4 @@ def test_reserve_timeout_job_reserve_timeout_notification(
     """
     reserve_timeout_job = ReserveTimeoutJob(connection_id)
     reserve_timeout_job.__call__()
-
-    from supa.db.session import db_session
-
-    # verify that reservation is transitioned to ReserveTimeout
-    with db_session() as session:
-        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        assert reservation.reservation_state == ReservationStateMachine.ReserveTimeout.value
+    assert state_machine.is_reserve_timeout(connection_id)
