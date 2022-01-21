@@ -12,7 +12,7 @@
 #  limitations under the License.
 from __future__ import annotations
 
-from typing import List, Type
+from typing import List, Type, Union
 from uuid import UUID
 
 import structlog
@@ -20,10 +20,12 @@ from apscheduler.triggers.date import DateTrigger
 from more_itertools import flatten
 from structlog.stdlib import BoundLogger
 
+from supa.connection import requester
 from supa.connection.error import GenericInternalError, Variable
 from supa.connection.fsm import DataPlaneStateMachine, LifecycleStateMachine
-from supa.connection.requester import send_data_plane_state_change, send_error
+from supa.connection.requester import to_data_plane_state_change_request, to_error_request
 from supa.db.model import Reservation
+from supa.grpc_nsi.connection_requester_pb2 import DataPlaneStateChangeRequest, ErrorRequest
 from supa.job.shared import Job, NsiException
 from supa.util.converter import to_header
 from supa.util.timestamp import NO_END_DATE, current_timestamp
@@ -58,6 +60,7 @@ class ActivateJob(Job):
 
         from supa.db.session import db_session
 
+        response: Union[DataPlaneStateChangeRequest, ErrorRequest]
         with db_session() as session:
             reservation = (
                 session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one_or_none()
@@ -73,7 +76,7 @@ class ActivateJob(Job):
             except NsiException as nsi_exc:
                 dpsm.activate_failed()
                 self.log.info("Data plane activation failed", reason=nsi_exc.text)
-                send_error(
+                response = to_error_request(
                     to_header(reservation),
                     nsi_exc,
                     self.connection_id,
@@ -81,7 +84,7 @@ class ActivateJob(Job):
             except Exception as exc:
                 dpsm.activate_failed()
                 self.log.exception("Unexpected error occurred", reason=str(exc))
-                send_error(
+                response = to_error_request(
                     to_header(reservation),
                     NsiException(
                         GenericInternalError,
@@ -96,7 +99,7 @@ class ActivateJob(Job):
                 from supa import scheduler
 
                 dpsm.activate_confirmed()
-                send_data_plane_state_change(session, self.connection_id)
+                response = to_data_plane_state_change_request(reservation)
                 if reservation.end_time != NO_END_DATE:
                     dpsm.auto_end_request()
                     scheduler.add_job(
@@ -105,6 +108,14 @@ class ActivateJob(Job):
                         id=f"{str(self.connection_id)}-AutoEndJob",
                     )
                     self.log.info(f"Automatic disable of data plane at {reservation.end_time.isoformat()}")
+
+        stub = requester.get_stub()
+        if type(response) == DataPlaneStateChangeRequest:
+            self.log.debug("Sending message", method="DataPlaneStateChange", request_message=response)
+            stub.DataPlaneStateChange(response)
+        else:
+            self.log.debug("Sending message", method="Error", request_message=response)
+            stub.Error(response)
 
     @classmethod
     def recover(cls: Type[ActivateJob]) -> List[Job]:
@@ -178,6 +189,7 @@ class DeactivateJob(Job):
 
         from supa.db.session import db_session
 
+        response: Union[DataPlaneStateChangeRequest, ErrorRequest]
         with db_session() as session:
             reservation = (
                 session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one_or_none()
@@ -200,7 +212,7 @@ class DeactivateJob(Job):
             except NsiException as nsi_exc:
                 dpsm.deactivate_failed()
                 self.log.info("Data plane deactivation failed", reason=nsi_exc.text)
-                send_error(
+                response = to_error_request(
                     to_header(reservation),
                     nsi_exc,
                     self.connection_id,
@@ -208,7 +220,7 @@ class DeactivateJob(Job):
             except Exception as exc:
                 dpsm.deactivate_failed()
                 self.log.exception("Unexpected error occurred", reason=str(exc))
-                send_error(
+                response = to_error_request(
                     to_header(reservation),
                     NsiException(
                         GenericInternalError,
@@ -221,7 +233,15 @@ class DeactivateJob(Job):
                 )
             else:
                 dpsm.deactivate_confirm()
-                send_data_plane_state_change(session, self.connection_id)
+                response = to_data_plane_state_change_request(reservation)
+
+        stub = requester.get_stub()
+        if type(response) == DataPlaneStateChangeRequest:
+            self.log.debug("Sending message", method="DataPlaneStateChange", request_message=response)
+            stub.DataPlaneStateChange(response)
+        else:
+            self.log.debug("Sending message", method="Error", request_message=response)
+            stub.Error(response)
 
     @classmethod
     def recover(cls: Type[DeactivateJob]) -> List[Job]:

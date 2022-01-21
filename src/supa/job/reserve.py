@@ -45,6 +45,7 @@ from supa.grpc_nsi.connection_requester_pb2 import (
     ReserveCommitFailedRequest,
     ReserveConfirmedRequest,
     ReserveFailedRequest,
+    ReserveTimeoutRequest,
 )
 from supa.job.shared import Job, NsiException
 from supa.util.bandwidth import format_bandwidth
@@ -319,13 +320,12 @@ class ReserveJob(Job):
                 response = self._to_reserve_confirmed_request(reservation)  # type: ignore[misc]
                 rsm.reserve_confirmed()
 
+        stub = requester.get_stub()
         if type(response) == ReserveConfirmedRequest:
             self.log.debug("Sending message.", method="ReserveConfirmed", request_message=response)
-            stub = requester.get_stub()
             stub.ReserveConfirmed(response)
         else:
             self.log.debug("Sending message.", method="ReserveFailed", request_message=response)
-            stub = requester.get_stub()
             stub.ReserveFailed(response)
 
     @classmethod
@@ -583,17 +583,16 @@ class ReserveTimeoutJob(Job):
     connection_id: UUID
     log: BoundLogger
 
-    #
-    # TODO: implement reserve timeout notification request
-    #
-    # def _to_reserve_timeout_request(self, reservation: Reservation) -> ReserveTimeoutRequest:
-    #     pb_rt_req = ReserveTimeoutRequest()
-    #
-    #     pb_rt_req.header.CopyFrom(to_header(reservation, add_path_segment=True))  # Yes, add our segment!
-    #     pb_rt_req.notification = #  TODO implement generic create_notification()
-    #     pb_rt_req.....  # TODO add reserve timeout values
-    #
-    #     return pb_rt_req
+    def _to_reserve_timeout_request(self, reservation: Reservation) -> ReserveTimeoutRequest:
+        pb_rt_req = ReserveTimeoutRequest()
+
+        pb_rt_req.header.CopyFrom(to_header(reservation, add_path_segment=True))  # Yes, add our segment!
+        pb_rt_req.notification.CopyFrom(requester.new_notification_header(reservation))
+        pb_rt_req.timeout_value = 30  # TODO make timeout_value configurable
+        pb_rt_req.originating_connection_id = str(reservation.connection_id)
+        pb_rt_req.originating_nsa = reservation.provider_nsa
+
+        return pb_rt_req
 
     def __init__(self, connection_id: UUID):
         """Initialize the ReserveTimeoutJob.
@@ -617,8 +616,7 @@ class ReserveTimeoutJob(Job):
 
         from supa.db.session import db_session
 
-        # response: Union[ReserveTimeoutRequest, ErrorRequest]  # TODO enable when implemented
-        response: Union[None, ErrorRequest]  # TODO enable when implemented
+        response: Union[ReserveTimeoutRequest, ErrorRequest]
         with db_session() as session:
             reservation = (
                 session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one_or_none()
@@ -666,19 +664,16 @@ class ReserveTimeoutJob(Job):
                 # TODO: release reserved resources(?)
                 #
                 self.log.debug("setting reservation.reservation_timeout to true in db")
-                # response = self._send_reserve_timeout_notification(session)  #  TODO activate this response
-                response = None
+                response = self._to_reserve_timeout_request(reservation)
                 reservation.reservation_timeout = True
 
-        # TODO activate when implemented
-        self.log.debug("Sending message", method="TODO", request_message=response)
-        # stub = requester.get_stub()
-        # if type(response) == ReserveTimeoutRequest:
-        #     self.log.debug("Sending message", method="ReserveTimeout", request_message=response)
-        #     stub.ReserveTimeout(response)
-        # else:
-        #     self.log.debug("Sending message", method="Error", request_message=response)
-        #     stub.Error(response)
+        stub = requester.get_stub()
+        if type(response) == ReserveTimeoutRequest:
+            self.log.debug("Sending message", method="ReserveTimeout", request_message=response)
+            stub.ReserveTimeout(response)
+        else:
+            self.log.debug("Sending message", method="Error", request_message=response)
+            stub.Error(response)
 
     @classmethod
     def recover(cls: Type[ReserveTimeoutJob]) -> List[Job]:

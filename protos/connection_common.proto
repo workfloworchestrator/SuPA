@@ -52,6 +52,12 @@ message ServiceException {
   repeated ServiceException child_exception = 7;
 }
 
+message Notification {
+  string connection_id = 1;
+  int32 notification_id = 2;  // TODO check if this is a long <-> int64
+  google.protobuf.Timestamp time_stamp = 3;
+}
+
 enum ReservationState {
   RESERVE_START = 0;
   RESERVE_CHECKING = 1;
