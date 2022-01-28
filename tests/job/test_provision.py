@@ -6,7 +6,7 @@ from sqlalchemy import Column
 import tests.shared.state_machine as state_machine
 
 from supa.db.model import Reservation
-from supa.job.provision import ProvisionJob
+from supa.job.provision import ProvisionJob, ReleaseJob
 
 
 def test_provision_job_provision_confirmed(
@@ -73,12 +73,45 @@ def test_provision_cannot_activate(
     assert "Can't activate_request when in ActivateFailed" in caplog.text
 
 
-# def test_release_job_release_confirmed(
-#     connection_id: Column, releasing: None, auto_start: None, get_stub: None, caplog: None
-# ) -> None:
-#     """Test ReleaseJob to transition to Released."""
-#     release_job = ReleaseJob(connection_id)
-#     release_job.__call__()
-#     assert state_machine.is_released(connection_id)
-#     assert state_machine.is_deactivated(connection_id)
-#     assert "Canceled automatic enable of data plane at start time" in caplog.text
+def test_release_job_release_confirmed_auto_start(
+    connection_id: Column, releasing: None, auto_start: None, auto_start_job: None, get_stub: None, caplog: Any
+) -> None:
+    """Test ReleaseJob to transition to Released and disable auto start of data plane."""
+    release_job = ReleaseJob(connection_id)
+    release_job.__call__()
+    assert state_machine.is_released(connection_id)
+    assert state_machine.is_deactivated(connection_id)
+    assert "Canceled automatic enable of data plane at start time" in caplog.text
+
+
+def test_release_job_release_confirmed_auto_end(
+    connection_id: Column, releasing: None, auto_end: None, get_stub: None, caplog: Any
+) -> None:
+    """Test ReleaseJob to transition to Released and disable auto end of data plane."""
+    release_job = ReleaseJob(connection_id)
+    release_job.__call__()
+    assert state_machine.is_released(connection_id)
+    assert state_machine.is_deactivated(connection_id)
+    assert "Canceled automatic disable of data plane at end time" in caplog.text
+
+
+def test_release_job_release_confirmed_invalid_data_plane_state(
+    connection_id: Column, releasing: None, activate_failed: None, get_stub: None, caplog: Any
+) -> None:
+    """Test ReleaseJob to transition to Released even when data plane is in activate failed state."""
+    release_job = ReleaseJob(connection_id)
+    release_job.__call__()
+    assert state_machine.is_released(connection_id)
+    assert "Can't deactivate_request when in ActivateFailed" in caplog.text
+    assert "Not scheduling DeactivateJob" in caplog.text
+
+
+def test_release_job_already_terminated(
+    connection_id: Column, releasing: None, terminated: None, get_stub: None, caplog: Any
+) -> None:
+    """Test ReleaseJob to return Error when reservation is already terminated."""
+    release_job = ReleaseJob(connection_id)
+    release_job.__call__()
+    assert state_machine.is_releasing(connection_id)
+    assert "Reservation already terminated" in caplog.text
+    assert "Not scheduling DeactivateJob" in caplog.text
