@@ -18,7 +18,7 @@ from supa.connection.fsm import (
 )
 from supa.db.model import Port, Reservation
 from supa.grpc_nsi import connection_provider_pb2_grpc
-from supa.job.dataplane import AutoStartJob
+from supa.job.dataplane import AutoEndJob, AutoStartJob
 from supa.job.reserve import ReserveTimeoutJob
 
 
@@ -314,6 +314,16 @@ def passed_end_time(connection_id: Column) -> None:
 
 
 @pytest.fixture
+def activating(connection_id: Column) -> None:
+    """Set data plane state machine of reservation identified by connection_id to state Activating."""
+    from supa.db.session import db_session
+
+    with db_session() as session:
+        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
+        reservation.data_plane_state = DataPlaneStateMachine.Activating.value
+
+
+@pytest.fixture
 def activated(connection_id: Column) -> None:
     """Set data plane state machine of reservation identified by connection_id to state Activated."""
     from supa.db.session import db_session
@@ -334,7 +344,7 @@ def activate_failed(connection_id: Column) -> None:
 
 
 @pytest.fixture
-def auto_start(connection_id: Column) -> Generator:
+def auto_start(connection_id: Column) -> None:
     """Set data plane state machine of reservation identified by connection_id to state AutoStart."""
     from supa.db.session import db_session
 
@@ -342,6 +352,10 @@ def auto_start(connection_id: Column) -> Generator:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
         reservation.data_plane_state = DataPlaneStateMachine.AutoStart.value
 
+
+@pytest.fixture
+def auto_start_job(connection_id: Column) -> Generator:
+    """Run AutoStartJob for connection_id."""
     from supa import scheduler
 
     job_handle = scheduler.add_job(
@@ -356,6 +370,41 @@ def auto_start(connection_id: Column) -> Generator:
         job_handle.remove()
     except JobLookupError:
         pass  # job already removed from job store
+
+
+@pytest.fixture
+def auto_end(connection_id: Column) -> Generator:
+    """Set data plane state machine of reservation identified by connection_id to state AutoEnd."""
+    from supa.db.session import db_session
+
+    with db_session() as session:
+        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
+        reservation.data_plane_state = DataPlaneStateMachine.AutoEnd.value
+
+    from supa import scheduler
+
+    job_handle = scheduler.add_job(
+        job := AutoEndJob(connection_id),
+        trigger=job.trigger(),
+        id=f"{str(connection_id)}-AutoEndJob",
+    )
+
+    yield None
+
+    try:
+        job_handle.remove()
+    except JobLookupError:
+        pass  # job already removed from job store
+
+
+@pytest.fixture
+def deactivating(connection_id: Column) -> None:
+    """Set data plane state machine of reservation identified by connection_id to state Deactivating."""
+    from supa.db.session import db_session
+
+    with db_session() as session:
+        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
+        reservation.data_plane_state = DataPlaneStateMachine.Deactivating.value
 
 
 @pytest.fixture
