@@ -181,46 +181,46 @@ def is_deactivate_failed(connection_id: UUID) -> Any:
         return DataPlaneStateMachine(reservation, state_field="data_plane_state").is_DeactivateFailed
 
 
-def created(connection_id: UUID) -> Any:
+def is_created(connection_id: UUID) -> Any:
     """Test if lifecycle state machine is in state Created."""
     from supa.db.session import db_session
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        return LifecycleStateMachine(reservation, state_field="data_plane_state").is_Created
+        return LifecycleStateMachine(reservation, state_field="lifecycle_state").is_Created
 
 
-def failed(connection_id: UUID) -> Any:
+def is_failed(connection_id: UUID) -> Any:
     """Test if lifecycle state machine is in state Failed."""
     from supa.db.session import db_session
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        return LifecycleStateMachine(reservation, state_field="data_plane_state").is_Failed
+        return LifecycleStateMachine(reservation, state_field="lifecycle_state").is_Failed
 
 
-def terminating(connection_id: UUID) -> Any:
+def is_terminating(connection_id: UUID) -> Any:
     """Test if lifecycle state machine is in state Terminating."""
     from supa.db.session import db_session
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        return LifecycleStateMachine(reservation, state_field="data_plane_state").is_Terminating
+        return LifecycleStateMachine(reservation, state_field="lifecycle_state").is_Terminating
 
 
-def passed_end_time(connection_id: UUID) -> Any:
+def is_passed_end_time(connection_id: UUID) -> Any:
     """Test if lifecycle state machine is in state PassedEndTime."""
     from supa.db.session import db_session
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        return LifecycleStateMachine(reservation, state_field="data_plane_state").is_PassedEndTime
+        return LifecycleStateMachine(reservation, state_field="lifecycle_state").is_PassedEndTime
 
 
-def terminated(connection_id: UUID) -> Any:
+def is_terminated(connection_id: UUID) -> Any:
     """Test if lifecycle state machine is in state Terminated."""
     from supa.db.session import db_session
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        return LifecycleStateMachine(reservation, state_field="data_plane_state").is_Terminated
+        return LifecycleStateMachine(reservation, state_field="lifecycle_state").is_Terminated
