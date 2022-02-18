@@ -152,13 +152,6 @@ class ActivateJob(Job):
         Returns:
             DateTrigger set to start_time of reservation.
         """
-        # from supa.db.session import db_session
-        #
-        # with db_session() as session:
-        #     reservation = (
-        #         session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one_or_none()
-        #     )
-        #     return DateTrigger(run_date=reservation.start_time)
         return DateTrigger(run_date=None)  # Run immediately
 
 
@@ -277,20 +270,6 @@ class DeactivateJob(Job):
             DateTrigger set to None if (run immediately) if reservation is released or not active anymore or
             to end_time otherwise (end_time can be in the past when recovering).
         """
-        # from supa.db.session import db_session
-        #
-        # with db_session() as session:
-        #     reservation = (
-        #         session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one_or_none()
-        #     )
-        #     if (
-        #         reservation.lifecycle_state != LifecycleStateMachine.Created.value
-        #         or reservation.provision_state == ProvisionStateMachine.Releasing.value
-        #         or reservation.provision_state == ProvisionStateMachine.Released.value
-        #     ):
-        #         return DateTrigger(run_date=None)  # Run immediately
-        #     else:
-        #         return DateTrigger(run_date=reservation.end_time)
         return DateTrigger(run_date=None)  # Run immediately
 
 

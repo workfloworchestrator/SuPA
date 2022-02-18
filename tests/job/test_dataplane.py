@@ -1,3 +1,4 @@
+from datetime import timedelta
 from typing import Any
 
 from sqlalchemy import Column
@@ -6,11 +7,11 @@ import tests.shared.state_machine as state_machine
 
 from supa.db.model import Reservation
 from supa.job.dataplane import ActivateJob, AutoEndJob, AutoStartJob, DeactivateJob
-from supa.util.timestamp import NO_END_DATE
+from supa.util.timestamp import NO_END_DATE, current_timestamp
 
 
 def test_activate_job_end_date(connection_id: Column, activating: None, get_stub: None, caplog: Any) -> None:
-    """Test AutoEndJob to transition to AutoEnd."""
+    """Test ActivateJob to transition to AutoEnd."""
     activate_job = ActivateJob(connection_id)
     activate_job.__call__()
     assert state_machine.is_auto_end(connection_id)
@@ -20,7 +21,7 @@ def test_activate_job_end_date(connection_id: Column, activating: None, get_stub
 
 
 def test_activate_job_no_end_date(connection_id: Column, activating: None, get_stub: None, caplog: Any) -> None:
-    """Test AutoEndJob to transition to Activated."""
+    """Test ActivateJob to transition to Activated when no end date."""
     from supa.db.session import db_session
 
     with db_session() as session:
@@ -34,12 +35,60 @@ def test_activate_job_no_end_date(connection_id: Column, activating: None, get_s
     assert 'Added job "AutoEndJob" to job store' not in caplog.text
 
 
+def test_activate_job_recover(connection_id: Column, activating: None, get_stub: None, caplog: Any) -> None:
+    """Test ActivateJob to recover reservations in state Created and Activating and are not passed end time."""
+    activate_job = ActivateJob(connection_id)
+    job_list = activate_job.recover()
+    assert len(job_list) == 1
+    assert job_list[0].connection_id == connection_id
+    assert state_machine.is_activating(connection_id)
+    msgs = [
+        logrecord.msg
+        for logrecord in caplog.records
+        if "job" in logrecord.msg and logrecord.msg["job"] == "ActivateJob"
+    ]
+    assert len(msgs) == 1
+    assert msgs[0]["connection_id"] == str(connection_id)
+    assert msgs[0]["event"] == "Recovering job"
+
+
+def test_activate_job_trigger(connection_id: Column, caplog: Any) -> None:
+    """Test ActivateJob to return trigger to run immediately."""
+    terminate_job = ActivateJob(connection_id)
+    job_trigger = terminate_job.trigger()
+    assert current_timestamp() - job_trigger.run_date < timedelta(seconds=5)  # more or less now
+
+
 def test_deactivate_job(connection_id: Column, deactivating: None, get_stub: None, caplog: Any) -> None:
-    """Test AutoEndJob to transition to Deactivated."""
+    """Test DeactivateJob to transition to Deactivated."""
     deactivate_job = DeactivateJob(connection_id)
     deactivate_job.__call__()
     assert state_machine.is_deactivated(connection_id)
     assert "Deactivating data plane" in caplog.text
+
+
+def test_deactivate_job_recover(connection_id: Column, deactivating: None, get_stub: None, caplog: Any) -> None:
+    """Test DectivateJob to recover reservations in state Created and Deactivating."""
+    deactivate_job = DeactivateJob(connection_id)
+    job_list = deactivate_job.recover()
+    assert len(job_list) == 1
+    assert job_list[0].connection_id == connection_id
+    assert state_machine.is_deactivating(connection_id)
+    msgs = [
+        logrecord.msg
+        for logrecord in caplog.records
+        if "job" in logrecord.msg and logrecord.msg["job"] == "DeactivateJob"
+    ]
+    assert len(msgs) == 1
+    assert msgs[0]["connection_id"] == str(connection_id)
+    assert msgs[0]["event"] == "Recovering job"
+
+
+def test_deactivate_job_trigger(connection_id: Column, caplog: Any) -> None:
+    """Test DeactivateJob to return trigger to run immediately."""
+    terminate_job = DeactivateJob(connection_id)
+    job_trigger = terminate_job.trigger()
+    assert current_timestamp() - job_trigger.run_date < timedelta(seconds=5)  # more or less now
 
 
 def test_auto_start_job(connection_id: Column, auto_start: None, get_stub: None, caplog: Any) -> None:
@@ -48,6 +97,35 @@ def test_auto_start_job(connection_id: Column, auto_start: None, get_stub: None,
     auto_start_job.__call__()
     assert state_machine.is_activating(connection_id)
     assert 'Added job "ActivateJob" to job store' in caplog.text
+
+
+def test_auto_start_job_recover(connection_id: Column, auto_start: None, get_stub: None, caplog: Any) -> None:
+    """Test AutoStartJob to recover reservations in state Created and AutoStart and not passed end time."""
+    auto_start_job = AutoStartJob(connection_id)
+    job_list = auto_start_job.recover()
+    assert len(job_list) == 1
+    assert job_list[0].connection_id == connection_id
+    assert state_machine.is_auto_start(connection_id)
+    msgs = [
+        logrecord.msg
+        for logrecord in caplog.records
+        if "job" in logrecord.msg and logrecord.msg["job"] == "AutoStartJob"
+    ]
+    assert len(msgs) == 1
+    assert msgs[0]["connection_id"] == str(connection_id)
+    assert msgs[0]["event"] == "Recovering job"
+
+
+def test_auto_start_job_trigger(connection_id: Column, caplog: Any) -> None:
+    """Test AutoStartJob to return trigger with start time of reservation."""
+    auto_start_job = AutoStartJob(connection_id)
+    job_trigger = auto_start_job.trigger()
+
+    from supa.db.session import db_session
+
+    with db_session() as session:
+        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
+        assert job_trigger.run_date.replace(microsecond=0) == reservation.start_time
 
 
 def test_auto_end_job(connection_id: Column, auto_end: None, get_stub: None, caplog: Any) -> None:
@@ -59,3 +137,30 @@ def test_auto_end_job(connection_id: Column, auto_end: None, get_stub: None, cap
     # assert state_machine.is_deactivating(connection_id)
     # assert state_machine.passed_end_time(connection_id)
     assert 'Added job "DeactivateJob" to job store' in caplog.text
+
+
+def test_auto_end_job_recover(connection_id: Column, auto_end: None, get_stub: None, caplog: Any) -> None:
+    """Test AutoEndJob to recover reservations in state Created and AutoEnd."""
+    auto_end_job = AutoEndJob(connection_id)
+    job_list = auto_end_job.recover()
+    assert len(job_list) == 1
+    assert job_list[0].connection_id == connection_id
+    assert state_machine.is_auto_end(connection_id)
+    msgs = [
+        logrecord.msg for logrecord in caplog.records if "job" in logrecord.msg and logrecord.msg["job"] == "AutoEndJob"
+    ]
+    assert len(msgs) == 1
+    assert msgs[0]["connection_id"] == str(connection_id)
+    assert msgs[0]["event"] == "Recovering job"
+
+
+def test_auto_end_job_trigger(connection_id: Column, caplog: Any) -> None:
+    """Test AutoEndJob to return trigger with end time of reservation."""
+    auto_end_job = AutoEndJob(connection_id)
+    job_trigger = auto_end_job.trigger()
+
+    from supa.db.session import db_session
+
+    with db_session() as session:
+        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
+        assert job_trigger.run_date.replace(microsecond=0) == reservation.end_time
