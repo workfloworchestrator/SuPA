@@ -1,3 +1,4 @@
+from datetime import timedelta
 from typing import Any
 
 from sqlalchemy import Column
@@ -5,6 +6,7 @@ from sqlalchemy import Column
 import tests.shared.state_machine as state_machine
 
 from supa.job.reserve import ReserveAbortJob, ReserveCommitJob, ReserveJob, ReserveTimeoutJob
+from supa.util.timestamp import current_timestamp
 
 
 def test_reserve_job_reserve_confirmed(connection_id: Column, reserve_checking: None, get_stub: None) -> None:
@@ -104,6 +106,28 @@ def test_reserve_job_reserve_failed_all_vlans_in_use(
     assert state_machine.is_reserve_failed(connection_id)
 
 
+def test_reserve_job_recover(connection_id: Column, reserve_checking: None, get_stub: None, caplog: Any) -> None:
+    """Test ReserveJob to recover reservations in state ReserveChecking."""
+    reserve_job = ReserveJob(connection_id)
+    job_list = reserve_job.recover()
+    assert len(job_list) == 1
+    assert job_list[0].connection_id == connection_id
+    assert state_machine.is_reserve_checking(connection_id)
+    msgs = [
+        logrecord.msg for logrecord in caplog.records if "job" in logrecord.msg and logrecord.msg["job"] == "ReserveJob"
+    ]
+    assert len(msgs) == 1
+    assert msgs[0]["connection_id"] == str(connection_id)
+    assert msgs[0]["event"] == "Recovering job"
+
+
+def test_reserve_job_trigger(connection_id: Column, caplog: Any) -> None:
+    """Test ReserveJob to return trigger to run immediately."""
+    reserve_job = ReserveJob(connection_id)
+    job_trigger = reserve_job.trigger()
+    assert current_timestamp() - job_trigger.run_date < timedelta(seconds=5)  # more or less now
+
+
 #
 # TODO rewrite test to check correct reservation timeout handling
 #
@@ -135,6 +159,32 @@ def test_reserve_commit_job_reserve_commit_confirmed(
     reserve_commit_job = ReserveCommitJob(connection_id)
     reserve_commit_job.__call__()
     assert state_machine.is_reserve_start(connection_id)
+
+
+def test_reserve_commit_job_recover(
+    connection_id: Column, reserve_committing: None, get_stub: None, caplog: Any
+) -> None:
+    """Test ReserveCommitJob to recover reservations in state ReserveCommitting."""
+    reserve_commit_job = ReserveCommitJob(connection_id)
+    job_list = reserve_commit_job.recover()
+    assert len(job_list) == 1
+    assert job_list[0].connection_id == connection_id
+    assert state_machine.is_reserve_committing(connection_id)
+    msgs = [
+        logrecord.msg
+        for logrecord in caplog.records
+        if "job" in logrecord.msg and logrecord.msg["job"] == "ReserveCommitJob"
+    ]
+    assert len(msgs) == 1
+    assert msgs[0]["connection_id"] == str(connection_id)
+    assert msgs[0]["event"] == "Recovering job"
+
+
+def test_reserve_commit_job_trigger(connection_id: Column, caplog: Any) -> None:
+    """Test ReserveCommitJob to return trigger to run immediately."""
+    reserve_commit_job = ReserveCommitJob(connection_id)
+    job_trigger = reserve_commit_job.trigger()
+    assert current_timestamp() - job_trigger.run_date < timedelta(seconds=5)  # more or less now
 
 
 #
@@ -170,6 +220,30 @@ def test_reserve_abort_job_reserve_abort_confirmed(
     assert state_machine.is_reserve_start(connection_id)
 
 
+def test_reserve_abort_job_recover(connection_id: Column, reserve_aborting: None, get_stub: None, caplog: Any) -> None:
+    """Test ReserveAbortJob to recover reservations in state ReserveAborting."""
+    reserve_abort_job = ReserveAbortJob(connection_id)
+    job_list = reserve_abort_job.recover()
+    assert len(job_list) == 1
+    assert job_list[0].connection_id == connection_id
+    assert state_machine.is_reserve_aborting(connection_id)
+    msgs = [
+        logrecord.msg
+        for logrecord in caplog.records
+        if "job" in logrecord.msg and logrecord.msg["job"] == "ReserveAbortJob"
+    ]
+    assert len(msgs) == 1
+    assert msgs[0]["connection_id"] == str(connection_id)
+    assert msgs[0]["event"] == "Recovering job"
+
+
+def test_reserve_abort_job_trigger(connection_id: Column, caplog: Any) -> None:
+    """Test ReserveAbortJob to return trigger to run immediately."""
+    reserve_abort_job = ReserveAbortJob(connection_id)
+    job_trigger = reserve_abort_job.trigger()
+    assert current_timestamp() - job_trigger.run_date < timedelta(seconds=5)  # more or less now
+
+
 def test_reserve_timeout_job_invalid_transition(caplog: Any, connection_id: Column, reserve_committing: None) -> None:
     """Test ReserveTimeoutJob to detect an invalid transition.
 
@@ -194,3 +268,28 @@ def test_reserve_timeout_job_reserve_timeout_notification(
     reserve_timeout_job = ReserveTimeoutJob(connection_id)
     reserve_timeout_job.__call__()
     assert state_machine.is_reserve_timeout(connection_id)
+
+
+def test_reserve_timeout_job_recover(connection_id: Column, reserve_held: None, get_stub: None, caplog: Any) -> None:
+    """Test ReserveTimeoutJob to recover reservations in state ReserveHeld."""
+    reserve_timeout_job = ReserveTimeoutJob(connection_id)
+    job_list = reserve_timeout_job.recover()
+    assert len(job_list) == 1
+    assert job_list[0].connection_id == connection_id
+    assert state_machine.is_reserve_held(connection_id)
+    msgs = [
+        logrecord.msg
+        for logrecord in caplog.records
+        if "job" in logrecord.msg and logrecord.msg["job"] == "ReserveTimeoutJob"
+    ]
+    assert len(msgs) == 1
+    assert msgs[0]["connection_id"] == str(connection_id)
+    assert msgs[0]["event"] == "Recovering job"
+
+
+def test_reserve_timeout_job_trigger(connection_id: Column, caplog: Any) -> None:
+    """Test ReserveTimeoutJob to return trigger to when the reservation is timed out."""
+    reserve_timeout_job = ReserveTimeoutJob(connection_id)
+    job_trigger = reserve_timeout_job.trigger()
+    # more or less 30 seconds from now, FIXME: update test when timeout is configurable
+    assert (current_timestamp() + timedelta(seconds=30) - job_trigger.run_date) < timedelta(seconds=5)

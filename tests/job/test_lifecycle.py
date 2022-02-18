@@ -1,3 +1,4 @@
+from datetime import timedelta
 from typing import Any
 
 from sqlalchemy import Column
@@ -5,6 +6,7 @@ from sqlalchemy import Column
 import tests.shared.state_machine as state_machine
 
 from supa.job.lifecycle import TerminateJob
+from supa.util.timestamp import current_timestamp
 
 
 def test_terminate_job_auto_start(
@@ -43,3 +45,27 @@ def test_terminate_job_activated(
     assert "Terminating reservation" in caplog.text
     assert "Canceled automatic disable of data plane at end time" not in caplog.text
     assert 'Added job "DeactivateJob" to job store' in caplog.text
+
+
+def test_terminate_job_recover(connection_id: Column, terminating: None, get_stub: None, caplog: Any) -> None:
+    """Test TerminateJob to recover reservations in state Terminating."""
+    terminate_job = TerminateJob(connection_id)
+    job_list = terminate_job.recover()
+    assert len(job_list) == 1
+    assert job_list[0].connection_id == connection_id
+    assert state_machine.is_terminating(connection_id)
+    msgs = [
+        logrecord.msg
+        for logrecord in caplog.records
+        if "job" in logrecord.msg and logrecord.msg["job"] == "TerminateJob"
+    ]
+    assert len(msgs) == 1
+    assert msgs[0]["connection_id"] == str(connection_id)
+    assert msgs[0]["event"] == "Recovering job"
+
+
+def test_terminate_job_trigger(connection_id: Column, caplog: Any) -> None:
+    """Test TerminateJob to return trigger to run immediately."""
+    terminate_job = TerminateJob(connection_id)
+    job_trigger = terminate_job.trigger()
+    assert current_timestamp() - job_trigger.run_date < timedelta(seconds=5)  # more or less now
