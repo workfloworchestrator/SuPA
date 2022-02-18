@@ -28,6 +28,8 @@ from supa.grpc_nsi.connection_requester_pb2 import (
     ReserveFailedResponse,
     ReserveTimeoutRequest,
     ReserveTimeoutResponse,
+    TerminateConfirmedRequest,
+    TerminateConfirmedResponse,
 )
 from supa.grpc_nsi.connection_requester_pb2_grpc import ConnectionRequesterServicer
 from supa.util.timestamp import NO_END_DATE
@@ -259,6 +261,21 @@ class Servicer(ConnectionRequesterServicer):
         assert test_hit_count == 1
 
         return ErrorResponse(header=request.header)
+
+    def TerminateConfirmed(self, request: TerminateConfirmedRequest, context: Any) -> TerminateConfirmedResponse:
+        """Fake TerminateConfirmed to return mocked TerminateConfirmedResponse."""
+        from supa.db.session import db_session
+
+        assert request.connection_id
+
+        with db_session() as session:
+            reservation = (
+                session.query(Reservation).filter(Reservation.connection_id == UUID(request.connection_id)).one()
+            )
+            # test_provision_job_provision_confirmed()
+            assert reservation.lifecycle_state == LifecycleStateMachine.Terminated.value
+
+        return ReserveConfirmedResponse(header=request.header)
 
     def DataPlaneStateChange(self, request: DataPlaneStateChangeRequest, context: Any) -> DataPlaneStateChangeResponse:
         """Fake DataPlaneStateChange to return mocked DataPlaneStateChangeResponse."""

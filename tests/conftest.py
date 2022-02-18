@@ -294,6 +294,16 @@ def provisioning(connection_id: Column) -> None:
 
 
 @pytest.fixture
+def terminating(connection_id: Column) -> None:
+    """Set lifecycle state machine of reservation identified by connection_id to state Terminating."""
+    from supa.db.session import db_session
+
+    with db_session() as session:
+        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
+        reservation.lifecycle_state = LifecycleStateMachine.Terminating.value
+
+
+@pytest.fixture
 def terminated(connection_id: Column) -> None:
     """Set lifecycle state machine of reservation identified by connection_id to state Terminated."""
     from supa.db.session import db_session
