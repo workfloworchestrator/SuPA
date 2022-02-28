@@ -93,15 +93,19 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         extra_info = ""
         if is_specified(end_time):
             if end_time <= start_time:
-                extra_info = f"End time cannot come before start time. {start_time=!s}, {end_time=!s}"
+                extra_info = "End time cannot come before start time."
             elif end_time <= current_timestamp():
-                extra_info = f"End time lies in the past. {end_time=!s}"
+                extra_info = "End time lies in the past."
         if extra_info:
-            log.info(extra_info)
+            log.info(extra_info, start_time=start_time.isoformat(), end_time=end_time.isoformat())
             reserve_response = ReserveResponse(
                 header=to_response_header(pb_reserve_request.header),
                 service_exception=to_service_exception(
-                    NsiException(MissingParameter, extra_info, {Variable.END_TIME: end_time.isoformat()})
+                    NsiException(
+                        MissingParameter,
+                        extra_info,
+                        {Variable.START_TIME: start_time.isoformat(), Variable.END_TIME: end_time.isoformat()},
+                    )
                 ),
             )
             log.debug("Sending response.", response_message=reserve_response)
@@ -189,8 +193,8 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             header=to_response_header(pb_reserve_request.header), connection_id=str(connection_id)
         )
         #
-        # TODO: - make timeout delta configurable
-        #       - add reservation version to timeout job so we do not accidentally timeout a modify
+        # TODO: make timeout delta configurable,
+        #  and add reservation version to timeout job so we do not accidentally timeout a modify
         #
         log.info("Schedule reserve timeout", connection_id=str(connection_id), timeout=30)
         scheduler.add_job(
@@ -414,8 +418,12 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                         connection_id,
                     ),
                 )
-            elif current_timestamp() > reservation.end_time:
-                log.info("Cannot provision a reservation that is passed end time")
+            elif (current_time := current_timestamp()) > reservation.end_time:
+                log.info(
+                    "Cannot provision a reservation that is passed end time",
+                    current_time=current_time.isoformat(),
+                    end_time=reservation.end_time.isoformat(),
+                )
                 provision_response = ProvisionResponse(
                     header=to_response_header(pb_provision_request.header),
                     service_exception=to_service_exception(
@@ -466,7 +474,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         """Release reservation.
 
         Check if the connection ID exists, if the provision state machine exists (as an indication
-        that the reservation was committed, and if the provision state machine transition is
+        that the reservation was committed), and if the provision state machine transition is
         allowed, all real work for releasing the reservation is done asynchronously by
         :class:`~supa.job.reserve.ReleaseJob`
 
@@ -514,8 +522,12 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                         connection_id,
                     ),
                 )
-            elif current_timestamp() > reservation.end_time:
-                log.info("Cannot release a reservation that is passed end time")
+            elif (current_time := current_timestamp()) > reservation.end_time:
+                log.info(
+                    "Cannot release a reservation that is passed end time",
+                    current_time=current_time.isoformat(),
+                    end_time=reservation.end_time.isoformat(),
+                )
                 release_response = ReleaseResponse(
                     header=to_response_header(pb_release_request.header),
                     service_exception=to_service_exception(

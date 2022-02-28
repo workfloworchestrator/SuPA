@@ -54,7 +54,7 @@ message ServiceException {
 
 message Notification {
   string connection_id = 1;
-  int32 notification_id = 2;  // TODO check if this is a long <-> int64
+  int64 notification_id = 2;
   google.protobuf.Timestamp time_stamp = 3;
 }
 
