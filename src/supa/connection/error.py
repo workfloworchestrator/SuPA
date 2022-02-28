@@ -95,6 +95,7 @@ class Variable(Enum):
     CONNECTION_ID = "connectionId", TYPES_NS
     DEST_STP = "destSTP", P2P_NS
     DIRECTIONALITY = "directionality", P2P_NS
+    START_TIME = "startTime", TYPES_NS
     END_TIME = "endTime", TYPES_NS
     NETWORK_ID = "networkId", P2P_NS
     PROTECTION = "protection", P2P_NS

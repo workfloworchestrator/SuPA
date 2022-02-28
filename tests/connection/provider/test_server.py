@@ -35,7 +35,7 @@ def pb_header() -> Header:
                 "protocol_version": "application/vnd.ogf.nsi.cs.v2.provider+soap",
                 "correlation_id": uuid4().urn,
                 "requester_nsa": "urn:ogf:network:surf.nl:2020:onsaclient",
-                "provider_nsa": "urn:ogf:network:test.domain:2001:supa",
+                "provider_nsa": "urn:ogf:network:example.domain:2001:supa",
                 "reply_to": "http://127.0.0.1:7080/NSI/services/RequesterService2",
             }
         ),

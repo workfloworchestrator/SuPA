@@ -76,7 +76,7 @@ def parse_stp(stp: str) -> Stp:
     labels = remainder.pop() if remainder else None
     domain: str
     if (parts_len := len(parts)) == 4 and parts[1].isdigit():
-        domain = f"{parts[0]}:{parts[1]}"  # eg: "netherlight.net" and "2013"
+        domain = f"{parts[0]}:{parts[1]}"  # eg: "example.domain" and "2013"
         network_type = parts[2]
 
     # If we do have only three parts, non of them should be numerical (eg "2013").

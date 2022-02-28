@@ -177,9 +177,9 @@ class Settings(BaseSettings):
     # be at least as many as the gRPC ones. We include a couple extra for non-gRPC initiated jobs.
     scheduler_max_workers: int = grpc_server_max_workers + 4
 
-    domain: str = "netherlight.net:2013"
-    network_type: str = "production8"
-    nsa_id: str = "urn:ogf:network:netherlight.net:2013:nsa:supa"
+    domain: str = "example.domain:2013"
+    network_type: str = "topology"
+    nsa_id: str = "urn:ogf:network:example.domain:2013:nsa:supa"
 
     class Config:  # noqa: D106
         case_sensitive = True
