@@ -48,6 +48,7 @@ from supa.grpc_nsi.connection_requester_pb2 import (
     ReserveTimeoutRequest,
 )
 from supa.job.shared import Job, NsiException
+from supa.nrm.backend import call_backend
 from supa.util.bandwidth import format_bandwidth
 from supa.util.converter import to_confirm_criteria, to_connection_states, to_header, to_service_exception
 from supa.util.timestamp import current_timestamp
@@ -299,14 +300,9 @@ class ReserveJob(Job):
                         )
                     selected_vlan = random.choice(list(candidate_vlans))
                     setattr(reservation, f"{target}_selected_vlan", selected_vlan)
-                    #
-                    # TODO:  If there is a Network Resource Manager that needs to be contacted
-                    #        to process the reservation request then this is the place.
-                    #        This is more or less the only thing at this point that can trigger a
-                    #        rsm.reserve_failed().
-                    #        If this is a recovered job then try to recover the reservation state
-                    #        from the NRM.
-                    #
+
+                call_backend("reserve", reservation, session)
+
             except NsiException as nsi_exc:
                 self.log.info("Reservation failed.", reason=nsi_exc.text)
                 response = self._to_reserve_failed_request(reservation, nsi_exc)  # type: ignore[misc]
@@ -409,13 +405,7 @@ class ReserveCommitJob(Job):
             )
             rsm = ReservationStateMachine(reservation, state_field="reservation_state")
             try:
-                #
-                # TODO:  If there is a Network Resource Manager that needs to be contacted
-                #        to commit the reservation request then this is the place.
-                #        If this is a recovered job then try to recover the reservation state
-                #        from the NRM.
-                #
-                pass
+                call_backend("reserve_commit", reservation, session)
             except NsiException as nsi_exc:
                 self.log.info("Reserve commit failed.", reason=nsi_exc.text)
                 response = self._to_reserve_commit_failed_request(session, nsi_exc)
@@ -510,13 +500,7 @@ class ReserveAbortJob(Job):
             )
             rsm = ReservationStateMachine(reservation, state_field="reservation_state")
             try:
-                #
-                # TODO:  If there is a Network Resource Manager that needs to be contacted
-                #        to abort the reservation request then this is the place.
-                #        If this is a recovered job then try to recover the reservation state
-                #        from the NRM.
-                #
-                pass
+                call_backend("reserve_abort", reservation, session)
             except NsiException as nsi_exc:
                 self.log.info("Reserve abort failed.", reason=nsi_exc.text)
                 response = requester.to_error_request(
@@ -624,12 +608,7 @@ class ReserveTimeoutJob(Job):
             rsm = ReservationStateMachine(reservation, state_field="reservation_state")
             try:
                 rsm.reserve_timeout_notification()
-                #
-                # TODO:  If there is a Network Resource Manager that needs to be contacted
-                #        to timeout the reservation request then this is the place.
-                #        If this is a recovered job then try to recover the reservation state
-                #        from the NRM.
-                #
+                call_backend("reserve_timeout", reservation, session)
             except TransitionNotAllowed:
                 # Reservation is already in another state turning this into a no-op.
                 self.log.info(

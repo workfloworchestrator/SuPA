@@ -29,6 +29,7 @@ from supa.db.model import Reservation
 from supa.grpc_nsi.connection_requester_pb2 import ErrorRequest, TerminateConfirmedRequest
 from supa.job.dataplane import DeactivateJob
 from supa.job.shared import Job, NsiException
+from supa.nrm.backend import call_backend
 from supa.util.converter import to_header
 
 logger = structlog.get_logger(__name__)
@@ -76,13 +77,7 @@ class TerminateJob(Job):
             lsm = LifecycleStateMachine(reservation, state_field="lifecycle_state")
             dpsm = DataPlaneStateMachine(reservation, state_field="data_plane_state")
             try:
-                #
-                # TODO:  If there is a Network Resource Manager that needs to be contacted
-                #        to terminate the reservation request then this is the place.
-                #        If this is a recovered job then try to recover the reservation state
-                #        from the NRM.
-                #
-                pass
+                call_backend("terminate", reservation, session)
             except NsiException as nsi_exc:
                 self.log.info("Terminate failed.", reason=nsi_exc.text)
                 response = to_error_request(

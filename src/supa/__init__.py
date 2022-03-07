@@ -180,6 +180,7 @@ class Settings(BaseSettings):
     domain: str = "example.domain:2013"
     network_type: str = "topology"
     nsa_id: str = "urn:ogf:network:example.domain:2013:nsa:supa"
+    backend = ""
 
     class Config:  # noqa: D106
         case_sensitive = True
@@ -397,6 +398,18 @@ def init_app(with_scheduler: bool = True) -> None:
     Base.metadata.create_all(engine)
     session_factory = sessionmaker(bind=engine)
     supa.db.session.Session = scoped_session(session_factory)
+
+    import supa.nrm.backend
+
+    if settings.backend:
+        sys.path.insert(0, "src/supa/nrm/backends")
+        try:
+            supa.nrm.backend.backend = __import__(settings.backend).Backend()
+        except ModuleNotFoundError:
+            logger.warn("cannot find NRM backend module", backend=settings.backend)
+        else:
+            supa.nrm.backend.backend.log = supa.nrm.backend.backend.log.bind(backend=settings.backend)
+            logger.info("successfully loaded NRM backend", backend=settings.backend)
 
     if with_scheduler:
         # Initialize and start the scheduler
