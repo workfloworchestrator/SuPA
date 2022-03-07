@@ -27,6 +27,7 @@ from supa.connection.requester import to_data_plane_state_change_request, to_err
 from supa.db.model import Reservation
 from supa.grpc_nsi.connection_requester_pb2 import DataPlaneStateChangeRequest, ErrorRequest
 from supa.job.shared import Job, NsiException
+from supa.nrm.backend import call_backend
 from supa.util.converter import to_header
 from supa.util.timestamp import NO_END_DATE, current_timestamp
 
@@ -67,12 +68,7 @@ class ActivateJob(Job):
             )
             dpsm = DataPlaneStateMachine(reservation, state_field="data_plane_state")
             try:
-                #
-                # TODO:  Call the Network Resource Manager to activate the data plane.
-                #        If this is a recovered job then try to recover the data plane state
-                #        from the NRM.
-                #
-                pass
+                call_backend("activate", reservation, session)
             except NsiException as nsi_exc:
                 dpsm.activate_failed()
                 self.log.info("Data plane activation failed", reason=nsi_exc.text)
@@ -194,14 +190,7 @@ class DeactivateJob(Job):
             #     lsm.endtime_event()
             #     dpsm.deactivate_request()
             try:
-                #
-                # TODO:  Call the Network Resource Manager to deactivate the data plane.
-                #        If this is a recovered job then try to recover the data plane state
-                #        from the NRM.
-                #        If the data plane was already deactivated then this should be considered
-                #        a no-op and should not generate an exception.
-                #
-                pass
+                call_backend("deactivate", reservation, session)
             except NsiException as nsi_exc:
                 dpsm.deactivate_failed()
                 self.log.info("Data plane deactivation failed", reason=nsi_exc.text)

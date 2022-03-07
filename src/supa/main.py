@@ -155,6 +155,7 @@ def cli() -> None:
     help="Address and port of PolyNSI.",
 )
 @click.option("--nsa-id", default=settings.nsa_id, type=str, help="NSA ID of SuPA.")
+@click.option("--backend", default=settings.backend, type=str, help="Name of NRM backend module.")
 @common_options  # type: ignore
 def serve(
     grpc_server_max_workers: int,
@@ -164,6 +165,7 @@ def serve(
     network_type: str,
     grpc_client_insecure_address_port: str,
     nsa_id: str,
+    backend: str,
 ) -> None:
     """Start the gRPC server and listen for incoming requests."""
     # Command-line options take precedence.
@@ -174,6 +176,7 @@ def serve(
     settings.network_type = network_type
     settings.grpc_client_insecure_address_port = grpc_client_insecure_address_port
     settings.nsa_id = nsa_id
+    settings.backend = backend
 
     init_app()
 

@@ -29,6 +29,7 @@ from supa.db.model import Reservation
 from supa.grpc_nsi.connection_requester_pb2 import ErrorRequest, ProvisionConfirmedRequest, ReleaseConfirmedRequest
 from supa.job.dataplane import ActivateJob, AutoStartJob, DeactivateJob
 from supa.job.shared import Job, NsiException
+from supa.nrm.backend import call_backend
 from supa.util.converter import to_header
 from supa.util.timestamp import current_timestamp
 
@@ -79,13 +80,7 @@ class ProvisionJob(Job):
             lsm = LifecycleStateMachine(reservation, state_field="lifecycle_state")
             dpsm = DataPlaneStateMachine(reservation, state_field="data_plane_state")
             try:
-                #
-                # TODO:  If there is a Network Resource Manager that needs to be contacted
-                #        to provision the reservation request then this is the place.
-                #        If this is a recovered job then try to recover the reservation state
-                #        from the NRM.
-                #
-                pass
+                call_backend("provision", reservation, session)
             except NsiException as nsi_exc:
                 self.log.info("Provision failed.", reason=nsi_exc.text)
                 response = to_error_request(
@@ -261,13 +256,7 @@ class ReleaseJob(Job):
             dpsm = DataPlaneStateMachine(reservation, state_field="data_plane_state")
             lsm = LifecycleStateMachine(reservation, state_field="lifecycle_state")
             try:
-                #
-                # TODO:  If there is a Network Resource Manager that needs to be contacted
-                #        to release the reservation request then this is the place.
-                #        If this is a recovered job then try to recover the reservation state
-                #        from the NRM.
-                #
-                pass
+                call_backend("release", reservation, session)
             except NsiException as nsi_exc:
                 self.log.info("Release failed.", reason=nsi_exc.text)
                 response = to_error_request(
