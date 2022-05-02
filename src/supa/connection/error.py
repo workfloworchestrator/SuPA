@@ -296,7 +296,7 @@ if __name__ == "__main__":
 
     nsi_errors = [(attr, globals()[attr]) for attr in list(globals().keys()) if isinstance(globals()[attr], NsiError)]
     nsi_errors.sort(key=lambda t: str(t[1].error_id))
-    print(  # noqa: T001
+    print(  # noqa: T001,T201
         """
 .. csv-table:: Predefined NSI errors
    :header: "Name", "``error_id``", "``error_code``", "``descriptive_text``"
@@ -307,4 +307,4 @@ if __name__ == "__main__":
     for ne in nsi_errors:
         writer.writerow((ne[0], *ne[1]))
     for line in output.getvalue().split("\n"):
-        print(f"   {line}")  # noqa: T001
+        print(f"   {line}")  # noqa: T001,T201
