@@ -11,6 +11,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 """Implementation of the gRPC based Connection Provider Service."""
+from typing import Union
 from uuid import UUID
 
 import structlog
@@ -229,7 +230,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         from supa.db.session import db_session
 
         with db_session() as session:
-            reservation = (
+            reservation: Union[model.Reservation, None] = (
                 session.query(model.Reservation).filter(model.Reservation.connection_id == connection_id).one_or_none()
             )
             if reservation is None:
@@ -282,6 +283,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
 
                     scheduler.remove_job(job_id=f"{str(connection_id)}-ReserveTimeoutJob")
                     log.info("Canceled reservation timeout timer")
+                    reservation.correlation_id = UUID(pb_reserve_commit_request.header.correlation_id)
                     scheduler.add_job(
                         job := ReserveCommitJob(connection_id),
                         trigger=job.trigger(),
@@ -317,7 +319,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         from supa.db.session import db_session
 
         with db_session() as session:
-            reservation = (
+            reservation: Union[model.Reservation, None] = (
                 session.query(model.Reservation).filter(model.Reservation.connection_id == connection_id).one_or_none()
             )
             if reservation is None:
@@ -354,6 +356,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                 else:
                     from supa import scheduler
 
+                    reservation.correlation_id = UUID(pb_reserve_abort_request.header.correlation_id)
                     scheduler.add_job(
                         job := ReserveAbortJob(connection_id),
                         trigger=job.trigger(),
@@ -388,7 +391,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         from supa.db.session import db_session
 
         with db_session() as session:
-            reservation = (
+            reservation: Union[model.Reservation, None] = (
                 session.query(model.Reservation).filter(model.Reservation.connection_id == connection_id).one_or_none()
             )
             if reservation is None:
@@ -460,6 +463,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                 else:
                     from supa import scheduler
 
+                    reservation.correlation_id = UUID(pb_provision_request.header.correlation_id)
                     scheduler.add_job(
                         job := ProvisionJob(connection_id),
                         trigger=job.trigger(),
@@ -492,7 +496,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         from supa.db.session import db_session
 
         with db_session() as session:
-            reservation = (
+            reservation: Union[model.Reservation, None] = (
                 session.query(model.Reservation).filter(model.Reservation.connection_id == connection_id).one_or_none()
             )
             if reservation is None:
@@ -564,6 +568,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                 else:
                     from supa import scheduler
 
+                    reservation.correlation_id = UUID(pb_release_request.header.correlation_id)
                     scheduler.add_job(
                         job := ReleaseJob(connection_id),
                         trigger=job.trigger(),
@@ -595,7 +600,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         from supa.db.session import db_session
 
         with db_session() as session:
-            reservation = (
+            reservation: Union[model.Reservation, None] = (
                 session.query(model.Reservation).filter(model.Reservation.connection_id == connection_id).one_or_none()
             )
             if reservation is None:
@@ -632,6 +637,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                 else:
                     from supa import scheduler
 
+                    reservation.correlation_id = UUID(pb_terminate_request.header.correlation_id)
                     scheduler.add_job(
                         job := TerminateJob(connection_id),
                         trigger=job.trigger(),
