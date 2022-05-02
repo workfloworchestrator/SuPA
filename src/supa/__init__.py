@@ -180,7 +180,8 @@ class Settings(BaseSettings):
     domain: str = "example.domain:2013"
     network_type: str = "topology"
     nsa_id: str = "urn:ogf:network:example.domain:2013:nsa:supa"
-    backend = ""
+    backend: str = ""
+    log_level: str = ""
 
     class Config:  # noqa: D106
         case_sensitive = True

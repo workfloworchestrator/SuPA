@@ -19,6 +19,7 @@ That is what is executed when the ``supa`` command is issued from the command-li
 
 The other ``@cli.command`` annotated functions in this modules implement the various sub-commands.
 """
+import logging
 from concurrent import futures
 from dataclasses import dataclass
 from pathlib import Path
@@ -49,6 +50,7 @@ class CommonOptionsState:
     """Class to capture common options shared between Click callables/sub commands."""
 
     database_file: Optional[Path] = None
+    log_level: Optional[str] = None
 
 
 # Trick from: https://github.com/pallets/click/issues/108
@@ -105,9 +107,34 @@ def database_file_option(f):  # type: ignore
     )(f)
 
 
+def log_level_option(f):  # type: ignore
+    """Define common option for specifying log level."""
+
+    def callback(ctx: Context, param: Option, value: Optional[str]) -> Optional[str]:
+        """Update the Settings instance when the database-file option is used."""
+        cos: CommonOptionsState = ctx.ensure_object(CommonOptionsState)
+        if value in ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"):
+            cos.log_level = value
+            settings.log_level = cos.log_level
+
+            # not certain if this is the best way of setting the log level, but it does seem to do the job
+            logging.root.manager.root.setLevel(cos.log_level)
+        return value
+
+    return click.option(
+        "--log-level",
+        type=str,
+        expose_value=False,  # Don't add to sub command arg list. We have `@pass_common_options_state` for that.
+        help="Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
+        callback=callback,
+        default=settings.log_level,
+    )(f)
+
+
 def common_options(f):  # type: ignore
     """Provide the means to declare common options to Click callables/sub command."""
     f = database_file_option(f)
+    f = log_level_option(f)
     return f
 
 
