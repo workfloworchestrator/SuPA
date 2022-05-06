@@ -51,6 +51,7 @@ from sqlalchemy.orm import scoped_session, sessionmaker
 
 from supa.db.model import Base
 from supa.job.shared import Job
+from supa.util.timestamp import current_timestamp
 
 timestamper = structlog.processors.TimeStamper(fmt="%Y-%m-%d %H:%M:%S")
 pre_chain = [
@@ -164,11 +165,13 @@ class Settings(BaseSettings):
 
     grpc_server_max_workers: int = 8
 
-    grpc_server_insecure_address_port: str = "localhost:50051"
-    """The address and port SuPA is listening on."""
+    grpc_server_insecure_host: str = "localhost"
+    grpc_server_insecure_port: str = "50051"
+    """The host and port SuPA is listening on."""
 
-    grpc_client_insecure_address_port: str = "localhost:9090"
-    """The address and port the Requester Agent/PolyNSI is listening on."""
+    grpc_client_insecure_host: str = "localhost"
+    grpc_client_insecure_port: str = "9090"
+    """The host and port the Requester Agent/PolyNSI is listening on."""
 
     database_journal_mode: JournalMode = JournalMode.WAL
     database_file: Path = Path("supa.db")
@@ -179,8 +182,22 @@ class Settings(BaseSettings):
 
     domain: str = "example.domain:2013"
     network_type: str = "topology"
-    nsa_id: str = "urn:ogf:network:example.domain:2013:nsa:supa"
-    backend: str = ""
+
+    nsa_id: str = f"urn:ogf:network:{domain}:nsa:supa"
+    nsa_start_time = current_timestamp()
+    nsa_host: str = "localhost"
+    nsa_port: str = "8080"
+    nsa_secure: bool = False
+    nsa_name: str = "example.domain uPA"
+    nsa_provider_url: str = "/provider"
+    nsa_topology_url: str = "/topology"
+    nsa_owner_timestamp: str = "19700101T000000Z"
+    nsa_owner_firstname: str = "Firstname"
+    nsa_owner_lastname: str = "Lastname"
+    nsa_latitude: str = "-0.374350"
+    nsa_longitude: str = "-159.996719"
+
+    backend = ""
     log_level: str = ""
 
     class Config:  # noqa: D106

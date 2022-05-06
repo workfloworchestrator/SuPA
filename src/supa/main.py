@@ -20,6 +20,7 @@ That is what is executed when the ``supa`` command is issued from the command-li
 The other ``@cli.command`` annotated functions in this modules implement the various sub-commands.
 """
 import logging
+import signal
 from concurrent import futures
 from dataclasses import dataclass
 from pathlib import Path
@@ -34,6 +35,7 @@ from click import Context, Option
 from tabulate import tabulate
 
 from supa import init_app, recover_jobs, settings
+from supa.documents import webengine
 from supa.grpc_nsi import connection_provider_pb2_grpc
 from supa.util.vlan import VlanRanges
 
@@ -162,9 +164,14 @@ def cli() -> None:
     help="Maximum number of workers to serve gRPC requests.",
 )
 @click.option(
-    "--grpc-server-insecure-address-port",
-    default=settings.grpc_server_insecure_address_port,
-    help="Address and port to listen on.",
+    "--grpc-server-insecure-host",
+    default=settings.grpc_server_insecure_host,
+    help="GRPC server host to listen on.",
+)
+@click.option(
+    "--grpc-server-insecure-port",
+    default=settings.grpc_server_insecure_port,
+    help="GRPC server port to listen on.",
 )
 @click.option(
     "--scheduler-max-workers",
@@ -177,53 +184,157 @@ def cli() -> None:
     "--network-type", default=settings.network_type, type=str, help="Name of the network SuPA is responsible for."
 )
 @click.option(
-    "--grpc-client-insecure-address-port",
-    default=settings.grpc_client_insecure_address_port,
-    help="Address and port of PolyNSI.",
+    "--grpc-client-insecure-host",
+    default=settings.grpc_client_insecure_host,
+    help="Host that PolyNSI listens on.",
 )
-@click.option("--nsa-id", default=settings.nsa_id, type=str, help="NSA ID of SuPA.")
+@click.option(
+    "--grpc-client-insecure-port",
+    default=settings.grpc_client_insecure_port,
+    help="Port that PolyNSI listens on.",
+)
 @click.option("--backend", default=settings.backend, type=str, help="Name of NRM backend module.")
+@click.option(
+    "--nsa-host",
+    default=settings.nsa_host,
+    help="Name of the host where SuPA is exposed on.",
+)
+@click.option(
+    "--nsa-port",
+    default=settings.nsa_port,
+    help="Port number where SuPA is exposed on.",
+)
+@click.option(
+    "--nsa-secure",
+    default=settings.nsa_secure,
+    is_flag=True,
+    help="Is SuPA exposed securely (HTTPS) or not.",
+)
+@click.option(
+    "--nsa-name",
+    default=settings.nsa_name,
+    help="Descriptive name for this uPA.",
+)
+@click.option(
+    "--nsa-provider-url",
+    default=settings.nsa_provider_url,
+    help="URL of the NSI provider endpoint.",
+)
+@click.option(
+    "--nsa-topology-url",
+    default=settings.nsa_topology_url,
+    help="URL of the NSI topology endpoint.",
+)
+@click.option(
+    "--nsa-owner-timestamp",
+    default=settings.nsa_owner_timestamp,
+    help="Timestamp when the owner information was last change.",
+)
+@click.option(
+    "--nsa-owner-firstname",
+    default=settings.nsa_owner_firstname,
+    help="Firstname of the owner of this uPA.",
+)
+@click.option(
+    "--nsa-owner-lastname",
+    default=settings.nsa_owner_lastname,
+    help="Lastname of the owner of this uPA.",
+)
+@click.option(
+    "--nsa-latitude",
+    default=settings.nsa_latitude,
+    help="Latitude of this uPA.",
+)
+@click.option(
+    "--nsa-longitude",
+    default=settings.nsa_longitude,
+    help="Longitude of this uPA.",
+)
 @common_options  # type: ignore
 def serve(
     grpc_server_max_workers: int,
-    grpc_server_insecure_address_port: str,
+    grpc_server_insecure_host: str,
+    grpc_server_insecure_port: str,
     scheduler_max_workers: int,
     domain: str,
     network_type: str,
-    grpc_client_insecure_address_port: str,
-    nsa_id: str,
+    grpc_client_insecure_host: str,
+    grpc_client_insecure_port: str,
     backend: str,
+    nsa_host: str,
+    nsa_port: str,
+    nsa_secure: bool,
+    nsa_name: str,
+    nsa_provider_url: str,
+    nsa_topology_url: str,
+    nsa_owner_timestamp: str,
+    nsa_owner_firstname: str,
+    nsa_owner_lastname: str,
+    nsa_latitude: str,
+    nsa_longitude: str,
 ) -> None:
     """Start the gRPC server and listen for incoming requests."""
     # Command-line options take precedence.
     settings.grpc_server_max_workers = grpc_server_max_workers
-    settings.grpc_server_insecure_address_port = grpc_server_insecure_address_port
+    settings.grpc_server_insecure_host = grpc_server_insecure_host
+    settings.grpc_server_insecure_port = grpc_server_insecure_port
     settings.scheduler_max_workers = scheduler_max_workers
     settings.domain = domain
     settings.network_type = network_type
-    settings.grpc_client_insecure_address_port = grpc_client_insecure_address_port
-    settings.nsa_id = nsa_id
+    settings.grpc_client_insecure_host = grpc_client_insecure_host
+    settings.grpc_client_insecure_port = grpc_client_insecure_port
     settings.backend = backend
+    settings.nsa_host = nsa_host
+    settings.nsa_port = nsa_port
+    settings.nsa_secure = nsa_secure
+    settings.nsa_name = nsa_name
+    settings.nsa_provider_url = nsa_provider_url
+    settings.nsa_topology_url = nsa_topology_url
+    settings.nsa_owner_timestamp = nsa_owner_timestamp
+    settings.nsa_owner_firstname = nsa_owner_firstname
+    settings.nsa_owner_lastname = nsa_owner_lastname
+    settings.nsa_latitude = nsa_latitude
+    settings.nsa_longitude = nsa_longitude
 
     init_app()
 
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=settings.grpc_server_max_workers))
-    log = logger.bind(grpc_server_max_workers=settings.grpc_server_max_workers)
+    grpc_server = grpc.server(futures.ThreadPoolExecutor(max_workers=settings.grpc_server_max_workers))
 
     # Safe to import, now that `init_app()` has been called
     from supa.connection.provider.server import ConnectionProviderService
 
-    connection_provider_pb2_grpc.add_ConnectionProviderServicer_to_server(ConnectionProviderService(), server)
-    server.add_insecure_port(settings.grpc_server_insecure_address_port)
-    log = log.bind(grpc_server_insecure_address_port=settings.grpc_server_insecure_address_port)
+    connection_provider_pb2_grpc.add_ConnectionProviderServicer_to_server(ConnectionProviderService(), grpc_server)
+    grpc_server.add_insecure_port(f"{settings.grpc_server_insecure_host}:{settings.grpc_server_insecure_port}")
 
-    server.start()
-    log.info("Started Connection Provider gRPC Service.")
+    webengine.start()
+
+    grpc_server.start()
+    logger.info(
+        "Started Connection Provider gRPC Service.",
+        grpc_server_max_workers=settings.grpc_server_max_workers,
+        grpc_server_insecure_host=settings.grpc_server_insecure_host,
+        grpc_server_insecure_port=settings.grpc_server_insecure_port,
+    )
 
     recover_jobs()
 
-    server.wait_for_termination()
-    # TODO Need to capture termination (Ctrl-C) and call `scheduler.shutdown`
+    def graceful_shutdown(signum, frame):  # type: ignore [no-untyped-def]
+        """Graceful shutdown of SuPA by stopping scheduler, webengine and gRPC server."""
+        logger.info("Caught signal, starting graceful shutdown", signal=signum)
+        from supa import scheduler
+
+        scheduler.shutdown(wait=True)
+        grpc_server.stop(grace=None)
+        webengine.graceful()
+        webengine.exit()
+
+    signal.signal(signal.SIGINT, graceful_shutdown)
+    signal.signal(signal.SIGHUP, graceful_shutdown)
+    signal.signal(signal.SIGQUIT, graceful_shutdown)
+    signal.signal(signal.SIGTERM, graceful_shutdown)
+
+    grpc_server.wait_for_termination()
+    logger.info("Goodbye!")
 
 
 @cli.command(context_settings=CONTEXT_SETTINGS)
