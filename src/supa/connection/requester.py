@@ -31,7 +31,7 @@ logger = structlog.get_logger(__name__)
 
 def get_stub() -> ConnectionRequesterStub:
     """Get the connection requester stub."""
-    channel = grpc.insecure_channel(settings.grpc_client_insecure_address_port)
+    channel = grpc.insecure_channel(f"{settings.grpc_client_insecure_host}:{settings.grpc_client_insecure_port}")
     stub = ConnectionRequesterStub(channel)
     return stub
 
