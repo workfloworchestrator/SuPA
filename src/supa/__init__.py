@@ -176,12 +176,16 @@ class Settings(BaseSettings):
     database_journal_mode: JournalMode = JournalMode.WAL
     database_file: Path = Path("supa.db")
 
+    log_level: str = ""
+
     # Each gRPC worker can schedule at least one job. Hence the number of scheduler workers should
     # be at least as many as the gRPC ones. We include a couple extra for non-gRPC initiated jobs.
     scheduler_max_workers: int = grpc_server_max_workers + 4
 
     domain: str = "example.domain:2013"
     network_type: str = "topology"
+    backend = ""
+    manual_topology = False
 
     nsa_id: str = f"urn:ogf:network:{domain}:nsa:supa"
     nsa_start_time = current_timestamp()
@@ -196,9 +200,7 @@ class Settings(BaseSettings):
     nsa_owner_lastname: str = "Lastname"
     nsa_latitude: str = "-0.374350"
     nsa_longitude: str = "-159.996719"
-
-    backend = ""
-    log_level: str = ""
+    topology_name: str = "example.domain topology"
 
     class Config:  # noqa: D106
         case_sensitive = True
@@ -281,7 +283,9 @@ def resolve_database_file(database_file: Union[Path, str]) -> Path:
     else:
         resolved_path = (get_project_root() / database_file).resolve()
     logger.info(
-        "Resolved `database_file`.", configured_database_file=database_file, resolved_database_file=resolved_path
+        "Resolved `database_file`.",
+        configured_database_file=str(database_file),
+        resolved_database_file=str(resolved_path),
     )
     return resolved_path
 
@@ -420,7 +424,7 @@ def init_app(with_scheduler: bool = True) -> None:
     import supa.nrm.backend
 
     if settings.backend:
-        sys.path.insert(0, "src/supa/nrm/backends")
+        sys.path.insert(0, str(get_project_root() / "src" / "supa" / "nrm" / "backends"))
         try:
             supa.nrm.backend.backend = __import__(settings.backend).Backend()
         except ModuleNotFoundError:

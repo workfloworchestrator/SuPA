@@ -12,7 +12,7 @@
 #  limitations under the License.
 
 from time import sleep
-from typing import Any
+from typing import Any, List
 from uuid import UUID
 
 from pydantic import BaseSettings
@@ -20,9 +20,10 @@ from requests import get, post
 from requests.auth import HTTPBasicAuth
 from requests.exceptions import ConnectionError, HTTPError
 
+from supa import get_project_root
 from supa.connection.error import GenericRmError
 from supa.job.shared import NsiException
-from supa.nrm.backend import BaseBackend
+from supa.nrm.backend import STP, BaseBackend
 
 
 class BackendSettings(BaseSettings):
@@ -42,7 +43,7 @@ class BackendSettings(BaseSettings):
     product_id: str = ""
 
 
-backend_settings = BackendSettings(_env_file="src/supa/nrm/backends/surf.env")
+backend_settings = BackendSettings(_env_file=get_project_root() / "src" / "supa" / "nrm" / "backends" / "surf.env")
 
 
 class Backend(BaseBackend):
@@ -203,6 +204,57 @@ class Backend(BaseBackend):
             sleep(3)
         self.log.info("workflow process finished")
 
+    def _get_nsi_stp_subscriptions(self) -> Any:
+        access_token = self._retrieve_access_token()
+        nsi_stp_subscriptions = get(
+            f"{backend_settings.host}/api/subscriptions/?filter=status,active,tag,NSISTP-NSISTPNL",
+            headers={"Authorization": f"bearer {access_token}"},
+        )
+        if nsi_stp_subscriptions.status_code != 200:
+            try:
+                nsi_stp_subscriptions.raise_for_status()
+            except HTTPError as http_err:
+                self.log.warning("failed to fetch NSISTP subscriptions", reason=str(http_err))
+                raise NsiException(GenericRmError, str(http_err)) from http_err
+        return nsi_stp_subscriptions.json()
+
+    def _get_topology(self) -> List[STP]:
+        self.log.info("get topology from NRM")
+        access_token = self._retrieve_access_token()
+        ports: List[STP] = []
+        for nsi_stp_sub in self._get_nsi_stp_subscriptions():
+            nsi_stp_dm = get(
+                f"{backend_settings.host}/api/subscriptions/domain-model/{nsi_stp_sub['subscription_id']}",
+                headers={"Authorization": f"bearer {access_token}"},
+            )
+            if nsi_stp_dm.status_code != 200:
+                try:
+                    nsi_stp_dm.raise_for_status()
+                except HTTPError as http_err:
+                    self.log.warning(
+                        "failed to fetch NSISTP domain model",
+                        reason=str(http_err),
+                        nsi_stp_subscription_id=nsi_stp_sub["subscription_id"],
+                    )
+                    raise NsiException(GenericRmError, str(http_err)) from http_err
+            else:
+                nsi_stp_dict = nsi_stp_dm.json()
+                self.log.debug("DEBUG", nsi_stp_dm=nsi_stp_dict)
+                ports.append(
+                    STP(
+                        topology=nsi_stp_dict["settings"]["topology"],
+                        name=nsi_stp_dict["settings"]["stp_id"],
+                        port_id=nsi_stp_dict["settings"]["sap"]["port_subscription_id"],
+                        vlans=nsi_stp_dict["settings"]["sap"]["vlanrange"],
+                        description=nsi_stp_dict["settings"]["stp_description"],
+                        is_alias_in=nsi_stp_dict["settings"]["is_alias_in"],
+                        is_alias_out=nsi_stp_dict["settings"]["is_alias_out"],
+                        bandwidth=1000000000,  # TODO return NSISTP bandwidth once implemented
+                        expose_in_topology=nsi_stp_dict["settings"]["expose_in_topology"],
+                    )
+                )
+        return ports
+
     def activate(
         self, connection_id: UUID, src_port_id: str, src_vlan: int, dst_port_id: str, dst_vlan: int, bandwidth: int
     ) -> None:
@@ -217,3 +269,9 @@ class Backend(BaseBackend):
         """Deactivate resources in NRM."""
         process = self._workflow_terminate(connection_id, src_port_id, src_vlan, dst_port_id, dst_vlan, bandwidth)
         self._wait_for_completion(process["id"])
+
+    def topology(self) -> List[STP]:
+        """Get exposed topology from NRM."""
+        return self._get_topology()
+
+    a = 1
