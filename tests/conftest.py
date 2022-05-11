@@ -33,7 +33,7 @@ def init(tmp_path_factory: pytest.TempPathFactory) -> Generator:
     from supa.connection.provider.server import ConnectionProviderService
 
     connection_provider_pb2_grpc.add_ConnectionProviderServicer_to_server(ConnectionProviderService(), server)
-    server.add_insecure_port(settings.grpc_server_insecure_address_port)
+    server.add_insecure_port(f"{settings.grpc_server_insecure_host}:{settings.grpc_server_insecure_port}")
 
     server.start()
 

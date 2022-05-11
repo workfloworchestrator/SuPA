@@ -17,6 +17,8 @@ from pydantic import BaseSettings
 
 from supa.nrm.backend import BaseBackend
 
+# from supa.nrm.backend import STP
+
 
 class BackendSettings(BaseSettings):
     """Backend settings with default values.
@@ -82,3 +84,6 @@ class Backend(BaseBackend):
     #     self, connection_id: UUID, src_port_id: str, src_vlan: int, dst_port_id: str, dst_vlan: int, bandwidth: int
     # ) -> None:
     #     """Terminate resources in NRM."""
+    #
+    # def get_topology(self) -> List[STP]:
+    #     """Get the list of exposed STP's from NRM."""

@@ -250,6 +250,17 @@ def cli() -> None:
     default=settings.nsa_longitude,
     help="Longitude of this uPA.",
 )
+@click.option(
+    "--topology-name",
+    default=settings.topology_name,
+    help="Descriptive name for the exposed topology.",
+)
+@click.option(
+    "--manual-topology",
+    default=settings.manual_topology,
+    is_flag=True,
+    help="Use SuPA CLI to manually administrate topology.",
+)
 @common_options  # type: ignore
 def serve(
     grpc_server_max_workers: int,
@@ -272,6 +283,8 @@ def serve(
     nsa_owner_lastname: str,
     nsa_latitude: str,
     nsa_longitude: str,
+    topology_name: str,
+    manual_topology: bool,
 ) -> None:
     """Start the gRPC server and listen for incoming requests."""
     # Command-line options take precedence.
@@ -295,6 +308,8 @@ def serve(
     settings.nsa_owner_lastname = nsa_owner_lastname
     settings.nsa_latitude = nsa_latitude
     settings.nsa_longitude = nsa_longitude
+    settings.topology_name = topology_name
+    settings.manual_topology = manual_topology
 
     init_app()
 
@@ -381,11 +396,29 @@ def list_cmd(only: Optional[str]) -> None:
             ports = ports.filter(Port.enabled.is_(True))
         elif only == "disabled":
             ports = ports.filter(Port.enabled.is_(False))
-        ports = ports.values(Port.port_id, Port.name, Port.vlans, Port.bandwidth, Port.remote_stp, Port.enabled)
+        ports = ports.values(
+            Port.port_id,
+            Port.name,
+            Port.vlans,
+            Port.description,
+            Port.bandwidth,
+            Port.is_alias_in,
+            Port.is_alias_out,
+            Port.enabled,
+        )
         click.echo(
             tabulate(
                 tuple(ports),
-                headers=("port_id", "name", "vlans", "bandwidth", "remote_stp", "enabled"),
+                headers=(
+                    "port_id",
+                    "name",
+                    "vlans",
+                    "description",
+                    "bandwidth",
+                    "is_alias_in",
+                    "is_alias_out",
+                    "enabled",
+                ),
                 tablefmt="psql",
             )
         )

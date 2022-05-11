@@ -442,10 +442,12 @@ class Port(Base):
 
     __tablename__ = "ports"
 
-    port_id = Column(Uuid, primary_key=True, comment="subscription_id of a port in the Orchestrator")
-    name = Column(Text, nullable=False, unique=True, index=True)
+    port_id = Column(Uuid, primary_key=True, comment="NRM port identifier")
+    name = Column(Text, nullable=False, unique=True, index=True)  # TODO rename to stp_id + make primary key
     vlans = Column(Text, nullable=False)
-    remote_stp = Column(Text, nullable=True)  # not sure if we need this?
+    description = Column(Text, nullable=True)
+    is_alias_in = Column(Text, nullable=True)
+    is_alias_out = Column(Text, nullable=True)
     bandwidth = Column(Integer, nullable=False, comment="Mbps")
 
     # A port might still be in operation (eg active) as part of one or more connections.
