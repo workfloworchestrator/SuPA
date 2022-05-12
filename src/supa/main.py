@@ -202,7 +202,7 @@ def cli() -> None:
 @click.option(
     "--nsa-port",
     default=settings.nsa_port,
-    help="Port number where SuPA is exposed on.",
+    help="Port where SuPA is exposed on.",
 )
 @click.option(
     "--nsa-secure",
@@ -353,32 +353,48 @@ def serve(
 
 
 @cli.command(context_settings=CONTEXT_SETTINGS)
-@click.option("--port-id", required=True, type=click.UUID, help="Orchestrator subscription_id on the port.")
-@click.option("--name", required=True, type=str, help="Name of the Port.")
+@click.option("--stp-id", required=True, type=str, help="Uniq id of the STP.")
+@click.option("--port-id", required=True, type=str, help="Id of the port from the NRM.")
 @click.option("--vlans", required=True, type=str, help="Available VLANs on the port.")
-@click.option("--remote-stp", type=str, help="Remote STP (for Service Demarcation Points).")
+@click.option("--description", type=str, help="STP description.")
+@click.option("--is-alias-in", type=str, help="Inbound STP id from connected topology.")
+@click.option("--is-alias-out", type=str, help="Outbound STP id to connected topology.")
 @click.option("--bandwidth", required=True, type=int, help="In Mbps.")
 @click.option("--enabled/--disabled", default=True)
 @common_options  # type: ignore
-def add(port_id: UUID, name: str, vlans: str, remote_stp: Optional[str], bandwidth: int, enabled: bool) -> None:
+def add(
+    stp_id: str,
+    port_id: str,
+    vlans: str,
+    description: Optional[str],
+    is_alias_in: Optional[str],
+    is_alias_out: Optional[str],
+    bandwidth: int,
+    enabled: bool,
+) -> None:
     """Add Orchestrator port to SuPA."""
     init_app(with_scheduler=False)
 
     # Safe to import, now that `init_app()` has been called
-    from supa.db.model import Port
+    from supa.db.model import Topology
     from supa.db.session import db_session
 
-    port = Port(
+    stp = Topology(
+        stp_id=stp_id,
         port_id=port_id,
-        name=name,
         vlans=str(VlanRanges(vlans)),
-        remote_stp=remote_stp,
+        description=description,
+        is_alias_in=is_alias_in,
+        is_alias_out=is_alias_out,
         bandwidth=bandwidth,
         enabled=enabled,
     )
 
-    with db_session() as session:
-        session.add(port)
+    try:
+        with db_session() as session:
+            session.add(stp)
+    except sqlalchemy.exc.IntegrityError as error:
+        click.echo(f"cannot add STP: {error}", err=True)
 
 
 @cli.command(name="list", context_settings=CONTEXT_SETTINGS)
@@ -387,31 +403,31 @@ def add(port_id: UUID, name: str, vlans: str, remote_stp: Optional[str], bandwid
 def list_cmd(only: Optional[str]) -> None:
     """List Orchestrator ports made available to SuPA."""
     init_app(with_scheduler=False)
-    from supa.db.model import Port
+    from supa.db.model import Topology
     from supa.db.session import db_session
 
     with db_session() as session:
-        ports = session.query(Port)
+        stps = session.query(Topology)
         if only == "enabled":
-            ports = ports.filter(Port.enabled.is_(True))
+            stps = stps.filter(Topology.enabled.is_(True))
         elif only == "disabled":
-            ports = ports.filter(Port.enabled.is_(False))
-        ports = ports.values(
-            Port.port_id,
-            Port.name,
-            Port.vlans,
-            Port.description,
-            Port.bandwidth,
-            Port.is_alias_in,
-            Port.is_alias_out,
-            Port.enabled,
+            stps = stps.filter(Topology.enabled.is_(False))
+        stps = stps.values(
+            Topology.stp_id,
+            Topology.port_id,
+            Topology.vlans,
+            Topology.description,
+            Topology.bandwidth,
+            Topology.is_alias_in,
+            Topology.is_alias_out,
+            Topology.enabled,
         )
         click.echo(
             tabulate(
-                tuple(ports),
+                tuple(stps),
                 headers=(
+                    "stp_id",
                     "port_id",
-                    "name",
                     "vlans",
                     "description",
                     "bandwidth",
@@ -425,79 +441,64 @@ def list_cmd(only: Optional[str]) -> None:
 
 
 @cli.command(context_settings=CONTEXT_SETTINGS)
-@click.option("--port-id", type=click.UUID, help="Orchestrator subscription_id on the port.")
-@click.option("--name", type=str, help="Name of the Port.")
+@click.option("--stp-id", required=True, type=str, help="STP id to be deleted from topology.")
 @common_options  # type: ignore
-def delete(port_id: Optional[UUID], name: Optional[str]) -> None:
-    """Delete Orchestrator port if not in use (or previously used).
+def delete(stp_id: Optional[UUID]) -> None:
+    """Delete STP from topology if not in use (or previously used).
 
-    A port can only be deleted if it was never used in a reservation.
-    Once used  a port cannot be deleted again.
-    A port can be disabled though!
-    This will take it out of the pool of ports
+    A STP can only be deleted if it was never used in a reservation.
+    Once used  a STP cannot be deleted again.
+    A STP can be disabled though!
+    This will take it out of the pool of STP's
     reservations (and hence connections) are made against.
     See the `disable` command.
     """
     init_app(with_scheduler=False)
-    from supa.db.model import Port
+    from supa.db.model import Topology
     from supa.db.session import db_session
 
-    if port_id is None and name is None:
-        click.echo("Please specify either --port-id or --name.", err=True)
     try:
         with db_session() as session:
-            port = session.query(Port)
-            if port_id is not None:
-                port = port.get(port_id)
-            else:
-                port = port.filter(Port.name == name).one()
-            session.delete(port)
+            stp = session.query(Topology).filter(Topology.stp_id == stp_id).one()
+            session.delete(stp)
     except sqlalchemy.exc.IntegrityError:
         click.echo(
-            "Port is in use. Could not delete it. (You could disable it instead to prevent further use).", err=True
+            "STP is in use. Could not delete it. (You could disable it instead to prevent further use).", err=True
         )
     except sqlalchemy.orm.exc.NoResultFound:
-        click.echo("Port could not be found.", err=True)
+        click.echo("STP could not be found.", err=True)
 
 
-def _set_enable(port_id: Optional[UUID], name: Optional[str], enabled: bool) -> None:
-    """Enable or disable a specific port."""
+def _set_enable(stp_id: str, enabled: bool) -> None:
+    """Enable or disable a specific STP."""
     init_app(with_scheduler=False)
-    from supa.db.model import Port
+    from supa.db.model import Topology
     from supa.db.session import db_session
 
-    if port_id is None and name is None:
-        click.echo("Please specify either --port-id or --name.", err=True)
     try:
         with db_session() as session:
-            port = session.query(Port)
-            if port_id is not None:
-                port = port.get(port_id)
-            else:
-                port = port.filter(Port.name == name).one()
-            port.enabled = enabled
-            click.echo(f"Port '{port.name}' has been {'enabled' if enabled else 'disabled'}.")
+            stp = session.query(Topology).filter(Topology.stp_id == stp_id).one()
+            stp.enabled = enabled
+            click.echo(f"Topology '{stp.stp_id}' has been {'enabled' if enabled else 'disabled'}.")
     except sqlalchemy.orm.exc.NoResultFound:
-        click.echo("Port could not be found.", err=True)
+        click.echo("STP could not be found.", err=True)
 
 
 @cli.command(context_settings=CONTEXT_SETTINGS)
-@click.option("--port-id", type=click.UUID, help="Orchestrator subscription_id on the port.")
-@click.option("--name", type=str, help="Name of the Port.")
-def enable(port_id: Optional[UUID], name: Optional[str]) -> None:
-    """Enable a specific port.
+@click.option("--stp-id", required=True, type=str, help="STP id to be enabled.")
+def enable(stp_id: str) -> None:
+    """Enable a specific STP.
 
-    Enabling a port makes it available for reservation requests.
+    Enabling a STP makes it available for reservation requests.
     """
-    _set_enable(port_id, name, enabled=True)
+    _set_enable(stp_id, enabled=True)
 
 
 @cli.command(context_settings=CONTEXT_SETTINGS)
-@click.option("--port-id", type=click.UUID, help="Orchestrator subscription_id on the port.")
-@click.option("--name", type=str, help="Name of the Port.")
-def disable(port_id: Optional[UUID], name: Optional[str]) -> None:
-    """Disable a specific port.
+@click.option("--stp-id", required=True, type=str, help="STP id to be disabled.")
+def disable(stp_id: str) -> None:
+    """Disable a specific STP.
 
-    Disabling a port makes it unavailable for reservation requests.
+    Disabling a STP makes it unavailable for reservation requests.
     """
-    _set_enable(port_id, name, enabled=False)
+    _set_enable(stp_id, enabled=False)

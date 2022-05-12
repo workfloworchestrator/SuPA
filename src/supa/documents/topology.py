@@ -14,18 +14,17 @@
 
 Example topology document:
 
-TODO include example topoloty document
+TODO include example topology document
 """
 from datetime import timedelta
 from typing import Union
-from uuid import UUID
 
 import cherrypy
 import structlog
 from lxml.etree import Element, QName, SubElement, tostring  # noqa: S410
 
 from supa import settings
-from supa.db.model import Port
+from supa.db.model import Topology
 from supa.nrm.backend import get_topology
 from supa.util.timestamp import current_timestamp
 
@@ -40,41 +39,41 @@ def refresh_topology() -> None:
 
     from supa.db.session import db_session
 
-    stps = get_topology()
-    stp_names = [stp.name for stp in stps]
+    nrm_stps = get_topology()
+    nrm_stp_ids = [nrm_stp.stp_id for nrm_stp in nrm_stps]
     with db_session() as session:
-        for stp in stps:
-            if stp.topology != settings.network_type:
-                log.debug("skip STP with unknown topology", name=stp.name, topology=stp.topology)
+        for nrm_stp in nrm_stps:
+            if nrm_stp.topology != settings.network_type:
+                log.debug("skip STP with unknown topology", stp=nrm_stp.stp_id, topology=nrm_stp.topology)
             else:
-                port = session.query(Port).filter(Port.name == stp.name).one_or_none()
-                if port:
-                    log.debug("update existing STP", name=stp.name, topology=stp.topology)
-                    port.port_id = UUID(stp.port_id)
-                    port.vlans = stp.vlans
-                    port.description = stp.description
-                    port.is_alias_in = stp.is_alias_in
-                    port.is_alias_out = stp.is_alias_out
-                    port.bandwidth = stp.bandwidth
-                    port.enabled = stp.expose_in_topology
+                stp = session.query(Topology).filter(Topology.stp_id == nrm_stp.stp_id).one_or_none()
+                if stp:
+                    log.debug("update existing STP", stp=nrm_stp.stp_id)
+                    stp.port_id = nrm_stp.port_id
+                    stp.vlans = nrm_stp.vlans
+                    stp.description = nrm_stp.description
+                    stp.is_alias_in = nrm_stp.is_alias_in
+                    stp.is_alias_out = nrm_stp.is_alias_out
+                    stp.bandwidth = nrm_stp.bandwidth
+                    stp.enabled = nrm_stp.expose_in_topology
                 else:
-                    log.info("add new STP", name=stp.name, topology=stp.topology)
+                    log.info("add new STP", stp=nrm_stp.stp_id)
                     session.add(
-                        Port(
-                            name=stp.name,
-                            port_id=UUID(stp.port_id),
-                            vlans=stp.vlans,
-                            description=stp.description,
-                            is_alias_in=stp.is_alias_in,
-                            is_alias_out=stp.is_alias_out,
-                            bandwidth=stp.bandwidth,
-                            enabled=stp.expose_in_topology,
+                        Topology(
+                            stp_id=nrm_stp.stp_id,
+                            port_id=nrm_stp.port_id,
+                            vlans=nrm_stp.vlans,
+                            description=nrm_stp.description,
+                            is_alias_in=nrm_stp.is_alias_in,
+                            is_alias_out=nrm_stp.is_alias_out,
+                            bandwidth=nrm_stp.bandwidth,
+                            enabled=nrm_stp.expose_in_topology,
                         )
                     )
-                for port in session.query(Port):
-                    if port.name not in stp_names:
-                        log.info("disable vanished STP", name=port.name, topology=stp.topology)
-                        port.enabled = False
+        for stp in session.query(Topology).filter(Topology.enabled):
+            if stp.stp_id not in nrm_stp_ids:
+                log.info("disable vanished STP", stp=stp.stp_id)
+                stp.enabled = False
 
 
 """Namespace map for topology document."""
@@ -84,7 +83,7 @@ nsmap = {
 }
 
 
-class Topology(object):
+class TopologyEndpoint(object):
     """A cherryPy application to generate a NSI topology document."""
 
     @cherrypy.expose  # type: ignore[misc]
@@ -97,7 +96,7 @@ class Topology(object):
         from supa.db.session import db_session
 
         with db_session() as session:
-            ports = session.query(Port)
+            stps = session.query(Topology).filter(Topology.enabled)
 
             topology = Element(QName(nsmap["topo"], "Topology"), nsmap=nsmap)
             topology.set("id", network_id)
@@ -125,30 +124,30 @@ class Topology(object):
                 relation_switching_service, QName(nsmap["sd"], "serviceDefinition")
             )
             relation_switching_service_definition.set("id", "urn:ogf:network:surf.nl:2020:production:sd:EVTS.A-GOLE")
-            for port in ports:
+            for stp in stps:
                 bidirectional_port = SubElement(topology, "BidirectionalPort")
-                bidirectional_port.set("id", f"{network_id}:{port.name}")
+                bidirectional_port.set("id", f"{network_id}:{stp.stp_id}")
                 bidirectional_port_name = SubElement(bidirectional_port, "name")
-                bidirectional_port_name.text = port.description
+                bidirectional_port_name.text = stp.description
                 bidirectional_port_group = SubElement(bidirectional_port, "PortGroup")
-                bidirectional_port_group.set("id", f"{network_id}:{port.name}:in")
+                bidirectional_port_group.set("id", f"{network_id}:{stp.stp_id}:in")
                 bidirectional_port_group = SubElement(bidirectional_port, "PortGroup")
-                bidirectional_port_group.set("id", f"{network_id}:{port.name}:out")
+                bidirectional_port_group.set("id", f"{network_id}:{stp.stp_id}:out")
             relation = SubElement(topology, "Relation")
             relation.set("type", "http://schemas.ogf.org/nml/2013/05/base#hasInboundPort")
-            for port in ports:
+            for stp in stps:
                 relation_port_group = SubElement(relation, "PortGroup")
-                relation_port_group.set("id", f"{network_id}:{port.name}:in")
+                relation_port_group.set("id", f"{network_id}:{stp.stp_id}:in")
                 relation_port_group_label_group = SubElement(relation_port_group, "LabelGroup")
                 relation_port_group_label_group.set("labeltype", "http://schemas.ogf.org/nml/2012/10/ethernet#vlan")
-                relation_port_group_label_group.text = port.vlans
+                relation_port_group_label_group.text = stp.vlans
             relation = SubElement(topology, "Relation")
             relation.set("type", "http://schemas.ogf.org/nml/2013/05/base#hasOutboundPort")
-            for port in ports:
+            for stp in stps:
                 relation_port_group = SubElement(relation, "PortGroup")
-                relation_port_group.set("id", f"{network_id}:{port.name}:out")
+                relation_port_group.set("id", f"{network_id}:{stp.stp_id}:out")
                 relation_port_group_label_group = SubElement(relation_port_group, "LabelGroup")
                 relation_port_group_label_group.set("labeltype", "http://schemas.ogf.org/nml/2012/10/ethernet#vlan")
-                relation_port_group_label_group.text = port.vlans
+                relation_port_group_label_group.text = stp.vlans
 
         return tostring(topology, encoding="iso-8859-1", pretty_print=True)  # .decode('iso-8859-1')

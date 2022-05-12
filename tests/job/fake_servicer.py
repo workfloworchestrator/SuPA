@@ -7,7 +7,7 @@ from supa.connection.fsm import (
     ProvisionStateMachine,
     ReservationStateMachine,
 )
-from supa.db.model import Port, Reservation
+from supa.db.model import Topology, Reservation
 from supa.grpc_nsi.connection_common_pb2 import RESERVE_CHECKING
 from supa.grpc_nsi.connection_requester_pb2 import (
     DataPlaneStateChangeRequest,
@@ -66,11 +66,11 @@ class Servicer(ConnectionRequesterServicer):
             reservation = (
                 session.query(Reservation).filter(Reservation.connection_id == UUID(request.connection_id)).one()
             )
-            port = session.query(Port).filter(Port.name == reservation.dst_port).one_or_none()
+            port = session.query(Topology).filter(Topology.stp_id == reservation.dst_stp_id).one_or_none()
             # By this time the reservation in the database already transitioned to ReserveFailed.
             assert reservation.reservation_state == ReservationStateMachine.ReserveFailed.value
-            # test_reserve_job_reserve_failed_src_port_equals_dst_port()
-            if reservation.src_port == reservation.dst_port:
+            # test_reserve_job_reserve_failed_src_stp_id_equals_dst_stp_id()
+            if reservation.src_stp_id == reservation.dst_stp_id:
                 test_hit_count += 1
                 assert request.service_exception.error_id == "00407"
                 assert len(request.service_exception.variables) == 3
@@ -78,34 +78,34 @@ class Servicer(ConnectionRequesterServicer):
                 assert request.service_exception.variables[1].type == "sourceSTP"
                 assert request.service_exception.variables[2].type == "destSTP"
                 assert request.service_exception.variables[1].value == request.service_exception.variables[2].value
-            # test_reserve_job_reserve_failed_unknown_port()
-            if reservation.dst_port == "unknown_stp":
+            # test_reserve_job_reserve_failed_unknown_stp_id()
+            if reservation.dst_stp_id == "unknown_stp":
                 test_hit_count += 1
                 assert request.service_exception.error_id == "00701"
                 assert len(request.service_exception.variables) == 1
                 assert request.service_exception.variables[0].type == "destSTP"
                 assert "unknown_stp" in request.service_exception.variables[0].value
-            # test_reserve_job_reserve_failed_disabled_port()
+            # test_reserve_job_reserve_failed_disabled_stp_id()
             if port and not port.enabled:
                 test_hit_count += 1
                 assert request.service_exception.error_id == "00701"
                 assert len(request.service_exception.variables) == 1
                 assert request.service_exception.variables[0].type == "destSTP"
-            # test_reserve_job_reserve_failed_unknown_domain_port()
+            # test_reserve_job_reserve_failed_unknown_domain_stp_id()
             if reservation.dst_domain == "unknown_domain":
                 test_hit_count += 1
                 assert request.service_exception.error_id == "00701"
                 assert len(request.service_exception.variables) == 1
                 assert request.service_exception.variables[0].type == "destSTP"
                 assert "unknown_domain" in request.service_exception.variables[0].value
-            # test_reserve_job_reserve_failed_unknown_topology_port()
+            # test_reserve_job_reserve_failed_unknown_topology_stp_id()
             if reservation.dst_network_type == "unknown_topology":
                 test_hit_count += 1
                 assert request.service_exception.error_id == "00701"
                 assert len(request.service_exception.variables) == 1
                 assert request.service_exception.variables[0].type == "destSTP"
                 assert "unknown_topology" in request.service_exception.variables[0].value
-            # test_reserve_job_reserve_failed_empty_vlans_port()
+            # test_reserve_job_reserve_failed_empty_vlans_stp_id()
             if reservation.dst_vlans == "":
                 test_hit_count += 1
                 assert request.service_exception.error_id == "00709"

@@ -243,7 +243,7 @@ class Backend(BaseBackend):
                 ports.append(
                     STP(
                         topology=nsi_stp_dict["settings"]["topology"],
-                        name=nsi_stp_dict["settings"]["stp_id"],
+                        stp_id=nsi_stp_dict["settings"]["stp_id"],
                         port_id=nsi_stp_dict["settings"]["sap"]["port_subscription_id"],
                         vlans=nsi_stp_dict["settings"]["sap"]["vlanrange"],
                         description=nsi_stp_dict["settings"]["stp_description"],
@@ -273,5 +273,3 @@ class Backend(BaseBackend):
     def topology(self) -> List[STP]:
         """Get exposed topology from NRM."""
         return self._get_topology()
-
-    a = 1

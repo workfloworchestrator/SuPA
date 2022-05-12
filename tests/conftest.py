@@ -16,7 +16,7 @@ from supa.connection.fsm import (
     ProvisionStateMachine,
     ReservationStateMachine,
 )
-from supa.db.model import Port, Reservation
+from supa.db.model import Topology, Reservation
 from supa.grpc_nsi import connection_provider_pb2_grpc
 from supa.job.dataplane import AutoEndJob, AutoStartJob
 from supa.job.reserve import ReserveTimeoutJob
@@ -44,13 +44,13 @@ def init(tmp_path_factory: pytest.TempPathFactory) -> Generator:
 
 
 @pytest.fixture(autouse=True, scope="session")
-def add_ports(init: Generator) -> None:
+def add_stp_ids(init: Generator) -> None:
     """Add standard STPs to database."""
     from supa.db.session import db_session
 
     with db_session() as session:
-        session.add(Port(port_id=uuid4(), name="port1", vlans="1779-1799", bandwidth=1000, enabled=True))
-        session.add(Port(port_id=uuid4(), name="port2", vlans="1779-1799", bandwidth=1000, enabled=True))
+        session.add(Topology(port_id=str(uuid4()), stp_id="port1", vlans="1779-1799", bandwidth=1000, enabled=True))
+        session.add(Topology(port_id=str(uuid4()), stp_id="port2", vlans="1779-1799", bandwidth=1000, enabled=True))
 
 
 @pytest.fixture()
@@ -75,11 +75,11 @@ def connection_id() -> Column:
             symmetric=True,
             src_domain="example.domain:2001",
             src_network_type="topology",
-            src_port="port1",
+            src_stp_id="port1",
             src_vlans=1783,
             dst_domain="example.domain:2001",
             dst_network_type="topology",
-            dst_port="port2",
+            dst_stp_id="port2",
             dst_vlans=1783,
             lifecycle_state="CREATED",
         )
@@ -92,45 +92,45 @@ def connection_id() -> Column:
 
 
 @pytest.fixture
-def src_port_equals_dst_port(connection_id: Column) -> None:
-    """Set dst_port of reservation identified by connection_id to src_port."""
+def src_stp_id_equals_dst_stp_id(connection_id: Column) -> None:
+    """Set dst_stp_id of reservation identified by connection_id to src_stp_id."""
     from supa.db.session import db_session
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        reservation.dst_port = reservation.src_port
+        reservation.dst_stp_id = reservation.src_stp_id
 
 
 @pytest.fixture
-def unknown_port(connection_id: Column) -> None:
-    """Set dst_port of reservation identified by connection_id to unknown."""
+def unknown_stp_id(connection_id: Column) -> None:
+    """Set dst_stp_id of reservation identified by connection_id to unknown."""
     from supa.db.session import db_session
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        reservation.dst_port = "unknown_stp"
+        reservation.dst_stp_id = "unknown_stp"
 
 
 @pytest.fixture
-def disabled_port(connection_id: Column) -> Generator:
-    """Temporarily disable dst_port of reservation identified by connection_id."""
+def disabled_stp(connection_id: Column) -> Generator:
+    """Temporarily disable dst_stp_id of reservation identified by connection_id."""
     from supa.db.session import db_session
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        port = session.query(Port).filter(Port.name == reservation.dst_port).one_or_none()
+        port = session.query(Topology).filter(Topology.stp_id == reservation.dst_stp_id).one_or_none()
         port.enabled = False
 
     yield None
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        port = session.query(Port).filter(Port.name == reservation.dst_port).one_or_none()
+        port = session.query(Topology).filter(Topology.stp_id == reservation.dst_stp_id).one_or_none()
         port.enabled = True
 
 
 @pytest.fixture
-def unknown_domain_port(connection_id: Column) -> None:
+def unknown_domain_stp_id(connection_id: Column) -> None:
     """Set dst_domain of reservation identified by connection_id to unknown."""
     from supa.db.session import db_session
 
@@ -140,7 +140,7 @@ def unknown_domain_port(connection_id: Column) -> None:
 
 
 @pytest.fixture
-def unknown_topology_port(connection_id: Column) -> None:
+def unknown_topology_stp_id(connection_id: Column) -> None:
     """Set dst_network_type of reservation identified by connection_id to unknown."""
     from supa.db.session import db_session
 
@@ -150,7 +150,7 @@ def unknown_topology_port(connection_id: Column) -> None:
 
 
 @pytest.fixture
-def empty_vlans_port(connection_id: Column) -> None:
+def empty_vlans_stp_id(connection_id: Column) -> None:
     """Set dst_vlans of reservation identified by connection_id to empty."""
     from supa.db.session import db_session
 
@@ -181,12 +181,12 @@ def no_matching_vlan(connection_id: Column) -> None:
 
 @pytest.fixture
 def all_vlans_in_use(connection_id: Column) -> Generator:
-    """Temporarily remove all vlans on dst_port of reservation identified by connection_id."""
+    """Temporarily remove all vlans on dst_stp_id of reservation identified by connection_id."""
     from supa.db.session import db_session
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        port = session.query(Port).filter(Port.name == reservation.dst_port).one_or_none()
+        port = session.query(Topology).filter(Topology.stp_id == reservation.dst_stp_id).one_or_none()
         original_vlans = port.vlans
         port.vlans = ""
 
@@ -194,7 +194,7 @@ def all_vlans_in_use(connection_id: Column) -> Generator:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        port = session.query(Port).filter(Port.name == reservation.dst_port).one_or_none()
+        port = session.query(Topology).filter(Topology.stp_id == reservation.dst_stp_id).one_or_none()
         port.vlans = original_vlans
 
 

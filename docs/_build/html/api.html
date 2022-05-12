@@ -860,8 +860,8 @@ will be used for the <code class="docutils literal notranslate"><span class="pre
 </dd></dl>
 
 <dl class="py class">
-<dt id="supa.db.model.Port">
-<em class="property">class </em><code class="sig-prename descclassname">supa.db.model.</code><code class="sig-name descname">Port</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="headerlink" href="#supa.db.model.Port" title="Permalink to this definition">¶</a></dt>
+<dt id="supa.db.model.Topology">
+<em class="property">class </em><code class="sig-prename descclassname">supa.db.model.</code><code class="sig-name descname">Topology</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="headerlink" href="#supa.db.model.Topology" title="Permalink to this definition">¶</a></dt>
 <dd><p>DB mapping for ports (STPs) from the Orchestrator.</p>
 </dd></dl>
 
@@ -869,7 +869,7 @@ will be used for the <code class="docutils literal notranslate"><span class="pre
 <dt id="supa.db.model.Connection">
 <em class="property">class </em><code class="sig-prename descclassname">supa.db.model.</code><code class="sig-name descname">Connection</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="headerlink" href="#supa.db.model.Connection" title="Permalink to this definition">¶</a></dt>
 <dd><p>DB mapping for registering connections to be build/built.</p>
-<p>It stores references to the actual :class`Port`s used in the  connection
+<p>It stores references to the actual :class`Topology`s used in the  connection
 and the <code class="docutils literal notranslate"><span class="pre">subscription_id</span></code> of the lightpath from the Orchestrator.</p>
 </dd></dl>
 

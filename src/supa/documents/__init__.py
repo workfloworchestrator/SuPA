@@ -16,8 +16,8 @@ from typing import Any
 import cherrypy
 from cherrypy import config, engine, tree
 
-from supa.documents.discovery import Discovery
-from supa.documents.topology import Topology
+from supa.documents.discovery import DiscoveryEndpoint
+from supa.documents.topology import TopologyEndpoint
 
 
 def _error_page_404(status, message, traceback, version):  # type: ignore[no-untyped-def]
@@ -48,8 +48,8 @@ def _init_cherrypy() -> Any:
     }
     config.update(server_config)
     cherrypy._cplogging.LogManager.access_log_format = '{h} {l} {u} "{r}" {s} {b} "{f}" "{a}"'
-    tree.mount(Discovery(), "/", app_config)
-    tree.mount(Topology(), "/", app_config)
+    tree.mount(DiscoveryEndpoint(), "/", app_config)
+    tree.mount(TopologyEndpoint(), "/", app_config)
     return engine
 
 

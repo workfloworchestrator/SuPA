@@ -37,7 +37,7 @@ from supa.connection.error import (
     Variable,
 )
 from supa.connection.fsm import LifecycleStateMachine, ProvisionStateMachine, ReservationStateMachine
-from supa.db.model import Path, PathTrace, Port, Reservation, Segment
+from supa.db.model import Path, PathTrace, Reservation, Segment, Topology
 from supa.grpc_nsi.connection_requester_pb2 import (
     ErrorRequest,
     ReserveAbortConfirmedRequest,
@@ -57,8 +57,8 @@ from supa.util.vlan import VlanRanges
 logger = structlog.get_logger(__name__)
 
 
-class PortResources(NamedTuple):
-    """Capture port resources, as returned by an SQLAlchemy query, so that they can be referred to by name."""
+class StpResources(NamedTuple):
+    """Capture STP resources, as returned by an SQLAlchemy query, so that they can be referred to by name."""
 
     bandwidth: int
     vlans: VlanRanges
@@ -79,8 +79,8 @@ class ReserveJob(Job):
         self.log = logger.bind(job=self.__class__.__name__, connection_id=str(connection_id))
         self.connection_id = connection_id
 
-    def _port_resources_in_use(self, session: orm.Session) -> Dict[str, PortResources]:
-        """Calculate port resources in use for active reservations that overlap with ours.
+    def _stp_resources_in_use(self, session: orm.Session) -> Dict[str, StpResources]:
+        """Calculate STP resources in use for active reservations that overlap with ours.
 
         Active reservations being those that:
 
@@ -89,25 +89,25 @@ class ReserveJob(Job):
 
         Overlap as in: their start times and end times overlap with ours.
 
-        The bandwidth in use is calculated per port.
-        Eg, if a port is used in two active reservations,
+        The bandwidth in use is calculated per STP.
+        Eg, if a STP is used in two active reservations,
         (one reservation for a connection with a bandwidth of 100 Mbps
         and another with a bandwidth of 400 Mbps)
         the bandwidth in use for the port will be:
         100 + 400 = 500 Mbps.
 
         Similarly for the VLANs in use.
-        Given the same port used in two active reservations
-        (one reservation where the port has a VLAN of 100
-        and another one where the port has a VLAN of 105),
-        the VLANs in use for the port will be:
+        Given the same STP used in two active reservations
+        (one reservation where the STP has a VLAN of 100
+        and another one where the STP has a VLAN of 105),
+        the VLANs in use for the STP will be:
         VlanRanges([100, 105])
 
         Args:
             session: A SQLAlchemy session to construct and run the DB query
 
         Returns:
-            A dict mapping port (names) to their port resources.
+            A dict mapping STP (names) to their STP resources.
 
         """
         # To calculate the active overlapping reservation we need to perform a self-join.
@@ -143,53 +143,52 @@ class ReserveJob(Job):
         ).subquery()
         OverlappingActiveReservation = aliased(Reservation, overlap_active, name="oar")
 
-        # To map ports to resources (bandwidth and vlan) in use
-        # we need to unpivot the two pair of port columns from the reservations table into separate rows.
+        # To map STP's to resources (bandwidth and vlan) in use
+        # we need to unpivot the two pair of STP columns from the reservations table into separate rows.
         # Eg, from:
         #
-        # row 1:  connection_id, ..., src_port, src_selected_vlan, dst_port, .dst_selected_vlan ..
+        # row 1:  connection_id, ..., src_stp, src_selected_vlan, dst_stp, .dst_selected_vlan ..
         #
         # to:
         #
-        # row 1: connection_id, port, vlan  <-- former src_port, src_selected_vlan
-        # row 2: connection_id, port, vlan  <-- former dst_port, dst_selected_vlan
-        src_port = session.query(
+        # row 1: connection_id, stp, vlan  <-- former src_stp, src_selected_vlan
+        # row 2: connection_id, stp, vlan  <-- former dst_stp, dst_selected_vlan
+        src_stp = session.query(
             Reservation.connection_id.label("connection_id"),
-            Reservation.src_port.label("port"),
+            Reservation.src_stp_id.label("stp"),
             Reservation.src_selected_vlan.label("vlan"),
         )
-        dst_port = session.query(
+        dst_stp = session.query(
             Reservation.connection_id,
-            Reservation.dst_port.label("port"),
+            Reservation.dst_stp_id.label("stp"),
             Reservation.dst_selected_vlan.label("vlan"),
         )
-        ports = src_port.union(dst_port).subquery()
+        stps = src_stp.union(dst_stp).subquery()
 
         # With the 'hard' work done for us in two subqueries,
-        # calculating the port resources (bandwidth, VLANs) in use is now relatively straightforward.
-        port_resources_in_use = (
+        # calculating the STP resources (bandwidth, VLANs) in use is now relatively straightforward.
+        stp_resources_in_use = (
             session.query(
-                ports.c.port,
+                stps.c.stp,
                 func.sum(OverlappingActiveReservation.bandwidth).label("bandwidth"),
-                func.group_concat(ports.c.vlan, ",").label("vlans"),  # yes, plural!
+                func.group_concat(stps.c.vlan, ",").label("vlans"),  # yes, plural!
             )
             .select_from(OverlappingActiveReservation)
-            .join(ports, OverlappingActiveReservation.connection_id == ports.c.connection_id)
+            .join(stps, OverlappingActiveReservation.connection_id == stps.c.connection_id)
             .filter(
-                ports.c.port.in_(
+                stps.c.stp.in_(
                     (
-                        OverlappingActiveReservation.src_port,
-                        OverlappingActiveReservation.dst_port,
+                        OverlappingActiveReservation.src_stp_id,
+                        OverlappingActiveReservation.dst_stp_id,
                     )
                 )
             )
-            .group_by(ports.c.port)
+            .group_by(stps.c.stp)
             .all()
         )
 
         return {
-            rec.port: PortResources(bandwidth=rec.bandwidth, vlans=VlanRanges(rec.vlans))
-            for rec in port_resources_in_use
+            rec.stp: StpResources(bandwidth=rec.bandwidth, vlans=VlanRanges(rec.vlans)) for rec in stp_resources_in_use
         }
 
     def _to_reserve_failed_request(self, reservation: Reservation, nsi_exc: NsiException) -> ReserveFailedRequest:
@@ -237,10 +236,10 @@ class ReserveJob(Job):
                 .get(self.connection_id)
             )
             rsm = ReservationStateMachine(reservation, state_field="reservation_state")
-            port_resources_in_use = self._port_resources_in_use(session)
+            stp_resources_in_use = self._stp_resources_in_use(session)
 
             try:
-                if reservation.src_port == reservation.dst_port:
+                if reservation.src_stp_id == reservation.dst_stp_id:
                     raise NsiException(
                         # Not sure if this is the correct error to use.
                         # As its descriptive text refers to path computation
@@ -248,7 +247,7 @@ class ReserveJob(Job):
                         # On the other hand it is the only error related to a path/connection as a whole
                         # and that is what is at issue here.
                         NoServiceplanePathFound,
-                        "source and destination ports are the same",
+                        "source and destination STP's are the same",
                         {
                             Variable.PROVIDER_NSA: settings.nsa_id,
                             Variable.SOURCE_STP: str(reservation.src_stp()),
@@ -257,28 +256,28 @@ class ReserveJob(Job):
                     )
                 for target, var in (("src", Variable.SOURCE_STP), ("dst", Variable.DEST_STP)):
                     # Dynamic attribute lookups as we want to use the same code for
-                    # both src and dst ports/stps
-                    res_port = getattr(reservation, f"{target}_port")
-                    stp = str(getattr(reservation, f"{target}_stp")())  # <-- mind the func call
+                    # both src and dst STP's
+                    res_stp = getattr(reservation, f"{target}_stp_id")
+                    nsi_stp = str(getattr(reservation, f"{target}_stp")())  # <-- mind the func call
                     domain = getattr(reservation, f"{target}_domain")
                     network_type = getattr(reservation, f"{target}_network_type")
                     requested_vlans = VlanRanges(getattr(reservation, f"{target}_vlans"))
-                    port = session.query(Port).filter(Port.name == res_port).one_or_none()
+                    stp = session.query(Topology).filter(Topology.stp_id == res_stp).one_or_none()
                     if (
-                        port is None
-                        or not port.enabled
+                        stp is None
+                        or not stp.enabled
                         or domain != settings.domain  # only process requests for our domain
                         or network_type != settings.network_type  # only process requests for our network
                     ):
-                        raise NsiException(UnknownStp, stp, {var: stp})
+                        raise NsiException(UnknownStp, nsi_stp, {var: nsi_stp})
                     if not requested_vlans:
-                        raise NsiException(InvalidLabelFormat, "missing VLANs label on STP", {var: stp})
-                    if port.name in port_resources_in_use:
-                        bandwidth_available = port.bandwidth - port_resources_in_use[port.name].bandwidth
-                        available_vlans = VlanRanges(port.vlans) - port_resources_in_use[port.name].vlans
+                        raise NsiException(InvalidLabelFormat, "missing VLANs label on STP", {var: nsi_stp})
+                    if stp.stp_id in stp_resources_in_use:
+                        bandwidth_available = stp.bandwidth - stp_resources_in_use[stp.stp_id].bandwidth
+                        available_vlans = VlanRanges(stp.vlans) - stp_resources_in_use[stp.stp_id].vlans
                     else:
-                        bandwidth_available = port.bandwidth
-                        available_vlans = VlanRanges(port.vlans)
+                        bandwidth_available = stp.bandwidth
+                        available_vlans = VlanRanges(stp.vlans)
                     if bandwidth_available < reservation.bandwidth:
                         raise NsiException(
                             CapacityUnavailable,
@@ -286,17 +285,17 @@ class ReserveJob(Job):
                             f"available: {format_bandwidth(bandwidth_available)}",
                             {
                                 Variable.CAPACITY: str(reservation.bandwidth),
-                                var: stp,
+                                var: nsi_stp,
                             },
                         )
                     if not available_vlans:
-                        raise NsiException(StpUnavailable, "all VLANs in use", {var: stp})
+                        raise NsiException(StpUnavailable, "all VLANs in use", {var: nsi_stp})
                     candidate_vlans = requested_vlans & available_vlans
                     if not candidate_vlans:
                         raise NsiException(
                             StpUnavailable,
                             f"no matching VLAN found (requested: {requested_vlans!s}, available: {available_vlans!s}",
-                            {var: stp},
+                            {var: nsi_stp},
                         )
                     selected_vlan = random.choice(list(candidate_vlans))
                     setattr(reservation, f"{target}_selected_vlan", selected_vlan)

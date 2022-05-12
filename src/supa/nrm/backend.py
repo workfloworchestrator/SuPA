@@ -18,7 +18,7 @@ from sqlalchemy.orm import aliased, session
 from structlog.stdlib import BoundLogger
 
 from supa import settings
-from supa.db.model import Port, Reservation
+from supa.db.model import Reservation, Topology
 
 logger = structlog.get_logger(__name__)
 
@@ -56,13 +56,13 @@ backend = BaseBackend()
 class STP:
     """Properties of a Network Serivce Interface Service Termination Point.
 
-    The topology properties is a placeholder for future multiple topology support.
+    The topology property is a placeholder for future multiple topology support.
     """
 
     def __init__(
         self,
         topology: str = settings.network_type,
-        name: str = "",
+        stp_id: str = "",
         port_id: str = "",
         vlans: str = "",
         description: str = "",
@@ -73,7 +73,7 @@ class STP:
     ):
         """Initialise a Service Termination Point object."""
         self.topology: str = topology
-        self.name: str = name
+        self.stp_id: str = stp_id
         self.port_id: str = port_id
         self.vlans: str = vlans
         self.description: str = description
@@ -98,17 +98,17 @@ def call_backend(primitive: str, reservation: Reservation, database_session: ses
 
     We could have called the method directly on the class instance,
     but now we can log some additional information,
-    resolve the src/dst port_name to NRM port ID's,
+    resolve the src/dst stp_id to NRM port ID's,
     and we do not have to import `backend` locally
     to ensure it is initialized properly.
     """
-    src_port = aliased(Port)
-    dst_port = aliased(Port)
+    src_topology = aliased(Topology)
+    dst_topology = aliased(Topology)
     src_port_id, dst_port_id = (
-        database_session.query(src_port.port_id, dst_port.port_id).filter(
+        database_session.query(src_topology.port_id, dst_topology.port_id).filter(
             Reservation.connection_id == reservation.connection_id,
-            Reservation.src_port == src_port.name,
-            Reservation.dst_port == dst_port.name,
+            Reservation.src_stp_id == src_topology.stp_id,
+            Reservation.dst_stp_id == dst_topology.stp_id,
         )
     ).one()
     # TODO change port_id from UUID to str to make it compatible with other NRM's
@@ -129,9 +129,9 @@ def call_backend(primitive: str, reservation: Reservation, database_session: ses
             )
             method(
                 reservation.connection_id,
-                str(src_port_id),
+                src_port_id,
                 reservation.src_selected_vlan,
-                str(dst_port_id),
+                dst_port_id,
                 reservation.dst_selected_vlan,
                 reservation.bandwidth,
             )
