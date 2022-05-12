@@ -141,13 +141,13 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             src_stp = parse_stp(pb_ptps.source_stp)
             reservation.src_domain = src_stp.domain
             reservation.src_network_type = src_stp.network_type
-            reservation.src_port = src_stp.port
+            reservation.src_stp_id = src_stp.stp_id
             reservation.src_vlans = str(src_stp.vlan_ranges)
 
             dst_stp = parse_stp(pb_ptps.dest_stp)
             reservation.dst_domain = dst_stp.domain
             reservation.dst_network_type = dst_stp.network_type
-            reservation.dst_port = dst_stp.port
+            reservation.dst_stp_id = dst_stp.stp_id
             reservation.dst_vlans = str(dst_stp.vlan_ranges)
 
             for k, v in pb_ptps.parameters.items():

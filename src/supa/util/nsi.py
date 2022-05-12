@@ -29,7 +29,7 @@ class Stp:
 
     domain: str
     network_type: str
-    port: str
+    stp_id: str
     labels: Optional[str]
 
     @property
@@ -51,7 +51,7 @@ class Stp:
 
     def __str__(self) -> str:
         """Return printable string representation of Stp."""
-        stp = f"{URN_PREFIX}:{self.domain}:{self.network_type}:{self.port}"
+        stp = f"{URN_PREFIX}:{self.domain}:{self.network_type}:{self.stp_id}"
         if self.labels:
             stp += f"?{self.labels}"
         return stp
@@ -72,7 +72,7 @@ def parse_stp(stp: str) -> Stp:
     if not all(parts):
         raise ValueError(f"Not an STP: `{stp}`")
 
-    port, *remainder = parts[-1].split("?")
+    stp_id, *remainder = parts[-1].split("?")
     labels = remainder.pop() if remainder else None
     domain: str
     if (parts_len := len(parts)) == 4 and parts[1].isdigit():
@@ -87,4 +87,4 @@ def parse_stp(stp: str) -> Stp:
     else:
         raise ValueError(f"Not an STP: `{stp}`")
 
-    return Stp(domain=domain, network_type=network_type, port=port, labels=labels)
+    return Stp(domain=domain, network_type=network_type, stp_id=stp_id, labels=labels)

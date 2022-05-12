@@ -223,7 +223,7 @@ class Reservation(Base):
 
     src_domain = Column(Text, nullable=False)
     src_network_type = Column(Text, nullable=False)
-    src_port = Column(Text, nullable=False, comment="Name of the port")
+    src_stp_id = Column(Text, nullable=False, comment="uniq identifier of STP in the topology")
     src_vlans = Column(Text, nullable=False)
 
     # `src_vlans` might be a range of VLANs in case the reservation specified an unqualified STP.
@@ -234,7 +234,7 @@ class Reservation(Base):
     src_selected_vlan = Column(Integer, nullable=True)
     dst_domain = Column(Text, nullable=False)
     dst_network_type = Column(Text, nullable=False)
-    dst_port = Column(Text, nullable=False, comment="Name of the port")
+    dst_stp_id = Column(Text, nullable=False, comment="uniq identifier of STP in the topology")
     dst_vlans = Column(Text, nullable=False)
 
     # See `src_selected_vlan`
@@ -299,7 +299,7 @@ class Reservation(Base):
         """
         vlans = self.src_selected_vlan if selected else self.src_vlans
         labels = f"vlan={vlans}"
-        return nsi.Stp(self.src_domain, self.src_network_type, self.src_port, labels)
+        return nsi.Stp(self.src_domain, self.src_network_type, self.src_stp_id, labels)
 
     def dst_stp(self, selected: bool = False) -> nsi.Stp:
         """Return :class:`~supa.util.nsi.STP` instance for dst data.
@@ -318,7 +318,7 @@ class Reservation(Base):
         """
         vlans = self.dst_selected_vlan if selected else self.dst_vlans
         labels = f"vlan={vlans}"
-        return nsi.Stp(self.dst_domain, self.dst_network_type, self.dst_port, labels)
+        return nsi.Stp(self.dst_domain, self.dst_network_type, self.dst_stp_id, labels)
 
 
 class PathTrace(Base):
@@ -437,30 +437,30 @@ class Parameter(Base):
     value = Column(Text)
 
 
-class Port(Base):
-    """DB mapping for ports (STPs) from the Orchestrator."""
+class Topology(Base):
+    """DB mapping for STP's and ports in the topology from the NRM."""
 
-    __tablename__ = "ports"
+    __tablename__ = "topology"
 
-    port_id = Column(Uuid, primary_key=True, comment="NRM port identifier")
-    name = Column(Text, nullable=False, unique=True, index=True)  # TODO rename to stp_id + make primary key
+    stp_id = Column(Text, primary_key=True, index=True)
+    port_id = Column(Text, nullable=False, comment="NRM port identifier")
     vlans = Column(Text, nullable=False)
+    bandwidth = Column(Integer, nullable=False, comment="Mbps")
     description = Column(Text, nullable=True)
     is_alias_in = Column(Text, nullable=True)
     is_alias_out = Column(Text, nullable=True)
-    bandwidth = Column(Integer, nullable=False, comment="Mbps")
 
-    # A port might still be in operation (eg active) as part of one or more connections.
+    # A STP might still be in operation (eg active) as part of one or more connections.
     # However to prevent new reservations be made against it,
     # we can enable of disable it.
-    enabled = Column(Boolean, nullable=False, default=True, comment="We don't delete ports, we enable or disable them.")
+    enabled = Column(Boolean, nullable=False, default=True, comment="We don't delete STP's, we enable or disable them.")
 
 
 class Connection(Base):
     """DB mapping for registering connections to be build/built.
 
-    It stores references to the actual :class`Port`s used in the  connection
-    and the ``subscription_id`` of the lightpath from the Orchestrator.
+    It stores references to the actual STP's used in the connection as listed in :class`Topology`
+    and the ``circuit_id`` of the circuit in the NRM.
     """
 
     __tablename__ = "connections"
@@ -474,25 +474,23 @@ class Connection(Base):
     # We use singular here,
     # as by the time we are creating a Connection a VLAN
     # per port will have been selected.
-    source_port_id = Column(Uuid, ForeignKey(Port.port_id), nullable=False)
+    source_stp_id = Column(Text, ForeignKey(Topology.stp_id), nullable=False)
     source_vlan = Column(Integer, nullable=False)
-    dest_port_id = Column(Uuid, ForeignKey(Port.port_id), nullable=False)
+    dest_stp_id = Column(Text, ForeignKey(Topology.stp_id), nullable=False)
     dest_vlan = Column(Integer, nullable=False)
-    subscription_id = Column(
-        Uuid, nullable=False, unique=True, comment="subscription_id of the lightpath in the Orchestrator"
-    )
+    circuit_id = Column(Text, nullable=False, unique=True, comment="id of the circuit in the NRM")
 
     reservation = relationship(
         Reservation,
         back_populates="connection",
     )  # one-to-one (cascades defined in parent)
 
-    source_port = relationship(
-        "Port",
-        foreign_keys=[source_port_id],
+    source_stp = relationship(
+        "Topology",
+        foreign_keys=[source_stp_id],
     )
 
-    dest_port = relationship(
-        "Port",
-        foreign_keys=[dest_port_id],
+    dest_stp = relationship(
+        "Topology",
+        foreign_keys=[dest_stp_id],
     )

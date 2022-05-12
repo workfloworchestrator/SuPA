@@ -16,18 +16,18 @@ def test_reserve_job_reserve_confirmed(connection_id: Column, reserve_checking: 
     assert state_machine.is_reserve_held(connection_id)
 
 
-def test_reserve_job_reserve_failed_src_port_equals_dst_port(
-    connection_id: Column, reserve_checking: None, src_port_equals_dst_port: None, get_stub: None, caplog: Any
+def test_reserve_job_reserve_failed_src_stp_id_equals_dst_stp_id(
+    connection_id: Column, reserve_checking: None, src_stp_id_equals_dst_stp_id: None, get_stub: None, caplog: Any
 ) -> None:
-    """Test ReserveJob to transition to ReserveFailed when src_port is equal to dst_port."""
+    """Test ReserveJob to transition to ReserveFailed when src_stp_id is equal to dst_stp_id."""
     reserve_job = ReserveJob(connection_id)
     reserve_job.__call__()
     assert "Reservation failed" in caplog.text
     assert state_machine.is_reserve_failed(connection_id)
 
 
-def test_reserve_job_reserve_failed_unknown_port(
-    connection_id: Column, reserve_checking: None, unknown_port: None, get_stub: None, caplog: Any
+def test_reserve_job_reserve_failed_unknown_stp_id(
+    connection_id: Column, reserve_checking: None, unknown_stp_id: None, get_stub: None, caplog: Any
 ) -> None:
     """Test ReserveJob to transition to ReserveFailed when one of the STP's is unknown."""
     reserve_job = ReserveJob(connection_id)
@@ -36,8 +36,8 @@ def test_reserve_job_reserve_failed_unknown_port(
     assert state_machine.is_reserve_failed(connection_id)
 
 
-def test_reserve_job_reserve_failed_disabled_port(
-    connection_id: Column, reserve_checking: None, disabled_port: None, get_stub: None, caplog: Any
+def test_reserve_job_reserve_failed_disabled_stp_id(
+    connection_id: Column, reserve_checking: None, disabled_stp, get_stub: None, caplog: Any
 ) -> None:
     """Test ReserveJob to transition to ReserveFailed when one of the ports is disabled."""
     reserve_job = ReserveJob(connection_id)
@@ -46,8 +46,8 @@ def test_reserve_job_reserve_failed_disabled_port(
     assert state_machine.is_reserve_failed(connection_id)
 
 
-def test_reserve_job_reserve_failed_unknown_domain_port(
-    connection_id: Column, reserve_checking: None, unknown_domain_port: None, get_stub: None, caplog: Any
+def test_reserve_job_reserve_failed_unknown_domain_stp_id(
+    connection_id: Column, reserve_checking: None, unknown_domain_stp_id: None, get_stub: None, caplog: Any
 ) -> None:
     """Test ReserveJob to transition to ReserveFailed when dst_domain is unknown."""
     reserve_job = ReserveJob(connection_id)
@@ -56,8 +56,8 @@ def test_reserve_job_reserve_failed_unknown_domain_port(
     assert state_machine.is_reserve_failed(connection_id)
 
 
-def test_reserve_job_reserve_failed_unknown_topology_port(
-    connection_id: Column, reserve_checking: None, unknown_topology_port: None, get_stub: None, caplog: Any
+def test_reserve_job_reserve_failed_unknown_topology_stp_id(
+    connection_id: Column, reserve_checking: None, unknown_topology_stp_id: None, get_stub: None, caplog: Any
 ) -> None:
     """Test ReserveJob to transition to ReserveFailed when dst_network_type is unknown."""
     reserve_job = ReserveJob(connection_id)
@@ -66,8 +66,8 @@ def test_reserve_job_reserve_failed_unknown_topology_port(
     assert state_machine.is_reserve_failed(connection_id)
 
 
-def test_reserve_job_reserve_failed_empty_vlans_port(
-    connection_id: Column, reserve_checking: None, empty_vlans_port: None, get_stub: None, caplog: Any
+def test_reserve_job_reserve_failed_empty_vlans_stp_id(
+    connection_id: Column, reserve_checking: None, empty_vlans_stp_id: None, get_stub: None, caplog: Any
 ) -> None:
     """Test ReserveJob to transition to ReserveFailed when dst_vlans is empty."""
     reserve_job = ReserveJob(connection_id)

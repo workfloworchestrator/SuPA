@@ -73,7 +73,7 @@ nsmap = {
 }
 
 
-class Discovery(object):
+class DiscoveryEndpoint(object):
     """A cherryPy application to generate a NSI discovery document."""
 
     @cherrypy.expose  # type: ignore[misc]
