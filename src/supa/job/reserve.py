@@ -260,14 +260,14 @@ class ReserveJob(Job):
                     res_stp = getattr(reservation, f"{target}_stp_id")
                     nsi_stp = str(getattr(reservation, f"{target}_stp")())  # <-- mind the func call
                     domain = getattr(reservation, f"{target}_domain")
-                    network_type = getattr(reservation, f"{target}_network_type")
+                    topology = getattr(reservation, f"{target}_topology")
                     requested_vlans = VlanRanges(getattr(reservation, f"{target}_vlans"))
                     stp = session.query(Topology).filter(Topology.stp_id == res_stp).one_or_none()
                     if (
                         stp is None
                         or not stp.enabled
                         or domain != settings.domain  # only process requests for our domain
-                        or network_type != settings.network_type  # only process requests for our network
+                        or topology != settings.topology  # only process requests for our network
                     ):
                         raise NsiException(UnknownStp, nsi_stp, {var: nsi_stp})
                     if not requested_vlans:

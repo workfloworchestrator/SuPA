@@ -1,5 +1,5 @@
 from datetime import timedelta
-from typing import Any
+from typing import Any, Generator
 
 from sqlalchemy import Column
 
@@ -37,7 +37,7 @@ def test_reserve_job_reserve_failed_unknown_stp_id(
 
 
 def test_reserve_job_reserve_failed_disabled_stp_id(
-    connection_id: Column, reserve_checking: None, disabled_stp, get_stub: None, caplog: Any
+    connection_id: Column, reserve_checking: None, disabled_stp: Generator, get_stub: None, caplog: Any
 ) -> None:
     """Test ReserveJob to transition to ReserveFailed when one of the ports is disabled."""
     reserve_job = ReserveJob(connection_id)
@@ -59,7 +59,7 @@ def test_reserve_job_reserve_failed_unknown_domain_stp_id(
 def test_reserve_job_reserve_failed_unknown_topology_stp_id(
     connection_id: Column, reserve_checking: None, unknown_topology_stp_id: None, get_stub: None, caplog: Any
 ) -> None:
-    """Test ReserveJob to transition to ReserveFailed when dst_network_type is unknown."""
+    """Test ReserveJob to transition to ReserveFailed when dst_topology is unknown."""
     reserve_job = ReserveJob(connection_id)
     reserve_job.__call__()
     assert "Reservation failed" in caplog.text

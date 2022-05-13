@@ -43,7 +43,7 @@ def refresh_topology() -> None:
     nrm_stp_ids = [nrm_stp.stp_id for nrm_stp in nrm_stps]
     with db_session() as session:
         for nrm_stp in nrm_stps:
-            if nrm_stp.topology != settings.network_type:
+            if nrm_stp.topology != settings.topology:
                 log.debug("skip STP with unknown topology", stp=nrm_stp.stp_id, topology=nrm_stp.topology)
             else:
                 stp = session.query(Topology).filter(Topology.stp_id == nrm_stp.stp_id).one_or_none()
@@ -90,7 +90,7 @@ class TopologyEndpoint(object):
     def topology(self) -> Union[str, bytes]:
         """Cherrypy URL that returns the generated NSI topology document."""
         refresh_topology()
-        network_id = f"urn:ogf:network:{settings.domain}:{settings.network_type}"
+        network_id = f"urn:ogf:network:{settings.domain}:{settings.topology}"
         now = current_timestamp()
 
         from supa.db.session import db_session
