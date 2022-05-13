@@ -20,7 +20,7 @@ from supa.util.vlan import VlanRanges
 def test_parse_stp_with_year_unqualified() -> None:  # noqa: D103
     stp = parse_stp("urn:ogf:network:netherlight.net:2013:production7:netherlight-of-1?vlan=200-500,1779-1799")
     assert stp.domain == "netherlight.net:2013"
-    assert stp.network_type == "production7"
+    assert stp.topology == "production7"
     assert stp.stp_id == "netherlight-of-1"
     assert stp.labels == "vlan=200-500,1779-1799"
 
@@ -28,7 +28,7 @@ def test_parse_stp_with_year_unqualified() -> None:  # noqa: D103
 def test_parse_stp_without_year_unqualified() -> None:  # noqa: D103
     stp = parse_stp("urn:ogf:network:netherlight.net:production7:netherlight-of-1?vlan=200-500,1779-1799")
     assert stp.domain == "netherlight.net"  # <-- without year
-    assert stp.network_type == "production7"
+    assert stp.topology == "production7"
     assert stp.stp_id == "netherlight-of-1"
     assert stp.labels == "vlan=200-500,1779-1799"
 
@@ -36,7 +36,7 @@ def test_parse_stp_without_year_unqualified() -> None:  # noqa: D103
 def test_parse_stp_with_year_qualified() -> None:  # noqa: D103
     stp = parse_stp("urn:ogf:network:netherlight.net:2013:production7:netherlight-of-1?vlan=1779")
     assert stp.domain == "netherlight.net:2013"
-    assert stp.network_type == "production7"
+    assert stp.topology == "production7"
     assert stp.stp_id == "netherlight-of-1"
     assert stp.labels == "vlan=1779"  # <-- qualified
 
@@ -44,12 +44,12 @@ def test_parse_stp_with_year_qualified() -> None:  # noqa: D103
 def test_parse_stp_with_year_no_labels() -> None:  # noqa: D103
     stp = parse_stp("urn:ogf:network:netherlight.net:2013:production7:netherlight-of-1")
     assert stp.domain == "netherlight.net:2013"
-    assert stp.network_type == "production7"
+    assert stp.topology == "production7"
     assert stp.stp_id == "netherlight-of-1"
     assert stp.labels is None  # <-- no labels
 
 
-def test_parse_stp_missing_network_type() -> None:  # noqa: D103
+def test_parse_stp_missing_topology() -> None:  # noqa: D103
     with pytest.raises(ValueError):
         parse_stp("urn:ogf:network:netherlight.net:2013:netherlight-of-1?vlan=200-500,1779-1799")
 
