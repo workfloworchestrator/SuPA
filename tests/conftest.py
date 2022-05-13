@@ -16,7 +16,7 @@ from supa.connection.fsm import (
     ProvisionStateMachine,
     ReservationStateMachine,
 )
-from supa.db.model import Topology, Reservation
+from supa.db.model import Reservation, Topology
 from supa.grpc_nsi import connection_provider_pb2_grpc
 from supa.job.dataplane import AutoEndJob, AutoStartJob
 from supa.job.reserve import ReserveTimeoutJob
@@ -141,12 +141,12 @@ def unknown_domain_stp_id(connection_id: Column) -> None:
 
 @pytest.fixture
 def unknown_topology_stp_id(connection_id: Column) -> None:
-    """Set dst_network_type of reservation identified by connection_id to unknown."""
+    """Set dst_topology of reservation identified by connection_id to unknown."""
     from supa.db.session import db_session
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        reservation.dst_network_type = "unknown_topology"
+        reservation.dst_topology = "unknown_topology"
 
 
 @pytest.fixture

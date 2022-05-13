@@ -7,7 +7,7 @@ from supa.connection.fsm import (
     ProvisionStateMachine,
     ReservationStateMachine,
 )
-from supa.db.model import Topology, Reservation
+from supa.db.model import Reservation, Topology
 from supa.grpc_nsi.connection_common_pb2 import RESERVE_CHECKING
 from supa.grpc_nsi.connection_requester_pb2 import (
     DataPlaneStateChangeRequest,
@@ -99,7 +99,7 @@ class Servicer(ConnectionRequesterServicer):
                 assert request.service_exception.variables[0].type == "destSTP"
                 assert "unknown_domain" in request.service_exception.variables[0].value
             # test_reserve_job_reserve_failed_unknown_topology_stp_id()
-            if reservation.dst_network_type == "unknown_topology":
+            if reservation.dst_topology == "unknown_topology":
                 test_hit_count += 1
                 assert request.service_exception.error_id == "00701"
                 assert len(request.service_exception.variables) == 1

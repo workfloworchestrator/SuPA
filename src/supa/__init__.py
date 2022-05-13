@@ -183,7 +183,7 @@ class Settings(BaseSettings):
     scheduler_max_workers: int = grpc_server_max_workers + 4
 
     domain: str = "example.domain:2013"
-    network_type: str = "topology"
+    topology: str = "topology"
     backend = ""
     manual_topology = False
 

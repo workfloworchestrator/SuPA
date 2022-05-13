@@ -28,7 +28,7 @@ class Stp:
     """Dataclass for representing the constituent parts of an STP identifier."""
 
     domain: str
-    network_type: str
+    topology: str
     stp_id: str
     labels: Optional[str]
 
@@ -51,7 +51,7 @@ class Stp:
 
     def __str__(self) -> str:
         """Return printable string representation of Stp."""
-        stp = f"{URN_PREFIX}:{self.domain}:{self.network_type}:{self.stp_id}"
+        stp = f"{URN_PREFIX}:{self.domain}:{self.topology}:{self.stp_id}"
         if self.labels:
             stp += f"?{self.labels}"
         return stp
@@ -77,14 +77,14 @@ def parse_stp(stp: str) -> Stp:
     domain: str
     if (parts_len := len(parts)) == 4 and parts[1].isdigit():
         domain = f"{parts[0]}:{parts[1]}"  # eg: "example.domain" and "2013"
-        network_type = parts[2]
+        topology = parts[2]
 
     # If we do have only three parts, non of them should be numerical (eg "2013").
     # If one or more are numerical it is an indication something else is missing.
     elif parts_len == 3 and not any(map(operator.methodcaller("isdigit"), parts)):
         domain = parts[0]
-        network_type = parts[1]
+        topology = parts[1]
     else:
         raise ValueError(f"Not an STP: `{stp}`")
 
-    return Stp(domain=domain, network_type=network_type, stp_id=stp_id, labels=labels)
+    return Stp(domain=domain, topology=topology, stp_id=stp_id, labels=labels)

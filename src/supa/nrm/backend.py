@@ -61,7 +61,7 @@ class STP:
 
     def __init__(
         self,
-        topology: str = settings.network_type,
+        topology: str = settings.topology,
         stp_id: str = "",
         port_id: str = "",
         vlans: str = "",

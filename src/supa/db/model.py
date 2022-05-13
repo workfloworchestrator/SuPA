@@ -222,7 +222,7 @@ class Reservation(Base):
     symmetric = Column(Boolean, nullable=False)
 
     src_domain = Column(Text, nullable=False)
-    src_network_type = Column(Text, nullable=False)
+    src_topology = Column(Text, nullable=False)
     src_stp_id = Column(Text, nullable=False, comment="uniq identifier of STP in the topology")
     src_vlans = Column(Text, nullable=False)
 
@@ -233,7 +233,7 @@ class Reservation(Base):
     # A single VLAN is always a single number, hence integer.
     src_selected_vlan = Column(Integer, nullable=True)
     dst_domain = Column(Text, nullable=False)
-    dst_network_type = Column(Text, nullable=False)
+    dst_topology = Column(Text, nullable=False)
     dst_stp_id = Column(Text, nullable=False, comment="uniq identifier of STP in the topology")
     dst_vlans = Column(Text, nullable=False)
 
@@ -299,7 +299,7 @@ class Reservation(Base):
         """
         vlans = self.src_selected_vlan if selected else self.src_vlans
         labels = f"vlan={vlans}"
-        return nsi.Stp(self.src_domain, self.src_network_type, self.src_stp_id, labels)
+        return nsi.Stp(self.src_domain, self.src_topology, self.src_stp_id, labels)
 
     def dst_stp(self, selected: bool = False) -> nsi.Stp:
         """Return :class:`~supa.util.nsi.STP` instance for dst data.
@@ -318,7 +318,7 @@ class Reservation(Base):
         """
         vlans = self.dst_selected_vlan if selected else self.dst_vlans
         labels = f"vlan={vlans}"
-        return nsi.Stp(self.dst_domain, self.dst_network_type, self.dst_stp_id, labels)
+        return nsi.Stp(self.dst_domain, self.dst_topology, self.dst_stp_id, labels)
 
 
 class PathTrace(Base):
