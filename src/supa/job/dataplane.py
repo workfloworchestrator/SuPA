@@ -103,7 +103,9 @@ class ActivateJob(Job):
                         trigger=DateTrigger(run_date=reservation.end_time),
                         id=f"{str(self.connection_id)}-AutoEndJob",
                     )
-                    self.log.info(f"Automatic disable of data plane at {reservation.end_time.isoformat()}")
+                    self.log.info(
+                        "Automatic disable of data plane at end time", end_time=reservation.end_time.isoformat()
+                    )
 
         stub = requester.get_stub()
         if type(response) == DataPlaneStateChangeRequest:

@@ -143,7 +143,10 @@ class ProvisionJob(Job):
                             trigger=DateTrigger(run_date=reservation.start_time),
                             id=f"{str(self.connection_id)}-AutoStartJob",
                         )
-                        self.log.info(f"Automatic enable of data plane at {reservation.start_time.isoformat()}")
+                        self.log.info(
+                            "Automatic enable of data plane at start time",
+                            start_time=reservation.start_time.isoformat(),
+                        )
                         response = self._to_provision_confirmed_request(reservation)
                         psm.provision_confirmed()
                 else:

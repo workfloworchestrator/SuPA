@@ -11,6 +11,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+from dataclasses import dataclass
 from typing import List
 
 import structlog
@@ -18,7 +19,7 @@ from sqlalchemy.orm import aliased, session
 from structlog.stdlib import BoundLogger
 
 from supa import settings
-from supa.db.model import Reservation, Topology
+from supa.db.model import Connection, Reservation, Topology
 
 logger = structlog.get_logger(__name__)
 
@@ -53,34 +54,22 @@ as declared in supa.env or on the command line of `supa serve`"""
 backend = BaseBackend()
 
 
+@dataclass
 class STP:
     """Properties of a Network Serivce Interface Service Termination Point.
 
     The topology property is a placeholder for future multiple topology support.
     """
 
-    def __init__(
-        self,
-        topology: str = settings.topology,
-        stp_id: str = "",
-        port_id: str = "",
-        vlans: str = "",
-        description: str = "",
-        is_alias_in: str = "",
-        is_alias_out: str = "",
-        bandwidth: int = 1000000000,
-        expose_in_topology: bool = True,
-    ):
-        """Initialise a Service Termination Point object."""
-        self.topology: str = topology
-        self.stp_id: str = stp_id
-        self.port_id: str = port_id
-        self.vlans: str = vlans
-        self.description: str = description
-        self.is_alias_in: str = is_alias_in
-        self.is_alias_out: str = is_alias_out
-        self.bandwidth: int = bandwidth
-        self.expose_in_topology: bool = expose_in_topology
+    stp_id: str
+    port_id: str
+    vlans: str
+    description: str = ""
+    is_alias_in: str = ""
+    is_alias_out: str = ""
+    bandwidth: int = 1000000000
+    expose_in_topology: bool = True
+    topology: str = settings.topology
 
 
 def get_topology() -> List[STP]:
@@ -111,6 +100,10 @@ def call_backend(primitive: str, reservation: Reservation, database_session: ses
             Reservation.dst_stp_id == dst_topology.stp_id,
         )
     ).one()
+    connection = (
+        database_session.query(Connection).filter(Connection.connection_id == reservation.connection_id).one_or_none()
+    )
+    circuit_id = connection.circuit_id if connection else None
     # TODO change port_id from UUID to str to make it compatible with other NRM's
     backend.log = backend.log.bind(primitive=primitive, connection_id=str(reservation.connection_id))
     try:
@@ -118,7 +111,9 @@ def call_backend(primitive: str, reservation: Reservation, database_session: ses
     except AttributeError:
         backend.log.debug("skipping call to NRM backend")
     else:
-        if callable(method):
+        if not callable(method):
+            backend.log.warning("cannot call NRM backend with non-function")
+        else:
             backend.log.info(
                 "calling NRM backend",
                 src_port=str(src_port_id),
@@ -126,14 +121,26 @@ def call_backend(primitive: str, reservation: Reservation, database_session: ses
                 dst_port=str(dst_port_id),
                 dst_vlan=reservation.dst_selected_vlan,
                 bandwidth=reservation.bandwidth,
+                circuit_id=circuit_id,
             )
-            method(
+            circuit_id = method(
                 reservation.connection_id,
                 src_port_id,
                 reservation.src_selected_vlan,
                 dst_port_id,
                 reservation.dst_selected_vlan,
                 reservation.bandwidth,
+                circuit_id,
             )
-        else:
-            backend.log.warning("cannot call NRM backend with non-function")
+            if circuit_id:
+                database_session.add(
+                    Connection(
+                        connection_id=reservation.connection_id,
+                        bandwidth=reservation.bandwidth,
+                        src_stp_id=reservation.src_stp_id,
+                        src_vlan=reservation.src_selected_vlan,
+                        dst_stp_id=reservation.dst_stp_id,
+                        dst_vlan=reservation.dst_selected_vlan,
+                        circuit_id=circuit_id,
+                    )
+                )

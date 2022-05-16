@@ -474,23 +474,23 @@ class Connection(Base):
     # We use singular here,
     # as by the time we are creating a Connection a VLAN
     # per port will have been selected.
-    source_stp_id = Column(Text, ForeignKey(Topology.stp_id), nullable=False)
-    source_vlan = Column(Integer, nullable=False)
-    dest_stp_id = Column(Text, ForeignKey(Topology.stp_id), nullable=False)
-    dest_vlan = Column(Integer, nullable=False)
-    circuit_id = Column(Text, nullable=False, unique=True, comment="id of the circuit in the NRM")
+    src_stp_id = Column(Text, ForeignKey(Topology.stp_id), nullable=False)
+    src_vlan = Column(Integer, nullable=False)
+    dst_stp_id = Column(Text, ForeignKey(Topology.stp_id), nullable=False)
+    dst_vlan = Column(Integer, nullable=False)
+    circuit_id = Column(Text, nullable=True, unique=True, comment="id of the circuit in the NRM")
 
     reservation = relationship(
         Reservation,
         back_populates="connection",
     )  # one-to-one (cascades defined in parent)
 
-    source_stp = relationship(
+    src_stp = relationship(
         "Topology",
-        foreign_keys=[source_stp_id],
+        foreign_keys=[src_stp_id],
     )
 
-    dest_stp = relationship(
+    dst_stp = relationship(
         "Topology",
-        foreign_keys=[dest_stp_id],
+        foreign_keys=[dst_stp_id],
     )

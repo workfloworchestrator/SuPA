@@ -48,7 +48,9 @@ def refresh_topology() -> None:
             else:
                 stp = session.query(Topology).filter(Topology.stp_id == nrm_stp.stp_id).one_or_none()
                 if stp:
-                    log.debug("update existing STP", stp=nrm_stp.stp_id)
+                    log.debug(
+                        "update existing STP", stp_id=nrm_stp.stp_id, port_id=nrm_stp.port_id, vlans=nrm_stp.vlans
+                    )
                     stp.port_id = nrm_stp.port_id
                     stp.vlans = nrm_stp.vlans
                     stp.description = nrm_stp.description
@@ -57,7 +59,7 @@ def refresh_topology() -> None:
                     stp.bandwidth = nrm_stp.bandwidth
                     stp.enabled = nrm_stp.expose_in_topology
                 else:
-                    log.info("add new STP", stp=nrm_stp.stp_id)
+                    log.info("add new STP", stp_id=nrm_stp.stp_id, port_id=nrm_stp.port_id, vlans=nrm_stp.vlans)
                     session.add(
                         Topology(
                             stp_id=nrm_stp.stp_id,
@@ -72,7 +74,7 @@ def refresh_topology() -> None:
                     )
         for stp in session.query(Topology).filter(Topology.enabled):
             if stp.stp_id not in nrm_stp_ids:
-                log.info("disable vanished STP", stp=stp.stp_id)
+                log.info("disable vanished STP", stp_id=stp.stp_id, port_id=nrm_stp.port_id, vlans=nrm_stp.vlans)
                 stp.enabled = False
 
 
