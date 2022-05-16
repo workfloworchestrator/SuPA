@@ -149,7 +149,7 @@ def test_reserve_job_trigger(connection_id: Column, caplog: Any) -> None:
 
 
 def test_reserve_commit_job_reserve_commit_confirmed(
-    connection_id: Column, reserve_committing: None, get_stub: None
+    connection_id: Column, connection: None, reserve_committing: None, get_stub: None
 ) -> None:
     """Test ReserveCommitJob to transition to ReserveStart.
 
@@ -208,7 +208,7 @@ def test_reserve_commit_job_trigger(connection_id: Column, caplog: Any) -> None:
 
 
 def test_reserve_abort_job_reserve_abort_confirmed(
-    connection_id: Column, reserve_aborting: None, get_stub: None
+    connection_id: Column, connection: None, reserve_aborting: None, get_stub: None
 ) -> None:
     """Test ReserveAbortJob to transition to ReserveStart.
 
@@ -244,7 +244,9 @@ def test_reserve_abort_job_trigger(connection_id: Column, caplog: Any) -> None:
     assert current_timestamp() - job_trigger.run_date < timedelta(seconds=5)  # more or less now
 
 
-def test_reserve_timeout_job_invalid_transition(caplog: Any, connection_id: Column, reserve_committing: None) -> None:
+def test_reserve_timeout_job_invalid_transition(
+    caplog: Any, connection_id: Column, connection: None, reserve_committing: None
+) -> None:
     """Test ReserveTimeoutJob to detect an invalid transition.
 
     Verify that a ReserveTimeoutJob will detect an invalid transition attempt
@@ -258,7 +260,7 @@ def test_reserve_timeout_job_invalid_transition(caplog: Any, connection_id: Colu
 
 
 def test_reserve_timeout_job_reserve_timeout_notification(
-    connection_id: Column, reserve_held: None, get_stub: None
+    connection_id: Column, connection: None, reserve_held: None, get_stub: None
 ) -> None:
     """Test ReserveTimeoutJob to transition to ReserveTimeout.
 
