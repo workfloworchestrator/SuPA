@@ -24,10 +24,9 @@ from supa.connection import requester
 from supa.connection.error import GenericInternalError, Variable
 from supa.connection.fsm import DataPlaneStateMachine, LifecycleStateMachine
 from supa.connection.requester import to_data_plane_state_change_request, to_error_request
-from supa.db.model import Reservation
+from supa.db.model import Connection, Reservation, connection_to_dict
 from supa.grpc_nsi.connection_requester_pb2 import DataPlaneStateChangeRequest, ErrorRequest
 from supa.job.shared import Job, NsiException
-from supa.nrm.backend import call_backend
 from supa.util.converter import to_header
 from supa.util.timestamp import NO_END_DATE, current_timestamp
 
@@ -60,15 +59,18 @@ class ActivateJob(Job):
         self.log.info("Activating data plane")
 
         from supa.db.session import db_session
+        from supa.nrm.backend import backend
 
         response: Union[DataPlaneStateChangeRequest, ErrorRequest]
         with db_session() as session:
             reservation = (
                 session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one_or_none()
             )
+            connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
             dpsm = DataPlaneStateMachine(reservation, state_field="data_plane_state")
             try:
-                call_backend("activate", reservation, session)
+                if circuit_id := backend.activate(**connection_to_dict(connection)):
+                    connection.circuit_id = circuit_id
             except NsiException as nsi_exc:
                 dpsm.activate_failed()
                 self.log.info("Data plane activation failed", reason=nsi_exc.text)
@@ -179,12 +181,14 @@ class DeactivateJob(Job):
         self.log.info("Deactivating data plane")
 
         from supa.db.session import db_session
+        from supa.nrm.backend import backend
 
         response: Union[DataPlaneStateChangeRequest, ErrorRequest]
         with db_session() as session:
             reservation = (
                 session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one_or_none()
             )
+            connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
             dpsm = DataPlaneStateMachine(reservation, state_field="data_plane_state")
             # lsm = LifecycleStateMachine(reservation, state_field="lifecycle_state")
             # # when past end time register a lifecycle end time event
@@ -192,7 +196,8 @@ class DeactivateJob(Job):
             #     lsm.endtime_event()
             #     dpsm.deactivate_request()
             try:
-                call_backend("deactivate", reservation, session)
+                if circuit_id := backend.deactivate(**connection_to_dict(connection)):
+                    connection.circuit_id = circuit_id
             except NsiException as nsi_exc:
                 dpsm.deactivate_failed()
                 self.log.info("Data plane deactivation failed", reason=nsi_exc.text)

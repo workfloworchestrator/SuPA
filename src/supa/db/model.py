@@ -60,7 +60,7 @@ should help navigating the Python code a lot better.
 """  # noqa: E501 B950
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 
 from sqlalchemy import (
     Boolean,
@@ -474,23 +474,21 @@ class Connection(Base):
     # We use singular here,
     # as by the time we are creating a Connection a VLAN
     # per port will have been selected.
-    src_stp_id = Column(Text, ForeignKey(Topology.stp_id), nullable=False)
+    src_port_id = Column(Text, nullable=False, comment="id of src port in NRM")
     src_vlan = Column(Integer, nullable=False)
-    dst_stp_id = Column(Text, ForeignKey(Topology.stp_id), nullable=False)
+    dst_port_id = Column(Text, nullable=False, comment="id of dst port in NRM")
     dst_vlan = Column(Integer, nullable=False)
-    circuit_id = Column(Text, nullable=True, unique=True, comment="id of the circuit in the NRM")
+    circuit_id = Column(Text, nullable=True, unique=True, comment="id of circuit in the NRM")
 
     reservation = relationship(
         Reservation,
         back_populates="connection",
     )  # one-to-one (cascades defined in parent)
 
-    src_stp = relationship(
-        "Topology",
-        foreign_keys=[src_stp_id],
-    )
 
-    dst_stp = relationship(
-        "Topology",
-        foreign_keys=[dst_stp_id],
-    )
+def connection_to_dict(connection: Connection) -> Dict[str, str]:
+    """Create a dict from a Connection.
+
+    A convenience function to create a dict that can be used as parameter list to all backend methods.
+    """
+    return {column.name: getattr(connection, column.name) for column in connection.__table__.columns}

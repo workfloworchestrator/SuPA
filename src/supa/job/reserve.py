@@ -37,7 +37,7 @@ from supa.connection.error import (
     Variable,
 )
 from supa.connection.fsm import LifecycleStateMachine, ProvisionStateMachine, ReservationStateMachine
-from supa.db.model import Path, PathTrace, Reservation, Segment, Topology
+from supa.db.model import Connection, Path, PathTrace, Reservation, Segment, Topology, connection_to_dict
 from supa.grpc_nsi.connection_requester_pb2 import (
     ErrorRequest,
     ReserveAbortConfirmedRequest,
@@ -48,7 +48,6 @@ from supa.grpc_nsi.connection_requester_pb2 import (
     ReserveTimeoutRequest,
 )
 from supa.job.shared import Job, NsiException
-from supa.nrm.backend import call_backend
 from supa.util.bandwidth import format_bandwidth
 from supa.util.converter import to_confirm_criteria, to_connection_states, to_header, to_service_exception
 from supa.util.timestamp import current_timestamp
@@ -78,6 +77,8 @@ class ReserveJob(Job):
         """
         self.log = logger.bind(job=self.__class__.__name__, connection_id=str(connection_id))
         self.connection_id = connection_id
+        self.src_port_id: str = ""
+        self.dst_port_id: str = ""
 
     def _stp_resources_in_use(self, session: orm.Session) -> Dict[str, StpResources]:
         """Calculate STP resources in use for active reservations that overlap with ours.
@@ -219,6 +220,7 @@ class ReserveJob(Job):
         If not, a ReserveFailed message will be send instead.
         """
         from supa.db.session import db_session
+        from supa.nrm.backend import backend
 
         self.log.info("Checking reservation request")
 
@@ -299,8 +301,28 @@ class ReserveJob(Job):
                         )
                     selected_vlan = random.choice(list(candidate_vlans))
                     setattr(reservation, f"{target}_selected_vlan", selected_vlan)
+                    # remember port id, will be stored as part of Connection below
+                    setattr(self, f"{target}_port_id", stp.port_id)
 
-                call_backend("reserve", reservation, session)
+                circuit_id = backend.reserve(
+                    connection_id=reservation.connection_id,
+                    bandwidth=reservation.bandwidth,
+                    src_port_id=self.src_port_id,
+                    src_vlan=reservation.src_selected_vlan,
+                    dst_port_id=self.dst_port_id,
+                    dst_vlan=reservation.dst_selected_vlan,
+                )
+                session.add(
+                    Connection(
+                        connection_id=reservation.connection_id,
+                        bandwidth=reservation.bandwidth,
+                        src_port_id=self.src_port_id,
+                        src_vlan=reservation.src_selected_vlan,
+                        dst_port_id=self.dst_port_id,
+                        dst_vlan=reservation.dst_selected_vlan,
+                        circuit_id=circuit_id,
+                    )
+                )
 
             except NsiException as nsi_exc:
                 self.log.info("Reservation failed.", reason=nsi_exc.text)
@@ -394,6 +416,7 @@ class ReserveCommitJob(Job):
         an NSI error is returned leaving the state machine unchanged.
         """
         from supa.db.session import db_session
+        from supa.nrm.backend import backend
 
         self.log.info("Committing reservation")
 
@@ -402,9 +425,11 @@ class ReserveCommitJob(Job):
             reservation = (
                 session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one_or_none()
             )
+            connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
             rsm = ReservationStateMachine(reservation, state_field="reservation_state")
             try:
-                call_backend("reserve_commit", reservation, session)
+                if circuit_id := backend.reserve_commit(**connection_to_dict(connection)):
+                    connection.circuit_id = circuit_id
             except NsiException as nsi_exc:
                 self.log.info("Reserve commit failed.", reason=nsi_exc.text)
                 response = self._to_reserve_commit_failed_request(session, nsi_exc)
@@ -491,15 +516,18 @@ class ReserveAbortJob(Job):
         self.log.info("Aborting reservation")
 
         from supa.db.session import db_session
+        from supa.nrm.backend import backend
 
         response: Union[ReserveAbortConfirmedRequest, ErrorRequest]
         with db_session() as session:
             reservation = (
                 session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one_or_none()
             )
+            connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
             rsm = ReservationStateMachine(reservation, state_field="reservation_state")
             try:
-                call_backend("reserve_abort", reservation, session)
+                if circuit_id := backend.reserve_abort(**connection_to_dict(connection)):
+                    connection.circuit_id = circuit_id
             except NsiException as nsi_exc:
                 self.log.info("Reserve abort failed.", reason=nsi_exc.text)
                 response = requester.to_error_request(
@@ -598,16 +626,19 @@ class ReserveTimeoutJob(Job):
         self.log.info("Timeout reservation")
 
         from supa.db.session import db_session
+        from supa.nrm.backend import backend
 
         response: Union[ReserveTimeoutRequest, ErrorRequest]
         with db_session() as session:
             reservation = (
                 session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one_or_none()
             )
+            connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
             rsm = ReservationStateMachine(reservation, state_field="reservation_state")
             try:
                 rsm.reserve_timeout_notification()
-                call_backend("reserve_timeout", reservation, session)
+                if circuit_id := backend.reserve_timeout(**connection_to_dict(connection)):
+                    connection.circuit_id = circuit_id
             except TransitionNotAllowed:
                 # Reservation is already in another state turning this into a no-op.
                 self.log.info(

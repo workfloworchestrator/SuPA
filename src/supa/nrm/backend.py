@@ -12,16 +12,33 @@
 #  limitations under the License.
 
 from dataclasses import dataclass
-from typing import List
+from typing import List, Optional
 
 import structlog
-from sqlalchemy.orm import aliased, session
 from structlog.stdlib import BoundLogger
 
 from supa import settings
-from supa.db.model import Connection, Reservation, Topology
+from supa.db.model import Topology
 
 logger = structlog.get_logger(__name__)
+
+
+@dataclass
+class STP:
+    """Properties of a Network Serivce Interface Service Termination Point.
+
+    The topology property is a placeholder for future multiple topology support.
+    """
+
+    stp_id: str
+    port_id: str
+    vlans: str
+    description: str = ""
+    is_alias_in: str = ""
+    is_alias_out: str = ""
+    bandwidth: int = 1000000000
+    enabled: bool = True
+    topology: str = settings.topology
 
 
 class BaseBackend:
@@ -45,102 +62,189 @@ class BaseBackend:
 
     def __init__(self) -> None:
         """Initialize the BaseBackend."""
-        self.log = logger.bind(backend="no-op")
+        self.log = logger
 
-
-"""Set backend to BaseBackend which effectively does nothing,
-but this can be overwritten by a custom backend
-as declared in supa.env or on the command line of `supa serve`"""
-backend = BaseBackend()
-
-
-@dataclass
-class STP:
-    """Properties of a Network Serivce Interface Service Termination Point.
-
-    The topology property is a placeholder for future multiple topology support.
-    """
-
-    stp_id: str
-    port_id: str
-    vlans: str
-    description: str = ""
-    is_alias_in: str = ""
-    is_alias_out: str = ""
-    bandwidth: int = 1000000000
-    expose_in_topology: bool = True
-    topology: str = settings.topology
-
-
-def get_topology() -> List[STP]:
-    """Get topology from NRM returned as list of STP's."""
-    backend.log = backend.log.bind(primitive="topology")
-    try:
-        return backend.topology()  # type: ignore[attr-defined,no-any-return]
-    except (TypeError, AttributeError) as error:
-        backend.log.warning("cannot get topology from NRM", error=error)
-        return []
-
-
-def call_backend(primitive: str, reservation: Reservation, database_session: session) -> None:
-    """Call primitive of backend with reservation details as argument.
-
-    We could have called the method directly on the class instance,
-    but now we can log some additional information,
-    resolve the src/dst stp_id to NRM port ID's,
-    and we do not have to import `backend` locally
-    to ensure it is initialized properly.
-    """
-    src_topology = aliased(Topology)
-    dst_topology = aliased(Topology)
-    src_port_id, dst_port_id = (
-        database_session.query(src_topology.port_id, dst_topology.port_id).filter(
-            Reservation.connection_id == reservation.connection_id,
-            Reservation.src_stp_id == src_topology.stp_id,
-            Reservation.dst_stp_id == dst_topology.stp_id,
+    def reserve(
+        self,
+        connection_id: str,
+        bandwidth: int,
+        src_port_id: str,
+        src_vlan: int,
+        dst_port_id: str,
+        dst_vlan: int,
+    ) -> Optional[str]:
+        """Reserve resources in NRM."""
+        self.log.info(
+            "reserve resources in NRM", backend="no-op", primitive="reserve", connection_id=str(connection_id)
         )
-    ).one()
-    connection = (
-        database_session.query(Connection).filter(Connection.connection_id == reservation.connection_id).one_or_none()
-    )
-    circuit_id = connection.circuit_id if connection else None
-    # TODO change port_id from UUID to str to make it compatible with other NRM's
-    backend.log = backend.log.bind(primitive=primitive, connection_id=str(reservation.connection_id))
-    try:
-        method = getattr(backend, primitive)
-    except AttributeError:
-        backend.log.debug("skipping call to NRM backend")
-    else:
-        if not callable(method):
-            backend.log.warning("cannot call NRM backend with non-function")
-        else:
-            backend.log.info(
-                "calling NRM backend",
-                src_port=str(src_port_id),
-                src_vlan=reservation.src_selected_vlan,
-                dst_port=str(dst_port_id),
-                dst_vlan=reservation.dst_selected_vlan,
-                bandwidth=reservation.bandwidth,
-                circuit_id=circuit_id,
-            )
-            circuit_id = method(
-                reservation.connection_id,
-                src_port_id,
-                reservation.src_selected_vlan,
-                dst_port_id,
-                reservation.dst_selected_vlan,
-                reservation.bandwidth,
-                circuit_id,
-            )
-            if circuit_id:
-                database_session.add(
-                    Connection(
-                        connection_id=reservation.connection_id,
-                        bandwidth=reservation.bandwidth,
-                        src_stp_id=reservation.src_stp_id,
-                        src_vlan=reservation.src_selected_vlan,
-                        dst_stp_id=reservation.dst_stp_id,
-                        dst_vlan=reservation.dst_selected_vlan,
-                        circuit_id=circuit_id,
+        return None
+
+    def reserve_timeout(
+        self,
+        connection_id: str,
+        bandwidth: int,
+        src_port_id: str,
+        src_vlan: int,
+        dst_port_id: str,
+        dst_vlan: int,
+        circuit_id: str,
+    ) -> Optional[str]:
+        """Reserve timeout resources in NRM."""
+        self.log.info(
+            "reserve timeout resources in NRM",
+            backend="no-op",
+            primitive="reserve_timeout",
+            connection_id=str(connection_id),
+        )
+        return None
+
+    def reserve_commit(
+        self,
+        connection_id: str,
+        bandwidth: int,
+        src_port_id: str,
+        src_vlan: int,
+        dst_port_id: str,
+        dst_vlan: int,
+        circuit_id: str,
+    ) -> Optional[str]:
+        """Reserve commit resources in NRM."""
+        self.log.info(
+            "reserve commit resources in NRM",
+            backend="no-op",
+            primitive="reserve_commit",
+            connection_id=str(connection_id),
+        )
+        return None
+
+    def reserve_abort(
+        self,
+        connection_id: str,
+        bandwidth: int,
+        src_port_id: str,
+        src_vlan: int,
+        dst_port_id: str,
+        dst_vlan: int,
+        circuit_id: str,
+    ) -> Optional[str]:
+        """Reserve abort resources in NRM."""
+        self.log.info(
+            "reserve abort resources in NRM",
+            backend="no-op",
+            primitive="reserve_abort",
+            connection_id=str(connection_id),
+        )
+        return None
+
+    def provision(
+        self,
+        connection_id: str,
+        bandwidth: int,
+        src_port_id: str,
+        src_vlan: int,
+        dst_port_id: str,
+        dst_vlan: int,
+        circuit_id: str,
+    ) -> Optional[str]:
+        """Provision resources in NRM."""
+        self.log.info(
+            "provision resources in NRM", backend="no-op", primitive="provision", connection_id=str(connection_id)
+        )
+        return None
+
+    def release(
+        self,
+        connection_id: str,
+        bandwidth: int,
+        src_port_id: str,
+        src_vlan: int,
+        dst_port_id: str,
+        dst_vlan: int,
+        circuit_id: str,
+    ) -> Optional[str]:
+        """Release resources in NRM."""
+        self.log.info(
+            "release resources in NRM", backend="no-op", primitive="release", connection_id=str(connection_id)
+        )
+        return None
+
+    def activate(
+        self,
+        connection_id: str,
+        bandwidth: int,
+        src_port_id: str,
+        src_vlan: int,
+        dst_port_id: str,
+        dst_vlan: int,
+        circuit_id: str,
+    ) -> Optional[str]:
+        """Activate resources in NRM."""
+        self.log.info(
+            "activate resources in NRM", backend="no-op", primitive="activate", connection_id=str(connection_id)
+        )
+        return None
+
+    def deactivate(
+        self,
+        connection_id: str,
+        bandwidth: int,
+        src_port_id: str,
+        src_vlan: int,
+        dst_port_id: str,
+        dst_vlan: int,
+        circuit_id: str,
+    ) -> Optional[str]:
+        """Deactivate resources in NRM."""
+        self.log.info(
+            "deactivate resources in NRM", backend="no-op", primitive="deactivate", connection_id=str(connection_id)
+        )
+        return None
+
+    def terminate(
+        self,
+        connection_id: str,
+        bandwidth: int,
+        src_port_id: str,
+        src_vlan: int,
+        dst_port_id: str,
+        dst_vlan: int,
+        circuit_id: str,
+    ) -> Optional[str]:
+        """Terminate resources in NRM."""
+        self.log.info(
+            "terminate resources in NRM", backend="no-op", primitive="terminate", connection_id=str(connection_id)
+        )
+        return None
+
+    def topology(self) -> List[STP]:
+        """Get the list of exposed STP's from NRM.
+
+        Because this is a placeholder just return the STP's configured in the Topology table.
+        """
+        self.log.info("get topology from NRM", backend="no-op", primitive="topology")
+
+        from supa.db.session import db_session
+
+        stps: List[STP] = []
+        with db_session() as session:
+            for stp in session.query(Topology).all():
+                stps.append(
+                    STP(
+                        stp_id=stp.stp_id,
+                        port_id=stp.port_id,
+                        vlans=stp.vlans,
+                        description=stp.description,
+                        is_alias_in=stp.is_alias_in,
+                        is_alias_out=stp.is_alias_out,
+                        bandwidth=stp.bandwidth,
+                        enabled=stp.enabled,
                     )
                 )
+        return stps
+
+
+"""Set backend to BaseBackend with methods that effectively do nothing,
+except for the topology method that returns the STP's as configured in the Topology table.
+The default backend can be overwritten by a custom backend
+by specifying it in supa.env or on the command line of `supa serve`"""
+backend = BaseBackend()

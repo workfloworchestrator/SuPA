@@ -10,7 +10,6 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-
 from time import sleep
 from typing import Any, List
 from uuid import UUID
@@ -49,6 +48,12 @@ backend_settings = BackendSettings(_env_file=get_project_root() / "src" / "supa"
 
 class Backend(BaseBackend):
     """SURF backend interface to workflow orchestrator."""
+
+    #
+    # def __init__(self) -> None:
+    #     """Add my backend name to the logger."""
+    #     super(Backend, self).__init__()
+    #     self.log: BoundLogger = self.log.bind(backend="surf")
 
     def _retrieve_access_token(self) -> str:
         access_token = ""  # noqa: S105
@@ -233,7 +238,7 @@ class Backend(BaseBackend):
                         is_alias_in=nsi_stp_dict["settings"]["is_alias_in"],
                         is_alias_out=nsi_stp_dict["settings"]["is_alias_out"],
                         bandwidth=1000000000,  # TODO return NSISTP bandwidth once implemented
-                        expose_in_topology=nsi_stp_dict["settings"]["expose_in_topology"],
+                        enabled=nsi_stp_dict["settings"]["expose_in_topology"],
                     )
                 )
         return ports
@@ -241,36 +246,38 @@ class Backend(BaseBackend):
     def activate(
         self,
         connection_id: UUID,
+        bandwidth: int,
         src_port_id: str,
         src_vlan: int,
         dst_port_id: str,
         dst_vlan: int,
-        bandwidth: int,
         circuit_id: str,
     ) -> str:
         """Activate resources in NRM."""
+        self.log: BoundLogger = self.log.bind(primitive="activate", connection_id=str(connection_id))
         process = self._workflow_create(connection_id, src_port_id, src_vlan, dst_port_id, dst_vlan, bandwidth)
         self._wait_for_completion(process["id"])
         subscription_id = self._get_subscription_id(process["id"])
-        self.log: BoundLogger = self.log.bind(subscription_id=subscription_id)
+        self.log = self.log.bind(subscription_id=subscription_id)
         self._add_note(connection_id, subscription_id)
         return subscription_id
 
     def deactivate(
         self,
         connection_id: UUID,
+        bandwidth: int,
         src_port_id: str,
         src_vlan: int,
         dst_port_id: str,
         dst_vlan: int,
-        bandwidth: int,
         circuit_id: str,
     ) -> None:
         """Deactivate resources in NRM."""
-        self.log = self.log.bind(surbscription_id=circuit_id)
+        self.log = self.log.bind(primitive="deactivate", subscription_id=circuit_id, connection_id=str(connection_id))
         process = self._workflow_terminate(circuit_id)
         self._wait_for_completion(process["id"])
 
     def topology(self) -> List[STP]:
         """Get exposed topology from NRM."""
+        self.log = self.log.bind(primitive="topology")
         return self._get_topology()
