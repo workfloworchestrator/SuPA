@@ -132,11 +132,11 @@ class ReserveJob(Job):
                 # Only select active reservations
                 or_(
                     and_(
-                        Reservation.reservation_state == ReservationStateMachine.ReserveStart.name,
+                        Reservation.reservation_state == ReservationStateMachine.ReserveStart.value,
                         Reservation.provision_state.isnot(None),
-                        Reservation.lifecycle_state == LifecycleStateMachine.Created.name,
+                        Reservation.lifecycle_state == LifecycleStateMachine.Created.value,
                     ),
-                    Reservation.reservation_state == ReservationStateMachine.ReserveHeld.name,
+                    Reservation.reservation_state == ReservationStateMachine.ReserveHeld.value,
                 )
             )
             # And only those that overlap with our reservation.
@@ -192,6 +192,60 @@ class ReserveJob(Job):
             rec.stp: StpResources(bandwidth=rec.bandwidth, vlans=VlanRanges(rec.vlans)) for rec in stp_resources_in_use
         }
 
+    def _process_stp(self, target: str, var: Variable, reservation: Reservation, session: orm.Session) -> None:
+        """Check validity of STP and select available VLAN.
+
+        Target can be either "src" or "dst".
+        When the STP is valid and a VLAN is available
+        the corresponding {src|dst}_selected_vlan will be set on the reservation
+        and the associated port will be stored in {src|dst}_port_id on the job instance.
+        """
+        stp_resources_in_use = self._stp_resources_in_use(session)
+        res_stp = getattr(reservation, f"{target}_stp_id")
+        nsi_stp = str(getattr(reservation, f"{target}_stp")())  # <-- mind the func call
+        domain = getattr(reservation, f"{target}_domain")
+        topology = getattr(reservation, f"{target}_topology")
+        requested_vlans = VlanRanges(getattr(reservation, f"{target}_vlans"))
+        stp = session.query(Topology).filter(Topology.stp_id == res_stp).one_or_none()
+        if (
+            stp is None
+            or not stp.enabled
+            or domain != settings.domain  # only process requests for our domain
+            or topology != settings.topology  # only process requests for our network
+        ):
+            raise NsiException(UnknownStp, nsi_stp, {var: nsi_stp})
+        if not requested_vlans:
+            raise NsiException(InvalidLabelFormat, "missing VLANs label on STP", {var: nsi_stp})
+        if stp.stp_id in stp_resources_in_use:
+            bandwidth_available = stp.bandwidth - stp_resources_in_use[stp.stp_id].bandwidth
+            available_vlans = VlanRanges(stp.vlans) - stp_resources_in_use[stp.stp_id].vlans
+        else:
+            bandwidth_available = stp.bandwidth
+            available_vlans = VlanRanges(stp.vlans)
+        if bandwidth_available < reservation.bandwidth:
+            raise NsiException(
+                CapacityUnavailable,
+                f"requested: {format_bandwidth(reservation.bandwidth)}, "
+                f"available: {format_bandwidth(bandwidth_available)}",
+                {
+                    Variable.CAPACITY: str(reservation.bandwidth),
+                    var: nsi_stp,
+                },
+            )
+        if not available_vlans:
+            raise NsiException(StpUnavailable, "all VLANs in use", {var: nsi_stp})
+        candidate_vlans = requested_vlans & available_vlans
+        if not candidate_vlans:
+            raise NsiException(
+                StpUnavailable,
+                f"no matching VLAN found (requested: {requested_vlans!s}, available: {available_vlans!s}",
+                {var: nsi_stp},
+            )
+        selected_vlan = random.choice(list(candidate_vlans))
+        setattr(reservation, f"{target}_selected_vlan", selected_vlan)
+        # remember port id, will be stored as part of Connection below
+        setattr(self, f"{target}_port_id", stp.port_id)
+
     def _to_reserve_failed_request(self, reservation: Reservation, nsi_exc: NsiException) -> ReserveFailedRequest:
         """Create a protobuf reserve failed request from a Reservation and NsiException."""
         pb_rf_req = ReserveFailedRequest()
@@ -238,7 +292,6 @@ class ReserveJob(Job):
                 .get(self.connection_id)
             )
             rsm = ReservationStateMachine(reservation, state_field="reservation_state")
-            stp_resources_in_use = self._stp_resources_in_use(session)
 
             try:
                 if reservation.src_stp_id == reservation.dst_stp_id:
@@ -259,50 +312,7 @@ class ReserveJob(Job):
                 for target, var in (("src", Variable.SOURCE_STP), ("dst", Variable.DEST_STP)):
                     # Dynamic attribute lookups as we want to use the same code for
                     # both src and dst STP's
-                    res_stp = getattr(reservation, f"{target}_stp_id")
-                    nsi_stp = str(getattr(reservation, f"{target}_stp")())  # <-- mind the func call
-                    domain = getattr(reservation, f"{target}_domain")
-                    topology = getattr(reservation, f"{target}_topology")
-                    requested_vlans = VlanRanges(getattr(reservation, f"{target}_vlans"))
-                    stp = session.query(Topology).filter(Topology.stp_id == res_stp).one_or_none()
-                    if (
-                        stp is None
-                        or not stp.enabled
-                        or domain != settings.domain  # only process requests for our domain
-                        or topology != settings.topology  # only process requests for our network
-                    ):
-                        raise NsiException(UnknownStp, nsi_stp, {var: nsi_stp})
-                    if not requested_vlans:
-                        raise NsiException(InvalidLabelFormat, "missing VLANs label on STP", {var: nsi_stp})
-                    if stp.stp_id in stp_resources_in_use:
-                        bandwidth_available = stp.bandwidth - stp_resources_in_use[stp.stp_id].bandwidth
-                        available_vlans = VlanRanges(stp.vlans) - stp_resources_in_use[stp.stp_id].vlans
-                    else:
-                        bandwidth_available = stp.bandwidth
-                        available_vlans = VlanRanges(stp.vlans)
-                    if bandwidth_available < reservation.bandwidth:
-                        raise NsiException(
-                            CapacityUnavailable,
-                            f"requested: {format_bandwidth(reservation.bandwidth)}, "
-                            f"available: {format_bandwidth(bandwidth_available)}",
-                            {
-                                Variable.CAPACITY: str(reservation.bandwidth),
-                                var: nsi_stp,
-                            },
-                        )
-                    if not available_vlans:
-                        raise NsiException(StpUnavailable, "all VLANs in use", {var: nsi_stp})
-                    candidate_vlans = requested_vlans & available_vlans
-                    if not candidate_vlans:
-                        raise NsiException(
-                            StpUnavailable,
-                            f"no matching VLAN found (requested: {requested_vlans!s}, available: {available_vlans!s}",
-                            {var: nsi_stp},
-                        )
-                    selected_vlan = random.choice(list(candidate_vlans))
-                    setattr(reservation, f"{target}_selected_vlan", selected_vlan)
-                    # remember port id, will be stored as part of Connection below
-                    setattr(self, f"{target}_port_id", stp.port_id)
+                    self._process_stp(target, var, reservation, session)
 
                 circuit_id = backend.reserve(
                     connection_id=reservation.connection_id,
@@ -342,6 +352,10 @@ class ReserveJob(Job):
             self.log.debug("Sending message.", method="ReserveConfirmed", request_message=response)
             stub.ReserveConfirmed(response)
         else:
+            from supa import scheduler
+
+            scheduler.remove_job(job_id=f"{str(self.connection_id)}-ReserveTimeoutJob")
+            self.log.info("Canceled reservation timeout timer")
             self.log.debug("Sending message.", method="ReserveFailed", request_message=response)
             stub.ReserveFailed(response)
 
