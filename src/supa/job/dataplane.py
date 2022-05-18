@@ -335,7 +335,7 @@ class AutoStartJob(Job):
         for cid in connection_ids:
             logger.info("Recovering job", job="AutoStartJob", connection_id=str(cid))
 
-        return [ActivateJob(cid) for cid in connection_ids]
+        return [AutoStartJob(cid) for cid in connection_ids]
 
     def trigger(self) -> DateTrigger:
         """Trigger for AutoStartJob's.
@@ -346,9 +346,7 @@ class AutoStartJob(Job):
         from supa.db.session import db_session
 
         with db_session() as session:
-            reservation = (
-                session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one_or_none()
-            )
+            reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
             return DateTrigger(run_date=reservation.start_time)
 
 
@@ -377,9 +375,7 @@ class AutoEndJob(Job):
         from supa.db.session import db_session
 
         with db_session() as session:
-            reservation = (
-                session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one_or_none()
-            )
+            reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
             dpsm = DataPlaneStateMachine(reservation, state_field="data_plane_state")
             lsm = LifecycleStateMachine(reservation, state_field="lifecycle_state")
 

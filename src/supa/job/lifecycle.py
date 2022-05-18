@@ -71,9 +71,7 @@ class TerminateJob(Job):
 
         response: Union[TerminateConfirmedRequest, ErrorRequest]
         with db_session() as session:
-            reservation = (
-                session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one_or_none()
-            )
+            reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
             connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
             lsm = LifecycleStateMachine(reservation, state_field="lifecycle_state")
             dpsm = DataPlaneStateMachine(reservation, state_field="data_plane_state")

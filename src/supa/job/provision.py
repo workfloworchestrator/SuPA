@@ -73,9 +73,7 @@ class ProvisionJob(Job):
 
         response: Union[ProvisionConfirmedRequest, ErrorRequest]
         with db_session() as session:
-            reservation = (
-                session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one_or_none()
-            )
+            reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
             connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
             psm = ProvisionStateMachine(reservation, state_field="provision_state")
             lsm = LifecycleStateMachine(reservation, state_field="lifecycle_state")
@@ -255,9 +253,7 @@ class ReleaseJob(Job):
 
         response: Union[ReleaseConfirmedRequest, ErrorRequest]
         with db_session() as session:
-            reservation = (
-                session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one_or_none()
-            )
+            reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
             connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
             psm = ProvisionStateMachine(reservation, state_field="provision_state")
             dpsm = DataPlaneStateMachine(reservation, state_field="data_plane_state")

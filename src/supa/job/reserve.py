@@ -436,9 +436,7 @@ class ReserveCommitJob(Job):
 
         response: Union[ReserveCommitConfirmedRequest, ReserveCommitFailedRequest]
         with db_session() as session:
-            reservation = (
-                session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one_or_none()
-            )
+            reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
             connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
             rsm = ReservationStateMachine(reservation, state_field="reservation_state")
             try:
@@ -534,9 +532,7 @@ class ReserveAbortJob(Job):
 
         response: Union[ReserveAbortConfirmedRequest, ErrorRequest]
         with db_session() as session:
-            reservation = (
-                session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one_or_none()
-            )
+            reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
             connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
             rsm = ReservationStateMachine(reservation, state_field="reservation_state")
             try:
@@ -644,9 +640,7 @@ class ReserveTimeoutJob(Job):
 
         response: Union[ReserveTimeoutRequest, ErrorRequest]
         with db_session() as session:
-            reservation = (
-                session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one_or_none()
-            )
+            reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
             connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
             rsm = ReservationStateMachine(reservation, state_field="reservation_state")
             try:
