@@ -48,14 +48,29 @@ class BaseBackend:
 
     reserve, reserve_timeout, reserve_commit, reserve_abort, provision, release, activate, deactivate and terminate
 
-    The arguments for all functions are the same, for example the reserve():
+    The arguments for all methods are the same
+    and all return an optional circuit_id if one was generated at this stage of the connections lifecycle.
+    Except for the reserve() all other methods have an additional circuit_id argument
+    that is set to the most recent returned circuit_id.
+    For example the reserve_commit():
 
-    def reserve(
-        self, connection_id: UUID, src_port_id: str, src_vlan: int, dst_port_id: str, dst_vlan: int, bandwidth: int
-    ) -> None:
+    def reserve_commit(
+        self,
+        connection_id: str,
+        bandwidth: int,
+        src_port_id: str,
+        src_vlan: int,
+        dst_port_id: str,
+        dst_vlan: int,
+        circuit_id: str,
+    ) -> Optional[str]:
         ...
 
-    If a function for a primitive is not defined the call the NRM will be skipped.
+    An additional method topology() will be called just before the topology document is created
+    and will return a list of STP's that are exposed by the NRM.
+    When no backend is specified,
+    or the manual_topology option is set,
+    topology() will just return the STP's as configured through the SuPA CLI.
     """
 
     log: BoundLogger
