@@ -248,4 +248,3 @@ except for the topology method that returns the STP's as configured in the Topol
 The default backend can be overwritten by a custom backend
 by specifying it in supa.env or on the command line of `supa serve`"""
 backend = BaseBackend()
-

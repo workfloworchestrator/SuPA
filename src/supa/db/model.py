@@ -485,6 +485,7 @@ class Connection(Base):
         back_populates="connection",
     )  # one-to-one (cascades defined in parent)
 
+
 def connection_to_dict(connection: Connection) -> Dict[str, str]:
     """Create a dict from a Connection.
 
