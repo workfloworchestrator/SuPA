@@ -125,6 +125,18 @@ def connection(connection_id: Column) -> None:
         session.add(connection)
 
 
+@pytest.fixture()
+def reserve_timeout_job(connection_id: Column) -> None:
+    """Schedule a ReserveTimeoutJob for connection_id."""
+    from supa import scheduler
+
+    scheduler.add_job(
+        job := ReserveTimeoutJob(connection_id),
+        trigger=job.trigger(),
+        id=f"{str(connection_id)}-ReserveTimeoutJob",
+    )
+
+
 @pytest.fixture
 def src_stp_id_equals_dst_stp_id(connection_id: Column) -> None:
     """Set dst_stp_id of reservation identified by connection_id to src_stp_id."""
