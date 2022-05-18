@@ -474,17 +474,26 @@ class Connection(Base):
     # We use singular here,
     # as by the time we are creating a Connection a VLAN
     # per port will have been selected.
+<<<<<<< HEAD
     src_port_id = Column(Text, nullable=False, comment="id of src port in NRM")
     src_vlan = Column(Integer, nullable=False)
     dst_port_id = Column(Text, nullable=False, comment="id of dst port in NRM")
     dst_vlan = Column(Integer, nullable=False)
     circuit_id = Column(Text, nullable=True, unique=True, comment="id of circuit in the NRM")
+=======
+    source_stp_id = Column(Text, ForeignKey(Topology.stp_id), nullable=False)
+    source_vlan = Column(Integer, nullable=False)
+    dest_stp_id = Column(Text, ForeignKey(Topology.stp_id), nullable=False)
+    dest_vlan = Column(Integer, nullable=False)
+    circuit_id = Column(Text, nullable=False, unique=True, comment="id of the circuit in the NRM")
+>>>>>>> origin/master
 
     reservation = relationship(
         Reservation,
         back_populates="connection",
     )  # one-to-one (cascades defined in parent)
 
+<<<<<<< HEAD
 
 def connection_to_dict(connection: Connection) -> Dict[str, str]:
     """Create a dict from a Connection.
@@ -492,3 +501,14 @@ def connection_to_dict(connection: Connection) -> Dict[str, str]:
     A convenience function to create a dict that can be used as parameter list to all backend methods.
     """
     return {column.name: getattr(connection, column.name) for column in connection.__table__.columns}
+=======
+    source_stp = relationship(
+        "Topology",
+        foreign_keys=[source_stp_id],
+    )
+
+    dest_stp = relationship(
+        "Topology",
+        foreign_keys=[dest_stp_id],
+    )
+>>>>>>> origin/master

@@ -243,6 +243,57 @@ class Backend(BaseBackend):
                 )
         return ports
 
+    def _get_nsi_stp_subscriptions(self) -> Any:
+        access_token = self._retrieve_access_token()
+        nsi_stp_subscriptions = get(
+            f"{backend_settings.host}/api/subscriptions/?filter=status,active,tag,NSISTP-NSISTPNL",
+            headers={"Authorization": f"bearer {access_token}"},
+        )
+        if nsi_stp_subscriptions.status_code != 200:
+            try:
+                nsi_stp_subscriptions.raise_for_status()
+            except HTTPError as http_err:
+                self.log.warning("failed to fetch NSISTP subscriptions", reason=str(http_err))
+                raise NsiException(GenericRmError, str(http_err)) from http_err
+        return nsi_stp_subscriptions.json()
+
+    def _get_topology(self) -> List[STP]:
+        self.log.info("get topology from NRM")
+        access_token = self._retrieve_access_token()
+        ports: List[STP] = []
+        for nsi_stp_sub in self._get_nsi_stp_subscriptions():
+            nsi_stp_dm = get(
+                f"{backend_settings.host}/api/subscriptions/domain-model/{nsi_stp_sub['subscription_id']}",
+                headers={"Authorization": f"bearer {access_token}"},
+            )
+            if nsi_stp_dm.status_code != 200:
+                try:
+                    nsi_stp_dm.raise_for_status()
+                except HTTPError as http_err:
+                    self.log.warning(
+                        "failed to fetch NSISTP domain model",
+                        reason=str(http_err),
+                        nsi_stp_subscription_id=nsi_stp_sub["subscription_id"],
+                    )
+                    raise NsiException(GenericRmError, str(http_err)) from http_err
+            else:
+                nsi_stp_dict = nsi_stp_dm.json()
+                self.log.debug("DEBUG", nsi_stp_dm=nsi_stp_dict)
+                ports.append(
+                    STP(
+                        topology=nsi_stp_dict["settings"]["topology"],
+                        stp_id=nsi_stp_dict["settings"]["stp_id"],
+                        port_id=nsi_stp_dict["settings"]["sap"]["port_subscription_id"],
+                        vlans=nsi_stp_dict["settings"]["sap"]["vlanrange"],
+                        description=nsi_stp_dict["settings"]["stp_description"],
+                        is_alias_in=nsi_stp_dict["settings"]["is_alias_in"],
+                        is_alias_out=nsi_stp_dict["settings"]["is_alias_out"],
+                        bandwidth=1000000000,  # TODO return NSISTP bandwidth once implemented
+                        expose_in_topology=nsi_stp_dict["settings"]["expose_in_topology"],
+                    )
+                )
+        return ports
+
     def activate(
         self,
         connection_id: UUID,
