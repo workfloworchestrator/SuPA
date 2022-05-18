@@ -10,7 +10,6 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-
 from time import sleep
 from typing import Any, List
 from uuid import UUID
@@ -19,6 +18,7 @@ from pydantic import BaseSettings
 from requests import get, post
 from requests.auth import HTTPBasicAuth
 from requests.exceptions import ConnectionError, HTTPError
+from structlog.stdlib import BoundLogger
 
 from supa import get_project_root
 from supa.connection.error import GenericRmError
@@ -108,101 +108,83 @@ class Backend(BaseBackend):
                 raise NsiException(GenericRmError, str(http_err)) from http_err
         return result.json()
 
-    def _workflow_terminate(
-        self, connection_id: UUID, src_port_id: str, src_vlan: int, dst_port_id: str, dst_vlan: int, bandwidth: int
-    ) -> Any:
+    def _workflow_terminate(self, subscription_id: str) -> Any:
         self.log.info("start workflow terminate")
         access_token = self._retrieve_access_token()
-        light_path = get(
-            f"{backend_settings.host}/api/surf/subscriptions/nsi",
-            headers={"Authorization": f"bearer {access_token}"},
-            params={  # type: ignore[arg-type]
-                "port_subscription_id_1": src_port_id,
-                "vlan_1": src_vlan,
-                "port_subscription_id_2": dst_port_id,
-                "vlan_2": dst_vlan,
-            },
-        )
-        if light_path.status_code != 200:
+        try:
+            result = post(
+                f"{backend_settings.host}/api/processes/{backend_settings.terminate_workflow_name}",
+                headers={
+                    "Authorization": f"bearer {access_token}",
+                    "Content-Type": "application/json",
+                },
+                json=[{"subscription_id": subscription_id}, {}],
+            )
+        except ConnectionError as con_err:
+            self.log.warning("call to orchestrator failed", reason=str(con_err))
+            raise NsiException(GenericRmError, str(con_err)) from con_err
+        if result.status_code > 210:
             try:
-                light_path.raise_for_status()
+                result.raise_for_status()
             except HTTPError as http_err:
-                self.log.warning("failed to find matching subscription", reason=str(http_err))
+                self.log.warning("workflow failed", reason=str(http_err))
                 raise NsiException(GenericRmError, str(http_err)) from http_err
-        else:
-            self.log.info("found matching subscription", surbscription_id=light_path.json()["subscription_id"])
-            try:
-                result = post(
-                    f"{backend_settings.host}/api/processes/{backend_settings.terminate_workflow_name}",
-                    headers={
-                        "Authorization": f"bearer {access_token}",
-                        "Content-Type": "application/json",
-                    },
-                    json=[{"subscription_id": light_path.json()["subscription_id"]}, {}],
-                )
-            except ConnectionError as con_err:
-                self.log.warning("call to orchestrator failed", reason=str(con_err))
-                raise NsiException(GenericRmError, str(con_err)) from con_err
-            if result.status_code > 210:
-                try:
-                    result.raise_for_status()
-                except HTTPError as http_err:
-                    self.log.warning("workflow failed", reason=str(http_err))
-                    raise NsiException(GenericRmError, str(http_err)) from http_err
         return result.json()
 
-    def _modify_note(
-        self, connection_id: UUID, src_port_id: str, src_vlan: int, dst_port_id: str, dst_vlan: int, bandwidth: int
-    ) -> None:
+    def _add_note(self, connection_id: UUID, subscription_id: str) -> None:
         self.log.info("start workflow modify note")
         access_token = self._retrieve_access_token()
-        light_path = get(
-            f"{backend_settings.host}/api/surf/subscriptions/nsi",
-            headers={"Authorization": f"bearer {access_token}"},
-            params={  # type: ignore[arg-type]
-                "port_subscription_id_1": src_port_id,
-                "vlan_1": src_vlan,
-                "port_subscription_id_2": dst_port_id,
-                "vlan_2": dst_vlan,
-            },
-        )
-        if light_path.status_code == 200:
-            self.log.info(
-                "adding connection id to note of subscription", surbscription_id=light_path.json()["subscription_id"]
-            )
-            post(
+        try:
+            self.log.info("adding connection id to note of subscription")
+            result = post(
                 f"{backend_settings.host}/api/processes/modify_note",
                 headers={
                     "Authorization": f"bearer {access_token}",
                     "Content-Type": "application/json",
                 },
                 json=[
-                    {"subscription_id": light_path.json()["subscription_id"]},
+                    {"subscription_id": subscription_id},
                     {"note": f"NSI connectionId {connection_id}"},
                 ],
             )
-        else:
+        except ConnectionError as con_err:
+            self.log.warning("call to orchestrator failed", reason=str(con_err))
+            raise NsiException(GenericRmError, str(con_err)) from con_err
+        if result.status_code > 210:
             try:
-                light_path.raise_for_status()
+                result.raise_for_status()
             except HTTPError as http_err:
-                self.log.warning("failed to find matching subscription", reason=str(http_err))
+                self.log.warning("failed to add note to subscription", reason=str(http_err))
                 raise NsiException(GenericRmError, str(http_err)) from http_err
 
-    def _check_process_status(self, process_id: str) -> Any:
+    def _get_process_info(self, process_id: str) -> Any:
         access_token = self._retrieve_access_token()
         process = get(
             f"{backend_settings.host}/api/processes/{process_id}",
             headers={"Authorization": f"bearer {access_token}"},
         )
         self.log.debug("process status", process_status=process.json()["status"])
-        return process.json()["status"]
+        return process.json()
 
     def _wait_for_completion(self, process_id: str) -> None:
+        log = self.log.bind(process_id=process_id)
         sleep(1)
-        while self._check_process_status(process_id) == "running":
-            self.log.info("waiting on workflow process to finish ...")
+        while (info := self._get_process_info(process_id))["status"] == "running":
+            log.info("waiting on workflow process to finish")
             sleep(3)
-        self.log.info("workflow process finished")
+        log.info("workflow process finished")
+        if info["status"] != "completed":
+            log.warning("workflow process failed", reason=info["failed_reason"])
+            raise NsiException(GenericRmError, info["failed_reason"]) from None
+
+    def _get_subscription_id(self, process_id: str) -> str:
+        access_token = self._retrieve_access_token()
+        process = get(
+            f"{backend_settings.host}/api/processes/{process_id}",
+            headers={"Authorization": f"bearer {access_token}"},
+        )
+        self.log.debug("process status", process_status=process.json()["status"])
+        return str(process.json()["current_state"]["subscription"]["subscription_id"])
 
     def _get_nsi_stp_subscriptions(self) -> Any:
         access_token = self._retrieve_access_token()
@@ -250,26 +232,46 @@ class Backend(BaseBackend):
                         is_alias_in=nsi_stp_dict["settings"]["is_alias_in"],
                         is_alias_out=nsi_stp_dict["settings"]["is_alias_out"],
                         bandwidth=1000000000,  # TODO return NSISTP bandwidth once implemented
-                        expose_in_topology=nsi_stp_dict["settings"]["expose_in_topology"],
+                        enabled=nsi_stp_dict["settings"]["expose_in_topology"],
                     )
                 )
         return ports
 
     def activate(
-        self, connection_id: UUID, src_port_id: str, src_vlan: int, dst_port_id: str, dst_vlan: int, bandwidth: int
-    ) -> None:
+        self,
+        connection_id: UUID,
+        bandwidth: int,
+        src_port_id: str,
+        src_vlan: int,
+        dst_port_id: str,
+        dst_vlan: int,
+        circuit_id: str,
+    ) -> str:
         """Activate resources in NRM."""
+        self.log: BoundLogger = self.log.bind(primitive="activate", connection_id=str(connection_id))
         process = self._workflow_create(connection_id, src_port_id, src_vlan, dst_port_id, dst_vlan, bandwidth)
         self._wait_for_completion(process["id"])
-        self._modify_note(connection_id, src_port_id, src_vlan, dst_port_id, dst_vlan, bandwidth)
+        subscription_id = self._get_subscription_id(process["id"])
+        self.log = self.log.bind(subscription_id=subscription_id)
+        self._add_note(connection_id, subscription_id)
+        return subscription_id
 
     def deactivate(
-        self, connection_id: UUID, src_port_id: str, src_vlan: int, dst_port_id: str, dst_vlan: int, bandwidth: int
+        self,
+        connection_id: UUID,
+        bandwidth: int,
+        src_port_id: str,
+        src_vlan: int,
+        dst_port_id: str,
+        dst_vlan: int,
+        circuit_id: str,
     ) -> None:
         """Deactivate resources in NRM."""
-        process = self._workflow_terminate(connection_id, src_port_id, src_vlan, dst_port_id, dst_vlan, bandwidth)
+        self.log = self.log.bind(primitive="deactivate", subscription_id=circuit_id, connection_id=str(connection_id))
+        process = self._workflow_terminate(circuit_id)
         self._wait_for_completion(process["id"])
 
     def topology(self) -> List[STP]:
         """Get exposed topology from NRM."""
+        self.log = self.log.bind(primitive="topology")
         return self._get_topology()

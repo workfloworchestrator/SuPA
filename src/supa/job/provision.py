@@ -25,11 +25,10 @@ from supa.connection import requester
 from supa.connection.error import GenericConnectionError, GenericInternalError, InvalidTransition, Variable
 from supa.connection.fsm import DataPlaneStateMachine, LifecycleStateMachine, ProvisionStateMachine
 from supa.connection.requester import to_error_request
-from supa.db.model import Reservation
+from supa.db.model import Connection, Reservation, connection_to_dict
 from supa.grpc_nsi.connection_requester_pb2 import ErrorRequest, ProvisionConfirmedRequest, ReleaseConfirmedRequest
 from supa.job.dataplane import ActivateJob, AutoStartJob, DeactivateJob
 from supa.job.shared import Job, NsiException
-from supa.nrm.backend import call_backend
 from supa.util.converter import to_header
 from supa.util.timestamp import current_timestamp
 
@@ -70,17 +69,18 @@ class ProvisionJob(Job):
         self.log.info("Provisioning reservation")
 
         from supa.db.session import db_session
+        from supa.nrm.backend import backend
 
         response: Union[ProvisionConfirmedRequest, ErrorRequest]
         with db_session() as session:
-            reservation = (
-                session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one_or_none()
-            )
+            reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
+            connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
             psm = ProvisionStateMachine(reservation, state_field="provision_state")
             lsm = LifecycleStateMachine(reservation, state_field="lifecycle_state")
             dpsm = DataPlaneStateMachine(reservation, state_field="data_plane_state")
             try:
-                call_backend("provision", reservation, session)
+                if circuit_id := backend.provision(**connection_to_dict(connection)):
+                    connection.circuit_id = circuit_id
             except NsiException as nsi_exc:
                 self.log.info("Provision failed.", reason=nsi_exc.text)
                 response = to_error_request(
@@ -143,7 +143,10 @@ class ProvisionJob(Job):
                             trigger=DateTrigger(run_date=reservation.start_time),
                             id=f"{str(self.connection_id)}-AutoStartJob",
                         )
-                        self.log.info(f"Automatic enable of data plane at {reservation.start_time.isoformat()}")
+                        self.log.info(
+                            "Automatic enable of data plane at start time",
+                            start_time=reservation.start_time.isoformat(),
+                        )
                         response = self._to_provision_confirmed_request(reservation)
                         psm.provision_confirmed()
                 else:
@@ -246,17 +249,18 @@ class ReleaseJob(Job):
         self.log.info("Releasing reservation")
 
         from supa.db.session import db_session
+        from supa.nrm.backend import backend
 
         response: Union[ReleaseConfirmedRequest, ErrorRequest]
         with db_session() as session:
-            reservation = (
-                session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one_or_none()
-            )
+            reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
+            connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
             psm = ProvisionStateMachine(reservation, state_field="provision_state")
             dpsm = DataPlaneStateMachine(reservation, state_field="data_plane_state")
             lsm = LifecycleStateMachine(reservation, state_field="lifecycle_state")
             try:
-                call_backend("release", reservation, session)
+                if circuit_id := backend.release(**connection_to_dict(connection)):
+                    connection.circuit_id = circuit_id
             except NsiException as nsi_exc:
                 self.log.info("Release failed.", reason=nsi_exc.text)
                 response = to_error_request(

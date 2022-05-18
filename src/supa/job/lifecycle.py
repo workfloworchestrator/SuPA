@@ -25,11 +25,10 @@ from supa.connection import requester
 from supa.connection.error import GenericInternalError, Variable
 from supa.connection.fsm import DataPlaneStateMachine, LifecycleStateMachine
 from supa.connection.requester import to_error_request
-from supa.db.model import Reservation
+from supa.db.model import Connection, Reservation, connection_to_dict
 from supa.grpc_nsi.connection_requester_pb2 import ErrorRequest, TerminateConfirmedRequest
 from supa.job.dataplane import DeactivateJob
 from supa.job.shared import Job, NsiException
-from supa.nrm.backend import call_backend
 from supa.util.converter import to_header
 
 logger = structlog.get_logger(__name__)
@@ -68,16 +67,17 @@ class TerminateJob(Job):
         self.log.info("Terminating reservation")
 
         from supa.db.session import db_session
+        from supa.nrm.backend import backend
 
         response: Union[TerminateConfirmedRequest, ErrorRequest]
         with db_session() as session:
-            reservation = (
-                session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one_or_none()
-            )
+            reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
+            connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
             lsm = LifecycleStateMachine(reservation, state_field="lifecycle_state")
             dpsm = DataPlaneStateMachine(reservation, state_field="data_plane_state")
             try:
-                call_backend("terminate", reservation, session)
+                if circuit_id := backend.terminate(**connection_to_dict(connection)):
+                    connection.circuit_id = circuit_id
             except NsiException as nsi_exc:
                 self.log.info("Terminate failed.", reason=nsi_exc.text)
                 response = to_error_request(

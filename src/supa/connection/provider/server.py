@@ -18,6 +18,7 @@ import structlog
 from grpc import ServicerContext
 from statemachine.exceptions import TransitionNotAllowed
 
+from supa import settings
 from supa.connection.error import (
     GenericServiceError,
     InvalidTransition,
@@ -194,10 +195,9 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             header=to_response_header(pb_reserve_request.header), connection_id=str(connection_id)
         )
         #
-        # TODO: make timeout delta configurable,
-        #  and add reservation version to timeout job so we do not accidentally timeout a modify
+        # TODO: add reservation version to timeout job so we do not accidentally timeout a modify
         #
-        log.info("Schedule reserve timeout", connection_id=str(connection_id), timeout=30)
+        log.info("Schedule reserve timeout", connection_id=str(connection_id), timeout=settings.reserve_timeout)
         scheduler.add_job(
             job := ReserveTimeoutJob(connection_id),
             trigger=job.trigger(),

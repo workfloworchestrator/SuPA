@@ -17,7 +17,12 @@ def test_reserve_job_reserve_confirmed(connection_id: Column, reserve_checking: 
 
 
 def test_reserve_job_reserve_failed_src_stp_id_equals_dst_stp_id(
-    connection_id: Column, reserve_checking: None, src_stp_id_equals_dst_stp_id: None, get_stub: None, caplog: Any
+    connection_id: Column,
+    reserve_checking: None,
+    reserve_timeout_job: None,
+    src_stp_id_equals_dst_stp_id: None,
+    get_stub: None,
+    caplog: Any,
 ) -> None:
     """Test ReserveJob to transition to ReserveFailed when src_stp_id is equal to dst_stp_id."""
     reserve_job = ReserveJob(connection_id)
@@ -27,7 +32,12 @@ def test_reserve_job_reserve_failed_src_stp_id_equals_dst_stp_id(
 
 
 def test_reserve_job_reserve_failed_unknown_stp_id(
-    connection_id: Column, reserve_checking: None, unknown_stp_id: None, get_stub: None, caplog: Any
+    connection_id: Column,
+    reserve_checking: None,
+    reserve_timeout_job: None,
+    unknown_stp_id: None,
+    get_stub: None,
+    caplog: Any,
 ) -> None:
     """Test ReserveJob to transition to ReserveFailed when one of the STP's is unknown."""
     reserve_job = ReserveJob(connection_id)
@@ -37,7 +47,12 @@ def test_reserve_job_reserve_failed_unknown_stp_id(
 
 
 def test_reserve_job_reserve_failed_disabled_stp_id(
-    connection_id: Column, reserve_checking: None, disabled_stp: Generator, get_stub: None, caplog: Any
+    connection_id: Column,
+    reserve_checking: None,
+    reserve_timeout_job: None,
+    disabled_stp: Generator,
+    get_stub: None,
+    caplog: Any,
 ) -> None:
     """Test ReserveJob to transition to ReserveFailed when one of the ports is disabled."""
     reserve_job = ReserveJob(connection_id)
@@ -47,7 +62,12 @@ def test_reserve_job_reserve_failed_disabled_stp_id(
 
 
 def test_reserve_job_reserve_failed_unknown_domain_stp_id(
-    connection_id: Column, reserve_checking: None, unknown_domain_stp_id: None, get_stub: None, caplog: Any
+    connection_id: Column,
+    reserve_checking: None,
+    reserve_timeout_job: None,
+    unknown_domain_stp_id: None,
+    get_stub: None,
+    caplog: Any,
 ) -> None:
     """Test ReserveJob to transition to ReserveFailed when dst_domain is unknown."""
     reserve_job = ReserveJob(connection_id)
@@ -57,7 +77,12 @@ def test_reserve_job_reserve_failed_unknown_domain_stp_id(
 
 
 def test_reserve_job_reserve_failed_unknown_topology_stp_id(
-    connection_id: Column, reserve_checking: None, unknown_topology_stp_id: None, get_stub: None, caplog: Any
+    connection_id: Column,
+    reserve_checking: None,
+    reserve_timeout_job: None,
+    unknown_topology_stp_id: None,
+    get_stub: None,
+    caplog: Any,
 ) -> None:
     """Test ReserveJob to transition to ReserveFailed when dst_topology is unknown."""
     reserve_job = ReserveJob(connection_id)
@@ -67,7 +92,12 @@ def test_reserve_job_reserve_failed_unknown_topology_stp_id(
 
 
 def test_reserve_job_reserve_failed_empty_vlans_stp_id(
-    connection_id: Column, reserve_checking: None, empty_vlans_stp_id: None, get_stub: None, caplog: Any
+    connection_id: Column,
+    reserve_checking: None,
+    reserve_timeout_job: None,
+    empty_vlans_stp_id: None,
+    get_stub: None,
+    caplog: Any,
 ) -> None:
     """Test ReserveJob to transition to ReserveFailed when dst_vlans is empty."""
     reserve_job = ReserveJob(connection_id)
@@ -77,7 +107,12 @@ def test_reserve_job_reserve_failed_empty_vlans_stp_id(
 
 
 def test_reserve_job_reserve_failed_to_much_bandwidth(
-    connection_id: Column, reserve_checking: None, to_much_bandwidth: None, get_stub: None, caplog: Any
+    connection_id: Column,
+    reserve_checking: None,
+    reserve_timeout_job: None,
+    to_much_bandwidth: None,
+    get_stub: None,
+    caplog: Any,
 ) -> None:
     """Test ReserveJob to transition to ReserveFailed when requested bandwidth is not available."""
     reserve_job = ReserveJob(connection_id)
@@ -87,7 +122,12 @@ def test_reserve_job_reserve_failed_to_much_bandwidth(
 
 
 def test_reserve_job_reserve_failed_no_matching_vlan(
-    connection_id: Column, reserve_checking: None, no_matching_vlan: None, get_stub: None, caplog: Any
+    connection_id: Column,
+    reserve_checking: None,
+    reserve_timeout_job: None,
+    no_matching_vlan: None,
+    get_stub: None,
+    caplog: Any,
 ) -> None:
     """Test ReserveJob to transition to ReserveFailed when requested vlan is not available."""
     reserve_job = ReserveJob(connection_id)
@@ -97,7 +137,12 @@ def test_reserve_job_reserve_failed_no_matching_vlan(
 
 
 def test_reserve_job_reserve_failed_all_vlans_in_use(
-    connection_id: Column, reserve_checking: None, all_vlans_in_use: None, get_stub: None, caplog: Any
+    connection_id: Column,
+    reserve_checking: None,
+    reserve_timeout_job: None,
+    all_vlans_in_use: None,
+    get_stub: None,
+    caplog: Any,
 ) -> None:
     """Test ReserveJob to transition to ReserveFailed when port has no available vlans."""
     reserve_job = ReserveJob(connection_id)
@@ -149,7 +194,7 @@ def test_reserve_job_trigger(connection_id: Column, caplog: Any) -> None:
 
 
 def test_reserve_commit_job_reserve_commit_confirmed(
-    connection_id: Column, reserve_committing: None, get_stub: None
+    connection_id: Column, connection: None, reserve_committing: None, get_stub: None
 ) -> None:
     """Test ReserveCommitJob to transition to ReserveStart.
 
@@ -208,7 +253,7 @@ def test_reserve_commit_job_trigger(connection_id: Column, caplog: Any) -> None:
 
 
 def test_reserve_abort_job_reserve_abort_confirmed(
-    connection_id: Column, reserve_aborting: None, get_stub: None
+    connection_id: Column, connection: None, reserve_aborting: None, get_stub: None
 ) -> None:
     """Test ReserveAbortJob to transition to ReserveStart.
 
@@ -244,7 +289,9 @@ def test_reserve_abort_job_trigger(connection_id: Column, caplog: Any) -> None:
     assert current_timestamp() - job_trigger.run_date < timedelta(seconds=5)  # more or less now
 
 
-def test_reserve_timeout_job_invalid_transition(caplog: Any, connection_id: Column, reserve_committing: None) -> None:
+def test_reserve_timeout_job_invalid_transition(
+    caplog: Any, connection_id: Column, connection: None, reserve_committing: None
+) -> None:
     """Test ReserveTimeoutJob to detect an invalid transition.
 
     Verify that a ReserveTimeoutJob will detect an invalid transition attempt
@@ -258,7 +305,7 @@ def test_reserve_timeout_job_invalid_transition(caplog: Any, connection_id: Colu
 
 
 def test_reserve_timeout_job_reserve_timeout_notification(
-    connection_id: Column, reserve_held: None, get_stub: None
+    connection_id: Column, connection: None, reserve_held: None, get_stub: None
 ) -> None:
     """Test ReserveTimeoutJob to transition to ReserveTimeout.
 

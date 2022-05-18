@@ -10,7 +10,13 @@ from supa.util.timestamp import current_timestamp
 
 
 def test_terminate_job_auto_start(
-    connection_id: Column, terminating: None, auto_start: None, auto_start_job: None, get_stub: None, caplog: Any
+    connection_id: Column,
+    connection: None,
+    terminating: None,
+    auto_start: None,
+    auto_start_job: None,
+    get_stub: None,
+    caplog: Any,
 ) -> None:
     """Test TerminateJob to transition to Terminated and transition data plane to Deactivated."""
     terminate_job = TerminateJob(connection_id)
@@ -22,7 +28,7 @@ def test_terminate_job_auto_start(
 
 
 def test_terminate_job_auto_end(
-    connection_id: Column, terminating: None, auto_end: None, get_stub: None, caplog: Any
+    connection_id: Column, connection: None, terminating: None, auto_end: None, get_stub: None, caplog: Any
 ) -> None:
     """Test TerminateJob to transition to Terminated, add DeactivateJob and canceling AutoEndJob."""
     terminate_job = TerminateJob(connection_id)
@@ -35,7 +41,7 @@ def test_terminate_job_auto_end(
 
 
 def test_terminate_job_activated(
-    connection_id: Column, terminating: None, activated: None, get_stub: None, caplog: Any
+    connection_id: Column, connection: None, terminating: None, activated: None, get_stub: None, caplog: Any
 ) -> None:
     """Test TerminateJob to transition to Terminated and add DeactivateJob."""
     terminate_job = TerminateJob(connection_id)

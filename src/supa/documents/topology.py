@@ -25,7 +25,6 @@ from lxml.etree import Element, QName, SubElement, tostring  # noqa: S410
 
 from supa import settings
 from supa.db.model import Topology
-from supa.nrm.backend import get_topology
 from supa.util.timestamp import current_timestamp
 
 log = structlog.get_logger(__name__)
@@ -38,9 +37,11 @@ def refresh_topology() -> None:
         return
 
     from supa.db.session import db_session
+    from supa.nrm.backend import backend
 
-    nrm_stps = get_topology()
+    nrm_stps = backend.topology()
     nrm_stp_ids = [nrm_stp.stp_id for nrm_stp in nrm_stps]
+
     with db_session() as session:
         for nrm_stp in nrm_stps:
             if nrm_stp.topology != settings.topology:
@@ -48,16 +49,18 @@ def refresh_topology() -> None:
             else:
                 stp = session.query(Topology).filter(Topology.stp_id == nrm_stp.stp_id).one_or_none()
                 if stp:
-                    log.debug("update existing STP", stp=nrm_stp.stp_id)
+                    log.debug(
+                        "update existing STP", stp_id=nrm_stp.stp_id, port_id=nrm_stp.port_id, vlans=nrm_stp.vlans
+                    )
                     stp.port_id = nrm_stp.port_id
                     stp.vlans = nrm_stp.vlans
                     stp.description = nrm_stp.description
                     stp.is_alias_in = nrm_stp.is_alias_in
                     stp.is_alias_out = nrm_stp.is_alias_out
                     stp.bandwidth = nrm_stp.bandwidth
-                    stp.enabled = nrm_stp.expose_in_topology
+                    stp.enabled = nrm_stp.enabled
                 else:
-                    log.info("add new STP", stp=nrm_stp.stp_id)
+                    log.info("add new STP", stp_id=nrm_stp.stp_id, port_id=nrm_stp.port_id, vlans=nrm_stp.vlans)
                     session.add(
                         Topology(
                             stp_id=nrm_stp.stp_id,
@@ -67,12 +70,12 @@ def refresh_topology() -> None:
                             is_alias_in=nrm_stp.is_alias_in,
                             is_alias_out=nrm_stp.is_alias_out,
                             bandwidth=nrm_stp.bandwidth,
-                            enabled=nrm_stp.expose_in_topology,
+                            enabled=nrm_stp.enabled,
                         )
                     )
         for stp in session.query(Topology).filter(Topology.enabled):
             if stp.stp_id not in nrm_stp_ids:
-                log.info("disable vanished STP", stp=stp.stp_id)
+                log.info("disable vanished STP", stp_id=stp.stp_id, port_id=nrm_stp.port_id, vlans=nrm_stp.vlans)
                 stp.enabled = False
 
 

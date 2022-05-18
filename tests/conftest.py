@@ -8,6 +8,7 @@ import grpc
 import pytest
 from apscheduler.jobstores.base import JobLookupError
 from sqlalchemy import Column
+from sqlalchemy.orm import aliased
 
 from supa import init_app, settings
 from supa.connection.fsm import (
@@ -16,7 +17,7 @@ from supa.connection.fsm import (
     ProvisionStateMachine,
     ReservationStateMachine,
 )
-from supa.db.model import Reservation, Topology
+from supa.db.model import Connection, Reservation, Topology
 from supa.grpc_nsi import connection_provider_pb2_grpc
 from supa.job.dataplane import AutoEndJob, AutoStartJob
 from supa.job.reserve import ReserveTimeoutJob
@@ -76,19 +77,64 @@ def connection_id() -> Column:
             src_domain="example.domain:2001",
             src_topology="topology",
             src_stp_id="port1",
-            src_vlans=1783,
+            src_vlans="1783",
+            src_selected_vlan=1783,
             dst_domain="example.domain:2001",
             dst_topology="topology",
             dst_stp_id="port2",
-            dst_vlans=1783,
+            dst_vlans="1783",
+            dst_selected_vlan=1783,
             lifecycle_state="CREATED",
         )
         session.add(reservation)
         session.flush()  # let db generate connection_id
+        connection_id = reservation.connection_id
 
-        yield reservation.connection_id
+        yield connection_id
 
-        session.delete(reservation)
+        session.delete(session.query(Reservation).filter(Reservation.connection_id == connection_id).one())
+        # connection is deleted through cascade
+
+
+@pytest.fixture
+def connection(connection_id: Column) -> None:
+    """Set reserve state machine of reservation identified by connection_id to state ReserveCommitting."""
+    from supa.db.session import db_session
+
+    with db_session() as session:
+        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
+        src_topology = aliased(Topology)
+        dst_topology = aliased(Topology)
+        src_port_id, dst_port_id = (
+            session.query(src_topology.port_id, dst_topology.port_id)
+            .filter(
+                Reservation.connection_id == connection_id,
+                Reservation.src_stp_id == src_topology.stp_id,
+                Reservation.dst_stp_id == dst_topology.stp_id,
+            )
+            .one()
+        )
+        connection = Connection(
+            connection_id=connection_id,
+            bandwidth=10,
+            src_port_id=src_port_id,
+            src_vlan=reservation.src_selected_vlan,
+            dst_port_id=dst_port_id,
+            dst_vlan=reservation.dst_selected_vlan,
+        )
+        session.add(connection)
+
+
+@pytest.fixture()
+def reserve_timeout_job(connection_id: Column) -> None:
+    """Schedule a ReserveTimeoutJob for connection_id."""
+    from supa import scheduler
+
+    scheduler.add_job(
+        job := ReserveTimeoutJob(connection_id),
+        trigger=job.trigger(),
+        id=f"{str(connection_id)}-ReserveTimeoutJob",
+    )
 
 
 @pytest.fixture

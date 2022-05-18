@@ -37,7 +37,7 @@ from supa.connection.error import (
     Variable,
 )
 from supa.connection.fsm import LifecycleStateMachine, ProvisionStateMachine, ReservationStateMachine
-from supa.db.model import Path, PathTrace, Reservation, Segment, Topology
+from supa.db.model import Connection, Path, PathTrace, Reservation, Segment, Topology, connection_to_dict
 from supa.grpc_nsi.connection_requester_pb2 import (
     ErrorRequest,
     ReserveAbortConfirmedRequest,
@@ -48,7 +48,6 @@ from supa.grpc_nsi.connection_requester_pb2 import (
     ReserveTimeoutRequest,
 )
 from supa.job.shared import Job, NsiException
-from supa.nrm.backend import call_backend
 from supa.util.bandwidth import format_bandwidth
 from supa.util.converter import to_confirm_criteria, to_connection_states, to_header, to_service_exception
 from supa.util.timestamp import current_timestamp
@@ -78,6 +77,8 @@ class ReserveJob(Job):
         """
         self.log = logger.bind(job=self.__class__.__name__, connection_id=str(connection_id))
         self.connection_id = connection_id
+        self.src_port_id: str = ""
+        self.dst_port_id: str = ""
 
     def _stp_resources_in_use(self, session: orm.Session) -> Dict[str, StpResources]:
         """Calculate STP resources in use for active reservations that overlap with ours.
@@ -131,11 +132,11 @@ class ReserveJob(Job):
                 # Only select active reservations
                 or_(
                     and_(
-                        Reservation.reservation_state == ReservationStateMachine.ReserveStart.name,
+                        Reservation.reservation_state == ReservationStateMachine.ReserveStart.value,
                         Reservation.provision_state.isnot(None),
-                        Reservation.lifecycle_state == LifecycleStateMachine.Created.name,
+                        Reservation.lifecycle_state == LifecycleStateMachine.Created.value,
                     ),
-                    Reservation.reservation_state == ReservationStateMachine.ReserveHeld.name,
+                    Reservation.reservation_state == ReservationStateMachine.ReserveHeld.value,
                 )
             )
             # And only those that overlap with our reservation.
@@ -191,6 +192,60 @@ class ReserveJob(Job):
             rec.stp: StpResources(bandwidth=rec.bandwidth, vlans=VlanRanges(rec.vlans)) for rec in stp_resources_in_use
         }
 
+    def _process_stp(self, target: str, var: Variable, reservation: Reservation, session: orm.Session) -> None:
+        """Check validity of STP and select available VLAN.
+
+        Target can be either "src" or "dst".
+        When the STP is valid and a VLAN is available
+        the corresponding {src|dst}_selected_vlan will be set on the reservation
+        and the associated port will be stored in {src|dst}_port_id on the job instance.
+        """
+        stp_resources_in_use = self._stp_resources_in_use(session)
+        res_stp = getattr(reservation, f"{target}_stp_id")
+        nsi_stp = str(getattr(reservation, f"{target}_stp")())  # <-- mind the func call
+        domain = getattr(reservation, f"{target}_domain")
+        topology = getattr(reservation, f"{target}_topology")
+        requested_vlans = VlanRanges(getattr(reservation, f"{target}_vlans"))
+        stp = session.query(Topology).filter(Topology.stp_id == res_stp).one_or_none()
+        if (
+            stp is None
+            or not stp.enabled
+            or domain != settings.domain  # only process requests for our domain
+            or topology != settings.topology  # only process requests for our network
+        ):
+            raise NsiException(UnknownStp, nsi_stp, {var: nsi_stp})
+        if not requested_vlans:
+            raise NsiException(InvalidLabelFormat, "missing VLANs label on STP", {var: nsi_stp})
+        if stp.stp_id in stp_resources_in_use:
+            bandwidth_available = stp.bandwidth - stp_resources_in_use[stp.stp_id].bandwidth
+            available_vlans = VlanRanges(stp.vlans) - stp_resources_in_use[stp.stp_id].vlans
+        else:
+            bandwidth_available = stp.bandwidth
+            available_vlans = VlanRanges(stp.vlans)
+        if bandwidth_available < reservation.bandwidth:
+            raise NsiException(
+                CapacityUnavailable,
+                f"requested: {format_bandwidth(reservation.bandwidth)}, "
+                f"available: {format_bandwidth(bandwidth_available)}",
+                {
+                    Variable.CAPACITY: str(reservation.bandwidth),
+                    var: nsi_stp,
+                },
+            )
+        if not available_vlans:
+            raise NsiException(StpUnavailable, "all VLANs in use", {var: nsi_stp})
+        candidate_vlans = requested_vlans & available_vlans
+        if not candidate_vlans:
+            raise NsiException(
+                StpUnavailable,
+                f"no matching VLAN found (requested: {requested_vlans!s}, available: {available_vlans!s}",
+                {var: nsi_stp},
+            )
+        selected_vlan = random.choice(list(candidate_vlans))
+        setattr(reservation, f"{target}_selected_vlan", selected_vlan)
+        # remember port id, will be stored as part of Connection below
+        setattr(self, f"{target}_port_id", stp.port_id)
+
     def _to_reserve_failed_request(self, reservation: Reservation, nsi_exc: NsiException) -> ReserveFailedRequest:
         """Create a protobuf reserve failed request from a Reservation and NsiException."""
         pb_rf_req = ReserveFailedRequest()
@@ -219,6 +274,7 @@ class ReserveJob(Job):
         If not, a ReserveFailed message will be send instead.
         """
         from supa.db.session import db_session
+        from supa.nrm.backend import backend
 
         self.log.info("Checking reservation request")
 
@@ -236,7 +292,6 @@ class ReserveJob(Job):
                 .get(self.connection_id)
             )
             rsm = ReservationStateMachine(reservation, state_field="reservation_state")
-            stp_resources_in_use = self._stp_resources_in_use(session)
 
             try:
                 if reservation.src_stp_id == reservation.dst_stp_id:
@@ -257,50 +312,27 @@ class ReserveJob(Job):
                 for target, var in (("src", Variable.SOURCE_STP), ("dst", Variable.DEST_STP)):
                     # Dynamic attribute lookups as we want to use the same code for
                     # both src and dst STP's
-                    res_stp = getattr(reservation, f"{target}_stp_id")
-                    nsi_stp = str(getattr(reservation, f"{target}_stp")())  # <-- mind the func call
-                    domain = getattr(reservation, f"{target}_domain")
-                    topology = getattr(reservation, f"{target}_topology")
-                    requested_vlans = VlanRanges(getattr(reservation, f"{target}_vlans"))
-                    stp = session.query(Topology).filter(Topology.stp_id == res_stp).one_or_none()
-                    if (
-                        stp is None
-                        or not stp.enabled
-                        or domain != settings.domain  # only process requests for our domain
-                        or topology != settings.topology  # only process requests for our network
-                    ):
-                        raise NsiException(UnknownStp, nsi_stp, {var: nsi_stp})
-                    if not requested_vlans:
-                        raise NsiException(InvalidLabelFormat, "missing VLANs label on STP", {var: nsi_stp})
-                    if stp.stp_id in stp_resources_in_use:
-                        bandwidth_available = stp.bandwidth - stp_resources_in_use[stp.stp_id].bandwidth
-                        available_vlans = VlanRanges(stp.vlans) - stp_resources_in_use[stp.stp_id].vlans
-                    else:
-                        bandwidth_available = stp.bandwidth
-                        available_vlans = VlanRanges(stp.vlans)
-                    if bandwidth_available < reservation.bandwidth:
-                        raise NsiException(
-                            CapacityUnavailable,
-                            f"requested: {format_bandwidth(reservation.bandwidth)}, "
-                            f"available: {format_bandwidth(bandwidth_available)}",
-                            {
-                                Variable.CAPACITY: str(reservation.bandwidth),
-                                var: nsi_stp,
-                            },
-                        )
-                    if not available_vlans:
-                        raise NsiException(StpUnavailable, "all VLANs in use", {var: nsi_stp})
-                    candidate_vlans = requested_vlans & available_vlans
-                    if not candidate_vlans:
-                        raise NsiException(
-                            StpUnavailable,
-                            f"no matching VLAN found (requested: {requested_vlans!s}, available: {available_vlans!s}",
-                            {var: nsi_stp},
-                        )
-                    selected_vlan = random.choice(list(candidate_vlans))
-                    setattr(reservation, f"{target}_selected_vlan", selected_vlan)
+                    self._process_stp(target, var, reservation, session)
 
-                call_backend("reserve", reservation, session)
+                circuit_id = backend.reserve(
+                    connection_id=reservation.connection_id,
+                    bandwidth=reservation.bandwidth,
+                    src_port_id=self.src_port_id,
+                    src_vlan=reservation.src_selected_vlan,
+                    dst_port_id=self.dst_port_id,
+                    dst_vlan=reservation.dst_selected_vlan,
+                )
+                session.add(
+                    Connection(
+                        connection_id=reservation.connection_id,
+                        bandwidth=reservation.bandwidth,
+                        src_port_id=self.src_port_id,
+                        src_vlan=reservation.src_selected_vlan,
+                        dst_port_id=self.dst_port_id,
+                        dst_vlan=reservation.dst_selected_vlan,
+                        circuit_id=circuit_id,
+                    )
+                )
 
             except NsiException as nsi_exc:
                 self.log.info("Reservation failed.", reason=nsi_exc.text)
@@ -320,6 +352,10 @@ class ReserveJob(Job):
             self.log.debug("Sending message.", method="ReserveConfirmed", request_message=response)
             stub.ReserveConfirmed(response)
         else:
+            from supa import scheduler
+
+            scheduler.remove_job(job_id=f"{str(self.connection_id)}-ReserveTimeoutJob")
+            self.log.info("Canceled reservation timeout timer")
             self.log.debug("Sending message.", method="ReserveFailed", request_message=response)
             stub.ReserveFailed(response)
 
@@ -394,17 +430,18 @@ class ReserveCommitJob(Job):
         an NSI error is returned leaving the state machine unchanged.
         """
         from supa.db.session import db_session
+        from supa.nrm.backend import backend
 
         self.log.info("Committing reservation")
 
         response: Union[ReserveCommitConfirmedRequest, ReserveCommitFailedRequest]
         with db_session() as session:
-            reservation = (
-                session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one_or_none()
-            )
+            reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
+            connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
             rsm = ReservationStateMachine(reservation, state_field="reservation_state")
             try:
-                call_backend("reserve_commit", reservation, session)
+                if circuit_id := backend.reserve_commit(**connection_to_dict(connection)):
+                    connection.circuit_id = circuit_id
             except NsiException as nsi_exc:
                 self.log.info("Reserve commit failed.", reason=nsi_exc.text)
                 response = self._to_reserve_commit_failed_request(session, nsi_exc)
@@ -491,15 +528,16 @@ class ReserveAbortJob(Job):
         self.log.info("Aborting reservation")
 
         from supa.db.session import db_session
+        from supa.nrm.backend import backend
 
         response: Union[ReserveAbortConfirmedRequest, ErrorRequest]
         with db_session() as session:
-            reservation = (
-                session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one_or_none()
-            )
+            reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
+            connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
             rsm = ReservationStateMachine(reservation, state_field="reservation_state")
             try:
-                call_backend("reserve_abort", reservation, session)
+                if circuit_id := backend.reserve_abort(**connection_to_dict(connection)):
+                    connection.circuit_id = circuit_id
             except NsiException as nsi_exc:
                 self.log.info("Reserve abort failed.", reason=nsi_exc.text)
                 response = requester.to_error_request(
@@ -598,16 +636,17 @@ class ReserveTimeoutJob(Job):
         self.log.info("Timeout reservation")
 
         from supa.db.session import db_session
+        from supa.nrm.backend import backend
 
         response: Union[ReserveTimeoutRequest, ErrorRequest]
         with db_session() as session:
-            reservation = (
-                session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one_or_none()
-            )
+            reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
+            connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
             rsm = ReservationStateMachine(reservation, state_field="reservation_state")
             try:
                 rsm.reserve_timeout_notification()
-                call_backend("reserve_timeout", reservation, session)
+                if circuit_id := backend.reserve_timeout(**connection_to_dict(connection)):
+                    connection.circuit_id = circuit_id
             except TransitionNotAllowed:
                 # Reservation is already in another state turning this into a no-op.
                 self.log.info(
@@ -681,4 +720,4 @@ class ReserveTimeoutJob(Job):
 
     def trigger(self) -> DateTrigger:
         """Trigger for ReserveTimeoutJobs."""
-        return DateTrigger(run_date=current_timestamp() + timedelta(seconds=30))
+        return DateTrigger(run_date=current_timestamp() + timedelta(seconds=settings.reserve_timeout))

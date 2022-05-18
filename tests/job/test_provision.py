@@ -11,7 +11,7 @@ from supa.util.timestamp import current_timestamp
 
 
 def test_provision_job_provision_confirmed(
-    connection_id: Column, provisioning: None, get_stub: None, caplog: Any
+    connection_id: Column, connection: None, provisioning: None, get_stub: None, caplog: Any
 ) -> None:
     """Test ProvisionJob to transition to Provisioned."""
     provision_job = ProvisionJob(connection_id)
@@ -22,7 +22,7 @@ def test_provision_job_provision_confirmed(
 
 
 def test_provision_job_already_terminated(
-    connection_id: Column, provisioning: None, terminated: None, get_stub: None, caplog: Any
+    connection_id: Column, connection: None, provisioning: None, terminated: None, get_stub: None, caplog: Any
 ) -> None:
     """Test ProvisionJob to return Error when reservation is already terminated."""
     provision_job = ProvisionJob(connection_id)
@@ -32,7 +32,9 @@ def test_provision_job_already_terminated(
     assert "Not scheduling AutoStartJob or ActivateJob" in caplog.text
 
 
-def test_provision_passed_start_time(connection_id: Column, provisioning: None, get_stub: None, caplog: Any) -> None:
+def test_provision_passed_start_time(
+    connection_id: Column, connection: None, provisioning: None, get_stub: None, caplog: Any
+) -> None:
     """Test ProvisionJob to transition to Provisioned and not start a AutoStartJob."""
     from supa.db.session import db_session
 
@@ -47,7 +49,7 @@ def test_provision_passed_start_time(connection_id: Column, provisioning: None, 
 
 
 def test_provision_cannot_auto_start(
-    connection_id: Column, provisioning: None, activated: None, get_stub: None, caplog: Any
+    connection_id: Column, connection: None, provisioning: None, activated: None, get_stub: None, caplog: Any
 ) -> None:
     """Test ProvisionJob to return error when data plane cannot transition to auto start."""
     provision_job = ProvisionJob(connection_id)
@@ -58,7 +60,7 @@ def test_provision_cannot_auto_start(
 
 
 def test_provision_cannot_activate(
-    connection_id: Column, provisioning: None, activate_failed: None, get_stub: None, caplog: Any
+    connection_id: Column, connection: None, provisioning: None, activate_failed: None, get_stub: None, caplog: Any
 ) -> None:
     """Test ProvisionJob to return error when data plane cannot transition to activating."""
     from supa.db.session import db_session
@@ -99,7 +101,13 @@ def test_provision_job_trigger(connection_id: Column, caplog: Any) -> None:
 
 
 def test_release_job_release_confirmed_auto_start(
-    connection_id: Column, releasing: None, auto_start: None, auto_start_job: None, get_stub: None, caplog: Any
+    connection_id: Column,
+    connection: None,
+    releasing: None,
+    auto_start: None,
+    auto_start_job: None,
+    get_stub: None,
+    caplog: Any,
 ) -> None:
     """Test ReleaseJob to transition to Released and disable auto start of data plane."""
     release_job = ReleaseJob(connection_id)
@@ -110,7 +118,7 @@ def test_release_job_release_confirmed_auto_start(
 
 
 def test_release_job_release_confirmed_auto_end(
-    connection_id: Column, releasing: None, auto_end: None, get_stub: None, caplog: Any
+    connection_id: Column, connection: None, releasing: None, auto_end: None, get_stub: None, caplog: Any
 ) -> None:
     """Test ReleaseJob to transition to Released and disable auto end of data plane."""
     release_job = ReleaseJob(connection_id)
@@ -121,7 +129,7 @@ def test_release_job_release_confirmed_auto_end(
 
 
 def test_release_job_release_confirmed_invalid_data_plane_state(
-    connection_id: Column, releasing: None, activate_failed: None, get_stub: None, caplog: Any
+    connection_id: Column, connection: None, releasing: None, activate_failed: None, get_stub: None, caplog: Any
 ) -> None:
     """Test ReleaseJob to transition to Released even when data plane is in activate failed state."""
     release_job = ReleaseJob(connection_id)
@@ -132,7 +140,7 @@ def test_release_job_release_confirmed_invalid_data_plane_state(
 
 
 def test_release_job_already_terminated(
-    connection_id: Column, releasing: None, terminated: None, get_stub: None, caplog: Any
+    connection_id: Column, connection: None, releasing: None, terminated: None, get_stub: None, caplog: Any
 ) -> None:
     """Test ReleaseJob to return Error when reservation is already terminated."""
     release_job = ReleaseJob(connection_id)

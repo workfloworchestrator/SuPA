@@ -10,7 +10,9 @@ from supa.job.dataplane import ActivateJob, AutoEndJob, AutoStartJob, Deactivate
 from supa.util.timestamp import NO_END_DATE, current_timestamp
 
 
-def test_activate_job_end_date(connection_id: Column, activating: None, get_stub: None, caplog: Any) -> None:
+def test_activate_job_end_date(
+    connection_id: Column, connection: None, activating: None, get_stub: None, caplog: Any
+) -> None:
     """Test ActivateJob to transition to AutoEnd."""
     activate_job = ActivateJob(connection_id)
     activate_job.__call__()
@@ -20,7 +22,9 @@ def test_activate_job_end_date(connection_id: Column, activating: None, get_stub
     assert 'Added job "AutoEndJob" to job store' in caplog.text
 
 
-def test_activate_job_no_end_date(connection_id: Column, activating: None, get_stub: None, caplog: Any) -> None:
+def test_activate_job_no_end_date(
+    connection_id: Column, connection: None, activating: None, get_stub: None, caplog: Any
+) -> None:
     """Test ActivateJob to transition to Activated when no end date."""
     from supa.db.session import db_session
 
@@ -59,7 +63,9 @@ def test_activate_job_trigger(connection_id: Column, caplog: Any) -> None:
     assert current_timestamp() - job_trigger.run_date < timedelta(seconds=5)  # more or less now
 
 
-def test_deactivate_job(connection_id: Column, deactivating: None, get_stub: None, caplog: Any) -> None:
+def test_deactivate_job(
+    connection_id: Column, connection: None, deactivating: None, get_stub: None, caplog: Any
+) -> None:
     """Test DeactivateJob to transition to Deactivated."""
     deactivate_job = DeactivateJob(connection_id)
     deactivate_job.__call__()
