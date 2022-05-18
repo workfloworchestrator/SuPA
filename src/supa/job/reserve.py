@@ -720,4 +720,4 @@ class ReserveTimeoutJob(Job):
 
     def trigger(self) -> DateTrigger:
         """Trigger for ReserveTimeoutJobs."""
-        return DateTrigger(run_date=current_timestamp() + timedelta(seconds=30))
+        return DateTrigger(run_date=current_timestamp() + timedelta(seconds=settings.reserve_timeout))

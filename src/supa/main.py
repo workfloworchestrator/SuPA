@@ -174,14 +174,6 @@ def cli() -> None:
     help="GRPC server port to listen on.",
 )
 @click.option(
-    "--scheduler-max-workers",
-    default=settings.scheduler_max_workers,
-    type=int,
-    help="Maximum number of workers to execute scheduler jobs.",
-)
-@click.option("--domain", default=settings.domain, type=str, help="Name of the domain SuPA is responsible for.")
-@click.option("--topology", default=settings.topology, type=str, help="Name of the topology SuPA is responsible for.")
-@click.option(
     "--grpc-client-insecure-host",
     default=settings.grpc_client_insecure_host,
     help="Host that PolyNSI listens on.",
@@ -191,6 +183,21 @@ def cli() -> None:
     default=settings.grpc_client_insecure_port,
     help="Port that PolyNSI listens on.",
 )
+@click.option(
+    "--scheduler-max-workers",
+    default=settings.scheduler_max_workers,
+    type=int,
+    help="Maximum number of workers to execute scheduler jobs.",
+)
+@click.option("--domain", default=settings.domain, type=str, help="Name of the domain SuPA is responsible for.")
+@click.option("--topology", default=settings.topology, type=str, help="Name of the topology SuPA is responsible for.")
+@click.option(
+    "--manual-topology",
+    default=settings.manual_topology,
+    is_flag=True,
+    help="Use SuPA CLI to manually administrate topology.",
+)
+@click.option("--reserve-timeout", default=settings.reserve_timeout, type=int, help="Reserve timeout in seconds.")
 @click.option("--backend", default=settings.backend, type=str, help="Name of NRM backend module.")
 @click.option(
     "--nsa-host",
@@ -253,22 +260,18 @@ def cli() -> None:
     default=settings.topology_name,
     help="Descriptive name for the exposed topology.",
 )
-@click.option(
-    "--manual-topology",
-    default=settings.manual_topology,
-    is_flag=True,
-    help="Use SuPA CLI to manually administrate topology.",
-)
 @common_options  # type: ignore
 def serve(
     grpc_server_max_workers: int,
     grpc_server_insecure_host: str,
     grpc_server_insecure_port: str,
+    grpc_client_insecure_host: str,
+    grpc_client_insecure_port: str,
     scheduler_max_workers: int,
     domain: str,
     topology: str,
-    grpc_client_insecure_host: str,
-    grpc_client_insecure_port: str,
+    manual_topology: bool,
+    reserve_timeout: int,
     backend: str,
     nsa_host: str,
     nsa_port: str,
@@ -282,18 +285,19 @@ def serve(
     nsa_latitude: str,
     nsa_longitude: str,
     topology_name: str,
-    manual_topology: bool,
 ) -> None:
     """Start the gRPC server and listen for incoming requests."""
     # Command-line options take precedence.
     settings.grpc_server_max_workers = grpc_server_max_workers
     settings.grpc_server_insecure_host = grpc_server_insecure_host
     settings.grpc_server_insecure_port = grpc_server_insecure_port
+    settings.grpc_client_insecure_host = grpc_client_insecure_host
+    settings.grpc_client_insecure_port = grpc_client_insecure_port
     settings.scheduler_max_workers = scheduler_max_workers
     settings.domain = domain
     settings.topology = topology
-    settings.grpc_client_insecure_host = grpc_client_insecure_host
-    settings.grpc_client_insecure_port = grpc_client_insecure_port
+    settings.manual_topology = manual_topology
+    settings.reserve_timeout = reserve_timeout
     settings.backend = backend
     settings.nsa_host = nsa_host
     settings.nsa_port = nsa_port
@@ -307,7 +311,6 @@ def serve(
     settings.nsa_latitude = nsa_latitude
     settings.nsa_longitude = nsa_longitude
     settings.topology_name = topology_name
-    settings.manual_topology = manual_topology
 
     init_app()
 

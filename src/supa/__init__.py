@@ -173,19 +173,20 @@ class Settings(BaseSettings):
     grpc_client_insecure_port: str = "9090"
     """The host and port the Requester Agent/PolyNSI is listening on."""
 
+    # Each gRPC worker can schedule at least one job, hence the number of scheduler workers should
+    # be at least as many as the gRPC ones. We include a couple extra for non-gRPC initiated jobs.
+    scheduler_max_workers: int = grpc_server_max_workers + 4
+
     database_journal_mode: JournalMode = JournalMode.WAL
     database_file: Path = Path("supa.db")
 
     log_level: str = ""
 
-    # Each gRPC worker can schedule at least one job. Hence the number of scheduler workers should
-    # be at least as many as the gRPC ones. We include a couple extra for non-gRPC initiated jobs.
-    scheduler_max_workers: int = grpc_server_max_workers + 4
-
     domain: str = "example.domain:2013"
     topology: str = "topology"
-    backend = ""
-    manual_topology = False
+    manual_topology: bool = False
+    reserve_timeout: int = 120
+    backend: str = ""
 
     nsa_id: str = f"urn:ogf:network:{domain}:nsa:supa"
     nsa_start_time = current_timestamp()
