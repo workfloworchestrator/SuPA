@@ -34,7 +34,7 @@ import structlog
 from click import Context, Option
 from tabulate import tabulate
 
-from supa import init_app, recover_jobs, settings
+from supa import current_timestamp, init_app, recover_jobs, settings
 from supa.documents import webengine
 from supa.grpc_nsi import connection_provider_pb2_grpc
 from supa.util.vlan import VlanRanges
@@ -503,3 +503,114 @@ def disable(stp_id: str) -> None:
     Disabling a STP makes it unavailable for reservation requests.
     """
     _set_enable(stp_id, enabled=False)
+
+
+@cli.command(context_settings=CONTEXT_SETTINGS)
+@click.option("--only", type=click.Choice(("current", "past")), help="Limit list of reservations [default: list all]")
+@click.option(
+    "--order-by", type=click.Choice(("start_time", "end_time")), default="start_time", help="Order reservations"
+)
+@common_options  # type: ignore
+def reservations(only: Optional[str], order_by: str) -> None:
+    """List reservations."""
+    init_app(with_scheduler=False)
+    from supa.db.model import Reservation
+    from supa.db.session import db_session
+
+    with db_session() as session:
+        reservations = session.query(Reservation)
+        if only == "current":
+            reservations = reservations.filter(Reservation.end_time >= current_timestamp())
+        elif only == "past":
+            reservations = reservations.filter(Reservation.end_time < current_timestamp())
+        if order_by == "start_time":
+            reservations = reservations.order_by(Reservation.start_time)
+        elif order_by == "end_time":
+            reservations = reservations.order_by(Reservation.end_time)
+        reservations = reservations.values(
+            Reservation.connection_id,
+            Reservation.start_time,
+            Reservation.end_time,
+            Reservation.src_stp_id,
+            Reservation.src_selected_vlan,
+            Reservation.dst_stp_id,
+            Reservation.dst_selected_vlan,
+            Reservation.bandwidth,
+            Reservation.lifecycle_state,
+            Reservation.reservation_state,
+            Reservation.provision_state,
+        )
+        reservations = tuple(reservations)
+    click.echo(
+        tabulate(
+            reservations,
+            headers=(
+                "connection id",
+                "start time",
+                "end time",
+                "src",
+                "vlan",
+                "dst",
+                "vlan",
+                "bw",
+                "lifecycle",
+                "reservation",
+                "provision",
+            ),
+            tablefmt="simple",
+        )
+    )
+
+
+@cli.command(context_settings=CONTEXT_SETTINGS)
+@click.option("--only", type=click.Choice(("current", "past")), help="Limit list of connections [default: list all]")
+@click.option(
+    "--order-by", type=click.Choice(("start_time", "end_time")), default="start_time", help="Order connections"
+)
+@common_options  # type: ignore
+def connections(only: Optional[str], order_by: str) -> None:
+    """List NRM connections."""
+    init_app(with_scheduler=False)
+    from supa.db.model import Connection, Reservation
+    from supa.db.session import db_session
+
+    with db_session() as session:
+        connections = session.query(Connection).join(Reservation)
+        connections = connections.filter(Connection.circuit_id != None)  # noqa: E711 (needed for NOT NULL clause)
+        if only == "current":
+            connections = connections.filter(Reservation.end_time >= current_timestamp())
+        elif only == "past":
+            connections = connections.filter(Reservation.end_time < current_timestamp())
+        if order_by == "start_time":
+            connections = connections.order_by(Reservation.start_time)
+        elif order_by == "end_time":
+            connections = connections.order_by(Reservation.end_time)
+        connections = connections.values(
+            Connection.connection_id,
+            Connection.circuit_id,
+            Reservation.start_time,
+            Reservation.end_time,
+            Connection.src_port_id,
+            Connection.src_vlan,
+            Connection.dst_port_id,
+            Connection.dst_vlan,
+            Connection.bandwidth,
+        )
+        connections = tuple(connections)
+    click.echo(
+        tabulate(
+            connections,
+            headers=(
+                "connection id",
+                "circuit id",
+                "start time",
+                "end time",
+                "src port id",
+                "vlan",
+                "dst port id",
+                "vlan",
+                "bw",
+            ),
+            tablefmt="simple",
+        )
+    )
