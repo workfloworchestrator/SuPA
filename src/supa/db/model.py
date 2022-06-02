@@ -486,7 +486,7 @@ class Connection(Base):
     )  # one-to-one (cascades defined in parent)
 
 
-def connection_to_dict(connection: Connection) -> Dict[str, str]:
+def connection_to_dict(connection: Connection) -> Dict[str, Any]:
     """Create a dict from a Connection.
 
     A convenience function to create a dict that can be used as parameter list to all backend methods.

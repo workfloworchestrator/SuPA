@@ -173,6 +173,9 @@ class Settings(BaseSettings):
     grpc_client_insecure_port: str = "9090"
     """The host and port the Requester Agent/PolyNSI is listening on."""
 
+    document_server_host: str = "localhost"
+    document_server_port: int = 4321
+
     # Each gRPC worker can schedule at least one job, hence the number of scheduler workers should
     # be at least as many as the gRPC ones. We include a couple extra for non-gRPC initiated jobs.
     scheduler_max_workers: int = grpc_server_max_workers + 4
@@ -180,6 +183,7 @@ class Settings(BaseSettings):
     database_journal_mode: JournalMode = JournalMode.WAL
     database_file: Path = Path("supa.db")
 
+    topology_freshness: int = 60
     log_level: str = ""
 
     domain: str = "example.domain:2013"
@@ -426,6 +430,7 @@ def init_app(with_scheduler: bool = True) -> None:
 
     if settings.backend:
         sys.path.insert(0, str(get_project_root() / "src" / "supa" / "nrm" / "backends"))
+        logger.debug("backend import path", path=sys.path)
         try:
             supa.nrm.backend.backend = __import__(settings.backend).Backend()
         except ModuleNotFoundError:

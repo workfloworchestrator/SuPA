@@ -11,12 +11,15 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 """Initialize cherrypy to serve discovery and topology documents."""
+from logging import Filter
 from typing import Any
 
 import cherrypy
 from cherrypy import config, engine, tree
 
+from supa import settings
 from supa.documents.discovery import DiscoveryEndpoint
+from supa.documents.healthcheck import HealthcheckEndpoint
 from supa.documents.topology import TopologyEndpoint
 
 
@@ -25,31 +28,51 @@ def _error_page_404(status, message, traceback, version):  # type: ignore[no-unt
     return ""
 
 
+class _IgnoreURLFilter(Filter):
+    """Simple log message filtering."""
+
+    def __init__(self, ignore: str):
+        """Ignore GET requests on `ignore`."""
+        self.ignore = "GET /" + ignore
+
+    def filter(self, record: Any) -> bool:  # noqa: A003
+        """Filter ignored GET requests."""
+        return self.ignore not in record.getMessage()
+
+
 def _init_cherrypy() -> Any:
     """Initialize the cherrypy webserver and mount the discovery and topology applications."""
-    server_config = {
-        "server.socket_host": "127.0.0.1",
-        "server.socket_port": 4321,
-        # 'server.ssl_certificate':'cert.pem',
-        # 'server.ssl_private_key':'privkey.pem',
-        "engine.autoreload.on": False,
-        "log.screen": False,
-        "checker.on": False,
-        "tools.log_headers.on": False,
-        "request.show_tracebacks": False,
-        "request.show_mismatched_params": False,
-        "error_page.404": _error_page_404,
-    }
-    app_config = {
-        "/": {
+    config.update(
+        {
+            "server.socket_host": settings.document_server_host,
+            "server.socket_port": settings.document_server_port,
+            # 'server.ssl_certificate':'cert.pem',
+            # 'server.ssl_private_key':'privkey.pem',
+            "engine.autoreload.on": False,
+            "log.screen": False,
+            "checker.on": False,
+            "tools.log_headers.on": False,
+            "request.show_tracebacks": False,
+            "request.show_mismatched_params": False,
+            "error_page.404": _error_page_404,
             "tools.response_headers.on": True,
             "tools.response_headers.headers": [("Content-Type", "application/xml")],
+            "tools.trailing_slash.on": False,
         }
-    }
-    config.update(server_config)
+    )
     cherrypy._cplogging.LogManager.access_log_format = '{h} {l} {u} "{r}" {s} {b} "{f}" "{a}"'
-    tree.mount(DiscoveryEndpoint(), "/", app_config)
-    tree.mount(TopologyEndpoint(), "/", app_config)
+    tree.mount(DiscoveryEndpoint(), "/discovery")
+    tree.mount(TopologyEndpoint(), "/topology")
+    tree.mount(
+        HealthcheckEndpoint(),
+        "/healthcheck",
+        {
+            "/": {
+                "tools.response_headers.headers": [("Content-Type", "text/html")],
+            }
+        },
+    ).log.access_log.addFilter(_IgnoreURLFilter("healthcheck"))
+
     return engine
 
 

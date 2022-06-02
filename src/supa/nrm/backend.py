@@ -13,6 +13,7 @@
 
 from dataclasses import dataclass
 from typing import List, Optional
+from uuid import UUID
 
 import structlog
 from structlog.stdlib import BoundLogger
@@ -56,7 +57,7 @@ class BaseBackend:
 
     def reserve_commit(
         self,
-        connection_id: str,
+        connection_id: UUID,
         bandwidth: int,
         src_port_id: str,
         src_vlan: int,
@@ -81,7 +82,7 @@ class BaseBackend:
 
     def reserve(
         self,
-        connection_id: str,
+        connection_id: UUID,
         bandwidth: int,
         src_port_id: str,
         src_vlan: int,
@@ -96,7 +97,7 @@ class BaseBackend:
 
     def reserve_timeout(
         self,
-        connection_id: str,
+        connection_id: UUID,
         bandwidth: int,
         src_port_id: str,
         src_vlan: int,
@@ -115,7 +116,7 @@ class BaseBackend:
 
     def reserve_commit(
         self,
-        connection_id: str,
+        connection_id: UUID,
         bandwidth: int,
         src_port_id: str,
         src_vlan: int,
@@ -134,7 +135,7 @@ class BaseBackend:
 
     def reserve_abort(
         self,
-        connection_id: str,
+        connection_id: UUID,
         bandwidth: int,
         src_port_id: str,
         src_vlan: int,
@@ -153,7 +154,7 @@ class BaseBackend:
 
     def provision(
         self,
-        connection_id: str,
+        connection_id: UUID,
         bandwidth: int,
         src_port_id: str,
         src_vlan: int,
@@ -169,7 +170,7 @@ class BaseBackend:
 
     def release(
         self,
-        connection_id: str,
+        connection_id: UUID,
         bandwidth: int,
         src_port_id: str,
         src_vlan: int,
@@ -185,7 +186,7 @@ class BaseBackend:
 
     def activate(
         self,
-        connection_id: str,
+        connection_id: UUID,
         bandwidth: int,
         src_port_id: str,
         src_vlan: int,
@@ -201,7 +202,7 @@ class BaseBackend:
 
     def deactivate(
         self,
-        connection_id: str,
+        connection_id: UUID,
         bandwidth: int,
         src_port_id: str,
         src_vlan: int,
@@ -217,7 +218,7 @@ class BaseBackend:
 
     def terminate(
         self,
-        connection_id: str,
+        connection_id: UUID,
         bandwidth: int,
         src_port_id: str,
         src_vlan: int,

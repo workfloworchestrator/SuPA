@@ -77,8 +77,8 @@ class DiscoveryEndpoint(object):
     """A cherryPy application to generate a NSI discovery document."""
 
     @cherrypy.expose  # type: ignore[misc]
-    def discovery(self) -> Union[str, bytes]:
-        """Cherrypy URL that returns the generated NSI discovery document."""
+    def index(self) -> Union[str, bytes]:
+        """Index returns the generated NSI discovery document."""
         nsa = Element(QName(nsmap["nsa"], "nsa"), nsmap=nsmap)
         nsa_name = SubElement(nsa, "name")
         software_version = SubElement(nsa, "softwareVersion")

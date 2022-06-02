@@ -103,6 +103,7 @@ class TerminateJob(Job):
                 # the NRM successfully terminated the reservation,
                 # cancel the AutoStartJob or AutoEndJob,
                 # and schedule a DeactivateJob if the data plane is active
+                # TODO if reservation still pending cancel timeout job
                 from supa import scheduler
 
                 previous_data_plane_state = reservation.data_plane_state

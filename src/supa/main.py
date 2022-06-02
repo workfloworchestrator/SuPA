@@ -184,6 +184,17 @@ def cli() -> None:
     help="Port that PolyNSI listens on.",
 )
 @click.option(
+    "--document-server-host",
+    default=settings.document_server_host,
+    help="Host that the document server listens on.",
+)
+@click.option(
+    "--document-server-port",
+    default=settings.document_server_port,
+    type=int,
+    help="Port that the document server listens on.",
+)
+@click.option(
     "--scheduler-max-workers",
     default=settings.scheduler_max_workers,
     type=int,
@@ -260,6 +271,12 @@ def cli() -> None:
     default=settings.topology_name,
     help="Descriptive name for the exposed topology.",
 )
+@click.option(
+    "--topology-freshness",
+    default=settings.topology_freshness,
+    type=int,
+    help="Number of seconds before fetching topology from NRM again.",
+)
 @common_options  # type: ignore
 def serve(
     grpc_server_max_workers: int,
@@ -267,6 +284,8 @@ def serve(
     grpc_server_insecure_port: str,
     grpc_client_insecure_host: str,
     grpc_client_insecure_port: str,
+    document_server_host: str,
+    document_server_port: int,
     scheduler_max_workers: int,
     domain: str,
     topology: str,
@@ -285,6 +304,7 @@ def serve(
     nsa_latitude: str,
     nsa_longitude: str,
     topology_name: str,
+    topology_freshness: int,
 ) -> None:
     """Start the gRPC server and listen for incoming requests."""
     # Command-line options take precedence.
@@ -293,6 +313,8 @@ def serve(
     settings.grpc_server_insecure_port = grpc_server_insecure_port
     settings.grpc_client_insecure_host = grpc_client_insecure_host
     settings.grpc_client_insecure_port = grpc_client_insecure_port
+    settings.document_server_host = document_server_host
+    settings.document_server_port = document_server_port
     settings.scheduler_max_workers = scheduler_max_workers
     settings.domain = domain
     settings.topology = topology
@@ -311,6 +333,7 @@ def serve(
     settings.nsa_latitude = nsa_latitude
     settings.nsa_longitude = nsa_longitude
     settings.topology_name = topology_name
+    settings.topology_freshness = topology_freshness
 
     init_app()
 

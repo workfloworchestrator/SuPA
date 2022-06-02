@@ -16,7 +16,7 @@ Example topology document:
 
 TODO include example topology document
 """
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Union
 
 import cherrypy
@@ -25,16 +25,35 @@ from lxml.etree import Element, QName, SubElement, tostring  # noqa: S410
 
 from supa import settings
 from supa.db.model import Topology
-from supa.util.timestamp import current_timestamp
+from supa.util.timestamp import EPOCH, current_timestamp
 
 log = structlog.get_logger(__name__)
+last_refresh: datetime = EPOCH
 
 
 def refresh_topology() -> None:
-    """Refresh list of STP's in the database with topology from NRM, skip if configured for manual topology."""
+    """Refresh list of STP's in the database with topology from NRM.
+
+    Skip refresh if configured for manual topology,
+    also skip if topology has been refreshed withing `topology_freshness` seconds.
+    """
+    global last_refresh
     if settings.manual_topology:
         log.debug("skipping topology refresh", manual_topology=settings.manual_topology)
         return
+    if (now := current_timestamp()) < last_refresh + timedelta(seconds=settings.topology_freshness):
+        log.debug(
+            "topology is still fresh",
+            last_refresh=last_refresh.isoformat(timespec="seconds"),
+            now=now.isoformat(timespec="seconds"),
+            topology_freshness=settings.topology_freshness,
+        )
+        return
+    log.debug(
+        "refreshing topology",
+        last_refresh=last_refresh.isoformat(timespec="seconds"),
+        now=now.isoformat(timespec="seconds"),
+    )
 
     from supa.db.session import db_session
     from supa.nrm.backend import backend
@@ -77,6 +96,7 @@ def refresh_topology() -> None:
             if stp.stp_id not in nrm_stp_ids:
                 log.info("disable vanished STP", stp_id=stp.stp_id, port_id=nrm_stp.port_id, vlans=nrm_stp.vlans)
                 stp.enabled = False
+    last_refresh = now
 
 
 """Namespace map for topology document."""
@@ -90,8 +110,8 @@ class TopologyEndpoint(object):
     """A cherryPy application to generate a NSI topology document."""
 
     @cherrypy.expose  # type: ignore[misc]
-    def topology(self) -> Union[str, bytes]:
-        """Cherrypy URL that returns the generated NSI topology document."""
+    def index(self) -> Union[str, bytes]:
+        """Index returns the generated NSI topology document."""
         refresh_topology()
         network_id = f"urn:ogf:network:{settings.domain}:{settings.topology}"
         now = current_timestamp()
