@@ -2,10 +2,8 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-replicaCount: 1
-
 image:
-  repository: nginx
+  repository: ghcr.io/workfloworchestrator/supa
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
   tag: ""
@@ -15,9 +13,7 @@ nameOverride: ""
 fullnameOverride: ""
 
 serviceAccount:
-  # Specifies whether a service account should be created
-  create: true
-  # Annotations to add to the service account
+  create: false
   annotations: {}
   # The name of the service account to use.
   # If not set and create is true, a name is generated using the fullname template
@@ -38,7 +34,8 @@ securityContext: {}
 
 service:
   type: ClusterIP
-  port: 80
+  port: 80  # supa:80 mapped to document_server_port (default 8080)
+  grpc: 80  # supa-grpc:80 mapped to grpc_server_insecure_port (default 50051)
 
 ingress:
   enabled: false
@@ -56,27 +53,48 @@ ingress:
   #    hosts:
   #      - chart-example.local
 
-resources: {}
-  # We usually recommend not to specify default resources and to leave this as a conscious
-  # choice for the user. This also increases chances charts run on environments with little
-  # resources, such as Minikube. If you do want to specify resources, uncomment the following
-  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
-  # limits:
-  #   cpu: 100m
-  #   memory: 128Mi
-  # requests:
-  #   cpu: 100m
-  #   memory: 128Mi
-
-autoscaling:
-  enabled: false
-  minReplicas: 1
-  maxReplicas: 100
-  targetCPUUtilizationPercentage: 80
-  # targetMemoryUtilizationPercentage: 80
+resources:
+   limits:
+     cpu: 1000m
+     memory: 128Mi
+   requests:
+     cpu: 10m
+     memory: 64Mi
 
 nodeSelector: {}
 
 tolerations: []
 
 affinity: {}
+
+persistence:
+  enabled: true
+  mountPath: /usr/local/var/db
+  subPath:
+  annotations: {}
+  accessModes:
+    - ReadWriteOnce
+  size: 1Gi
+
+config:
+  # either read config files from folder or use inline data, filesGlob takes precedence over inline.
+  #filesGlob: "config/*"
+  inline: |-
+    supa.env: |-
+      document_server_host=0.0.0.0
+      document_server_port=8080
+      grpc_server_insecure_host=0.0.0.0
+      grpc_server_insecure_port=50051
+      grpc_client_insecure_host=polynsi-grpc.hanst.svc.cluster.local
+      grpc_client_insecure_port=80
+      topology=topology
+      domain=example.domain:2001
+      log_level=INFO
+      backend=surf
+    surf.env: |-
+      host=http://development-orchestrator.development.svc.cluster.local:80
+      oauth2_active=False
+      create_workflow_name=create_sn8_light_path
+      terminate_workflow_name=terminate_sn8_light_path
+      customer_id=0a11ebb9-0d11-e511-80d0-005056956c1a
+      product_id=f228eb9b-fe38-4b59-aa1e-1f57e6ec6e4d

@@ -8,8 +8,24 @@ spec:
   type: {{ .Values.service.type }}
   ports:
     - port: {{ .Values.service.port }}
-      targetPort: http
+      targetPort: http-alt
       protocol: TCP
       name: http
+  selector:
+    {{- include "SuPA.selectorLabels" . | nindent 4 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ printf "%s-grpc" (include "SuPA.fullname" .) }}
+  labels:
+    {{- include "SuPA.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.grpc }}
+      targetPort: 50051
+      protocol: TCP
+      name: grpc
   selector:
     {{- include "SuPA.selectorLabels" . | nindent 4 }}
