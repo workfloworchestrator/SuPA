@@ -14,7 +14,57 @@
 
 Example topology document:
 
-TODO include example topology document
+    <?xml version='1.0' encoding='iso-8859-1'?>
+    <ns3:Topology xmlns:ns3="http://schemas.ogf.org/nml/2013/05/base#"
+                  xmlns:ns5="http://schemas.ogf.org/nsi/2013/12/services/definition"
+                  id="urn:ogf:network:example.domain:2001:topology"
+                  version="2022-06-06T13:25:37+00:00">
+
+      <ns3:name>example.domain topology</ns3:name>
+      <ns3:Lifetime>
+        <ns3:start>2022-06-06T13:25:37+00:00</ns3:start>
+        <ns3:end>2022-06-13T13:25:37+00:00</ns3:end>
+      </ns3:Lifetime>
+
+      <ns3:BidirectionalPort id="urn:ogf:network:example.domain:2001:topology:port1">
+        <ns3:name>port description</ns3:name>
+        <ns3:PortGroup id="urn:ogf:network:example.domain:2001:topology:port1:in"/>
+        <ns3:PortGroup id="urn:ogf:network:example.domain:2001:topology:port1:out"/>
+      </ns3:BidirectionalPort>
+
+      <ns5:serviceDefinition id="urn:ogf:network:example.domain:2001:topology:sd:EVTS.A-GOLE">
+        <name>GLIF Automated GOLE Ethernet VLAN Transfer Service</name>
+        <serviceType>http://services.ogf.org/nsi/2013/12/descriptions/EVTS.A-GOLE</serviceType>
+      </ns5:serviceDefinition>
+      <ns3:Relation type="http://schemas.ogf.org/nml/2013/05/base#hasService">
+        <ns3:SwitchingService encoding="http://schemas.ogf.org/nml/2012/10/ethernet"
+                              id="urn:ogf:network:example.domain:2001:topology:switch:EVTS.A-GOLE"
+                              labelSwapping="true"
+                              labelType="http://schemas.ogf.org/nml/2012/10/ethernet#vlan">
+          <ns3:Relation type="http://schemas.ogf.org/nml/2013/05/base#hasInboundPort">
+            <ns3:PortGroup id="urn:ogf:network:example.domain:2001:topology:port1:in"/>
+          </ns3:Relation>
+          <ns3:Relation type="http://schemas.ogf.org/nml/2013/05/base#hasOutboundPort">
+            <ns3:PortGroup id="urn:ogf:network:example.domain:2001:topology:port1:out"/>
+          </ns3:Relation>
+          <ns5:serviceDefinition id="urn:ogf:network:example.domain:2001:topology:sd:EVTS.A-GOLE"/>
+        </ns3:SwitchingService>
+      </ns3:Relation>
+
+      <ns3:Relation type="http://schemas.ogf.org/nml/2013/05/base#hasInboundPort">
+        <ns3:PortGroup encoding="http://schemas.ogf.org/nml/2012/10/ethernet"
+                       id="urn:ogf:network:example.domain:2001:topology:port1:in">
+          <ns3:LabelGroup labeltype="http://schemas.ogf.org/nml/2012/10/ethernet#vlan">1779-1799</ns3:LabelGroup>
+        </ns3:PortGroup>
+      </ns3:Relation>
+      <ns3:Relation type="http://schemas.ogf.org/nml/2013/05/base#hasOutboundPort">
+        <ns3:PortGroup encoding="http://schemas.ogf.org/nml/2012/10/ethernet"
+                       id="urn:ogf:network:example.domain:2001:topology:port1:out">
+          <ns3:LabelGroup labeltype="http://schemas.ogf.org/nml/2012/10/ethernet#vlan">1779-1799</ns3:LabelGroup>
+        </ns3:PortGroup>
+      </ns3:Relation>
+
+    </ns3:Topology>
 """
 from datetime import datetime, timedelta
 from typing import Union
@@ -101,8 +151,8 @@ def refresh_topology() -> None:
 
 """Namespace map for topology document."""
 nsmap = {
-    "topo": "http://schemas.ogf.org/nml/2013/05/base#",
-    "sd": "http://schemas.ogf.org/nsi/2013/12/services/definition",
+    "ns3": "http://schemas.ogf.org/nml/2013/05/base#",
+    "ns5": "http://schemas.ogf.org/nsi/2013/12/services/definition",
 }
 
 
@@ -121,55 +171,71 @@ class TopologyEndpoint(object):
         with db_session() as session:
             stps = session.query(Topology).filter(Topology.enabled)
 
-            topology = Element(QName(nsmap["topo"], "Topology"), nsmap=nsmap)
+            # topology
+            topology = Element(QName(nsmap["ns3"], "Topology"), nsmap=nsmap)
             topology.set("id", network_id)
             topology.set("version", now.isoformat(timespec="seconds"))
-            name = SubElement(topology, "name")
+            # name + lifetime
+            name = SubElement(topology, QName(nsmap["ns3"], "name"))
             name.text = settings.topology_name
-            lifetime = SubElement(topology, "Lifetime")
-            lifetime_start = SubElement(lifetime, "start")
+            lifetime = SubElement(topology, QName(nsmap["ns3"], "Lifetime"))
+            lifetime_start = SubElement(lifetime, QName(nsmap["ns3"], "start"))
             lifetime_start.text = now.isoformat(timespec="seconds")
-            lifetime_end = SubElement(lifetime, "end")
+            lifetime_end = SubElement(lifetime, QName(nsmap["ns3"], "end"))
             lifetime_end.text = (now + timedelta(weeks=1)).isoformat(timespec="seconds")
-            service_definition = SubElement(topology, QName(nsmap["sd"], "serviceDefinition"))
+            # BidirectionalPort's
+            for stp in stps:
+                bidirectional_port = SubElement(topology, QName(nsmap["ns3"], "BidirectionalPort"))
+                bidirectional_port.set("id", f"{network_id}:{stp.stp_id}")
+                bidirectional_port_name = SubElement(bidirectional_port, QName(nsmap["ns3"], "name"))
+                bidirectional_port_name.text = stp.description
+                bidirectional_port_group = SubElement(bidirectional_port, QName(nsmap["ns3"], "PortGroup"))
+                bidirectional_port_group.set("id", f"{network_id}:{stp.stp_id}:in")
+                bidirectional_port_group = SubElement(bidirectional_port, QName(nsmap["ns3"], "PortGroup"))
+                bidirectional_port_group.set("id", f"{network_id}:{stp.stp_id}:out")
+            # serviceDefinition
+            service_definition = SubElement(topology, QName(nsmap["ns5"], "serviceDefinition"))
             service_definition.set("id", f"{network_id}:sd:EVTS.A-GOLE")
             service_definition_name = SubElement(service_definition, "name")
             service_definition_name.text = "GLIF Automated GOLE Ethernet VLAN Transfer Service"
             service_definition_service_type = SubElement(service_definition, "serviceType")
             service_definition_service_type.text = "http://services.ogf.org/nsi/2013/12/descriptions/EVTS.A-GOLE"
-            relation = SubElement(topology, "Relation")
+            relation = SubElement(topology, QName(nsmap["ns3"], "Relation"))
             relation.set("type", "http://schemas.ogf.org/nml/2013/05/base#hasService")
-            relation_switching_service = SubElement(relation, "SwitchingService")
-            relation_switching_service.set("id", "urn:ogf:network:surf.nl:2020:production:switch:EVTS.A-GOLE")
+            relation_switching_service = SubElement(relation, QName(nsmap["ns3"], "SwitchingService"))
+            relation_switching_service.set("encoding", "http://schemas.ogf.org/nml/2012/10/ethernet")
+            relation_switching_service.set("id", f"{network_id}:switch:EVTS.A-GOLE")
             relation_switching_service.set("labelSwapping", "true")
             relation_switching_service.set("labelType", "http://schemas.ogf.org/nml/2012/10/ethernet#vlan")
-            relation_switching_service_definition = SubElement(
-                relation_switching_service, QName(nsmap["sd"], "serviceDefinition")
-            )
-            relation_switching_service_definition.set("id", "urn:ogf:network:surf.nl:2020:production:sd:EVTS.A-GOLE")
+            relation_switching_service_inbound = SubElement(relation_switching_service, QName(nsmap["ns3"], "Relation"))
+            relation_switching_service_inbound.set("type", "http://schemas.ogf.org/nml/2013/05/base#hasInboundPort")
             for stp in stps:
-                bidirectional_port = SubElement(topology, "BidirectionalPort")
-                bidirectional_port.set("id", f"{network_id}:{stp.stp_id}")
-                bidirectional_port_name = SubElement(bidirectional_port, "name")
-                bidirectional_port_name.text = stp.description
-                bidirectional_port_group = SubElement(bidirectional_port, "PortGroup")
-                bidirectional_port_group.set("id", f"{network_id}:{stp.stp_id}:in")
-                bidirectional_port_group = SubElement(bidirectional_port, "PortGroup")
-                bidirectional_port_group.set("id", f"{network_id}:{stp.stp_id}:out")
-            relation = SubElement(topology, "Relation")
+                inbound_port = SubElement(relation_switching_service_inbound, QName(nsmap["ns3"], "PortGroup"))
+                inbound_port.set("id", f"{network_id}:{stp.stp_id}:in")
+            relation_switching_service_inbound = SubElement(relation_switching_service, QName(nsmap["ns3"], "Relation"))
+            relation_switching_service_inbound.set("type", "http://schemas.ogf.org/nml/2013/05/base#hasOutboundPort")
+            for stp in stps:
+                inbound_port = SubElement(relation_switching_service_inbound, QName(nsmap["ns3"], "PortGroup"))
+                inbound_port.set("id", f"{network_id}:{stp.stp_id}:out")
+            relation_switching_sd = SubElement(relation_switching_service, QName(nsmap["ns5"], "serviceDefinition"))
+            relation_switching_sd.set("id", f"{network_id}:sd:EVTS.A-GOLE")
+            relation = SubElement(topology, QName(nsmap["ns3"], "Relation"))
             relation.set("type", "http://schemas.ogf.org/nml/2013/05/base#hasInboundPort")
+            # inbound and outbound LabelGroup's
             for stp in stps:
-                relation_port_group = SubElement(relation, "PortGroup")
+                relation_port_group = SubElement(relation, QName(nsmap["ns3"], "PortGroup"))
+                relation_port_group.set("encoding", "http://schemas.ogf.org/nml/2012/10/ethernet")
                 relation_port_group.set("id", f"{network_id}:{stp.stp_id}:in")
-                relation_port_group_label_group = SubElement(relation_port_group, "LabelGroup")
+                relation_port_group_label_group = SubElement(relation_port_group, QName(nsmap["ns3"], "LabelGroup"))
                 relation_port_group_label_group.set("labeltype", "http://schemas.ogf.org/nml/2012/10/ethernet#vlan")
                 relation_port_group_label_group.text = stp.vlans
-            relation = SubElement(topology, "Relation")
+            relation = SubElement(topology, QName(nsmap["ns3"], "Relation"))
             relation.set("type", "http://schemas.ogf.org/nml/2013/05/base#hasOutboundPort")
             for stp in stps:
-                relation_port_group = SubElement(relation, "PortGroup")
+                relation_port_group = SubElement(relation, QName(nsmap["ns3"], "PortGroup"))
+                relation_port_group.set("encoding", "http://schemas.ogf.org/nml/2012/10/ethernet")
                 relation_port_group.set("id", f"{network_id}:{stp.stp_id}:out")
-                relation_port_group_label_group = SubElement(relation_port_group, "LabelGroup")
+                relation_port_group_label_group = SubElement(relation_port_group, QName(nsmap["ns3"], "LabelGroup"))
                 relation_port_group_label_group.set("labeltype", "http://schemas.ogf.org/nml/2012/10/ethernet#vlan")
                 relation_port_group_label_group.text = stp.vlans
 

@@ -192,12 +192,12 @@ class Settings(BaseSettings):
     reserve_timeout: int = 120
     backend: str = ""
 
-    nsa_id: str = f"urn:ogf:network:{domain}:nsa:supa"
     nsa_start_time = current_timestamp()
     nsa_host: str = "localhost"
     nsa_port: str = "8080"
     nsa_secure: bool = False
     nsa_name: str = "example.domain uPA"
+    nsa_exposed_url: str = "http://exposed.host.example.domain"
     nsa_provider_url: str = "/provider"
     nsa_topology_url: str = "/topology"
     nsa_owner_timestamp: str = "19700101T000000Z"
@@ -209,6 +209,10 @@ class Settings(BaseSettings):
 
     class Config:  # noqa: D106
         case_sensitive = True
+
+    def get_nsa_id(self) -> str:
+        """Construct NSA ID using Settings.domain."""
+        return f"urn:ogf:network:{self.domain}:nsa:supa"
 
 
 @functools.lru_cache(maxsize=1)  # not for performance, but rather to keep the logging sane.

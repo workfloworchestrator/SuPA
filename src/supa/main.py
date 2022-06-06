@@ -232,6 +232,11 @@ def cli() -> None:
     help="Descriptive name for this uPA.",
 )
 @click.option(
+    "--nsa-exposed-url",
+    default=settings.nsa_exposed_url,
+    help="Base URL where the service is exposed on.",
+)
+@click.option(
     "--nsa-provider-url",
     default=settings.nsa_provider_url,
     help="URL of the NSI provider endpoint.",
@@ -296,6 +301,7 @@ def serve(
     nsa_port: str,
     nsa_secure: bool,
     nsa_name: str,
+    nsa_exposed_url: str,
     nsa_provider_url: str,
     nsa_topology_url: str,
     nsa_owner_timestamp: str,
@@ -325,6 +331,7 @@ def serve(
     settings.nsa_port = nsa_port
     settings.nsa_secure = nsa_secure
     settings.nsa_name = nsa_name
+    settings.nsa_exposed_url = nsa_exposed_url
     settings.nsa_provider_url = nsa_provider_url
     settings.nsa_topology_url = nsa_topology_url
     settings.nsa_owner_timestamp = nsa_owner_timestamp
