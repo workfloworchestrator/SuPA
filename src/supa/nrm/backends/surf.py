@@ -228,7 +228,7 @@ class Backend(BaseBackend):
                     STP(
                         topology=nsi_stp_dict["settings"]["topology"],
                         stp_id=nsi_stp_dict["settings"]["stp_id"],
-                        port_id=nsi_stp_dict["settings"]["sap"]["port_subscription_id"],
+                        port_id=nsi_stp_dict["settings"]["sap"]["port"]["owner_subscription_id"],
                         vlans=nsi_stp_dict["settings"]["sap"]["vlanrange"],
                         description=nsi_stp_dict["settings"]["stp_description"],
                         is_alias_in=nsi_stp_dict["settings"]["is_alias_in"],
