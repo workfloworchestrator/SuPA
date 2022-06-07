@@ -10,6 +10,7 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
+from json import dumps, loads
 from time import sleep
 from typing import Any, List
 from uuid import UUID
@@ -79,26 +80,27 @@ class Backend(BaseBackend):
     ) -> Any:
         self.log.info("start workflow create")
         access_token = self._retrieve_access_token()
+        json = [
+            {"product": self.backend_settings.product_id},
+            {
+                "organisation": self.backend_settings.customer_id,
+                "service_ports": [
+                    {
+                        "subscription_id": src_port_id,
+                        "vlan": str(src_vlan),
+                    },
+                    {"subscription_id": dst_port_id, "vlan": str(dst_vlan)},
+                ],
+                "service_speed": str(bandwidth),
+                "speed_policer": True,
+            },
+        ]
+        self.log.debug("create workflow payload", payload=dumps(json))
         try:
             result = post(
                 f"{self.backend_settings.host}/api/processes/{self.backend_settings.create_workflow_name}",
-                headers={"Authorization": f"bearer {access_token}"},
-                json=[
-                    {"product": self.backend_settings.product_id},
-                    {
-                        "organisation": self.backend_settings.customer_id,
-                        "service_ports": [
-                            {
-                                "subscription_id": src_port_id,
-                                "vlan": str(src_vlan),
-                            },
-                            {"subscription_id": dst_port_id, "vlan": dst_vlan},
-                        ],
-                        "service_speed": bandwidth,
-                        "speed_policer": True,
-                        "remote_port_shutdown": False,
-                    },
-                ],
+                headers={"Authorization": f"bearer {access_token}", "Content-Type": "application/json"},
+                json=json,
             )
         except ConnectionError as con_err:
             self.log.warning("call to orchestrator failed", reason=str(con_err))
@@ -107,8 +109,12 @@ class Backend(BaseBackend):
             try:
                 result.raise_for_status()
             except HTTPError as http_err:
-                self.log.warning("workflow failed", reason=str(http_err))
-                raise NsiException(GenericRmError, str(http_err)) from http_err
+                if http_err.response.status_code == 400:
+                    self.log.warning("workflow failed", reason=loads(http_err.response.content)["detail"])
+                    raise NsiException(GenericRmError, loads(http_err.response.content)["detail"]) from http_err
+                else:
+                    self.log.warning("workflow failed", reason=str(http_err))
+                    raise NsiException(GenericRmError, str(http_err)) from http_err
         return result.json()
 
     def _workflow_terminate(self, subscription_id: str) -> Any:
