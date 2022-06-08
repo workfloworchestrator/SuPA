@@ -12,6 +12,7 @@
 #  limitations under the License.
 """Initialize cherrypy to serve discovery and topology documents."""
 from logging import Filter
+from threading import Lock
 from typing import Any
 
 import cherrypy
@@ -77,3 +78,4 @@ def _init_cherrypy() -> Any:
 
 
 webengine = _init_cherrypy()
+refresh_topology_lock = Lock()

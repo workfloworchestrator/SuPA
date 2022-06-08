@@ -87,9 +87,16 @@ def refresh_topology() -> None:
     Skip refresh if configured for manual topology,
     also skip if topology has been refreshed withing `topology_freshness` seconds.
     """
+    from supa.documents import refresh_topology_lock
+
     global last_refresh
     if settings.manual_topology:
         log.debug("skipping topology refresh", manual_topology=settings.manual_topology)
+        return
+    if refresh_topology_lock.acquire(timeout=60):
+        log.debug("refresh topology lock", state="acquired")
+    else:
+        log.warning("refresh topology lock", state="failed to acquire")
         return
     if (now := current_timestamp()) < last_refresh + timedelta(seconds=settings.topology_freshness):
         log.debug(
@@ -98,6 +105,8 @@ def refresh_topology() -> None:
             now=now.isoformat(timespec="seconds"),
             topology_freshness=settings.topology_freshness,
         )
+        refresh_topology_lock.release()
+        log.debug("refresh topology lock", state="released")
         return
     log.debug(
         "refreshing topology",
@@ -108,7 +117,12 @@ def refresh_topology() -> None:
     from supa.db.session import db_session
     from supa.nrm.backend import backend
 
-    nrm_stps = backend.topology()
+    try:
+        nrm_stps = backend.topology()
+    except Exception as exception:
+        refresh_topology_lock.release()
+        log.warning("refresh topology lock", state="released after exception")
+        raise exception
     nrm_stp_ids = [nrm_stp.stp_id for nrm_stp in nrm_stps]
 
     with db_session() as session:
@@ -147,6 +161,8 @@ def refresh_topology() -> None:
                 log.info("disable vanished STP", stp_id=stp.stp_id, port_id=nrm_stp.port_id, vlans=nrm_stp.vlans)
                 stp.enabled = False
     last_refresh = now
+    refresh_topology_lock.release()
+    log.debug("refresh topology lock", state="released")
 
 
 """Namespace map for topology document."""
