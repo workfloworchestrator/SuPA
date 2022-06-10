@@ -106,8 +106,6 @@ class ProvisionJob(Job):
                 # the NRM successfully provisioned the reservation,
                 # check if reservation is not terminated and data plane can be activated,
                 # if start time has already passed schedule a ActivateJob otherwise a AutoStartJob
-                from supa import scheduler
-
                 if lsm.current_state != LifecycleStateMachine.Created:
                     self.log.info("Not scheduling AutoStartJob or ActivateJob", reason="Reservation already terminated")
                     response = to_error_request(
@@ -138,15 +136,7 @@ class ProvisionJob(Job):
                             self.connection_id,
                         )
                     else:
-                        scheduler.add_job(
-                            AutoStartJob(self.connection_id),
-                            trigger=DateTrigger(run_date=reservation.start_time),
-                            id=f"{str(self.connection_id)}-AutoStartJob",
-                        )
-                        self.log.info(
-                            "Automatic enable of data plane at start time",
-                            start_time=reservation.start_time.isoformat(),
-                        )
+                        start_time = reservation.start_time
                         response = self._to_provision_confirmed_request(reservation)
                         psm.provision_confirmed()
                 else:
@@ -166,16 +156,30 @@ class ProvisionJob(Job):
                             self.connection_id,
                         )
                     else:
-                        scheduler.add_job(
-                            ActivateJob(self.connection_id),
-                            trigger=DateTrigger(run_date=None),
-                            id=f"{str(self.connection_id)}-ActivateJob",
-                        )
                         response = self._to_provision_confirmed_request(reservation)
                         psm.provision_confirmed()
+                new_data_plane_state = reservation.data_plane_state
 
         stub = requester.get_stub()
         if type(response) == ProvisionConfirmedRequest:
+            from supa import scheduler
+
+            if new_data_plane_state == DataPlaneStateMachine.AutoStart.value:
+                scheduler.add_job(
+                    AutoStartJob(self.connection_id),
+                    trigger=DateTrigger(run_date=start_time),
+                    id=f"{str(self.connection_id)}-AutoStartJob",
+                )
+                self.log.info(
+                    "Automatic enable of data plane at start time",
+                    start_time=start_time.isoformat(),
+                )
+            elif new_data_plane_state == DataPlaneStateMachine.Activating.value:
+                scheduler.add_job(
+                    ActivateJob(self.connection_id),
+                    trigger=DateTrigger(run_date=None),
+                    id=f"{str(self.connection_id)}-ActivateJob",
+                )
             self.log.debug("Sending message", method="ProvisionConfirmed", request_message=response)
             stub.ProvisionConfirmed(response)
         else:
@@ -287,8 +291,6 @@ class ReleaseJob(Job):
                 # check if reservation is not terminated,
                 # cancel the AutoStartJob or AutoEndJob,
                 # and schedule a DeactivateJob if the data plane is active
-                from supa import scheduler
-
                 if lsm.current_state != LifecycleStateMachine.Created:
                     self.log.info("Not scheduling DeactivateJob", reason="Reservation already terminated")
                     response = to_error_request(
@@ -319,24 +321,25 @@ class ReleaseJob(Job):
                             ),
                             self.connection_id,
                         )
-                    else:
-                        if previous_data_plane_state == DataPlaneStateMachine.AutoStart.value:
-                            scheduler.remove_job(job_id=f"{str(self.connection_id)}-AutoStartJob")
-                            self.log.info("Canceled automatic enable of data plane at start time")
-                        else:  # previous data plane state is either AutoEnd or Activated
-                            if previous_data_plane_state == DataPlaneStateMachine.AutoEnd.value:
-                                scheduler.remove_job(job_id=f"{str(self.connection_id)}-AutoEndJob")
-                                self.log.info("Canceled automatic disable of data plane at end time")
-                            scheduler.add_job(
-                                DeactivateJob(self.connection_id),
-                                trigger=DateTrigger(run_date=None),
-                                id=f"{str(self.connection_id)}-DeactivateJob",
-                            )
                     response = self._to_release_confirmed_request(reservation)
                     psm.release_confirmed()
 
         stub = requester.get_stub()
         if type(response) == ReleaseConfirmedRequest:
+            from supa import scheduler
+
+            if previous_data_plane_state == DataPlaneStateMachine.AutoStart.value:
+                scheduler.remove_job(job_id=f"{str(self.connection_id)}-AutoStartJob")
+                self.log.info("Canceled automatic enable of data plane at start time")
+            else:  # previous data plane state is either AutoEnd or Activated
+                if previous_data_plane_state == DataPlaneStateMachine.AutoEnd.value:
+                    scheduler.remove_job(job_id=f"{str(self.connection_id)}-AutoEndJob")
+                    self.log.info("Canceled automatic disable of data plane at end time")
+                scheduler.add_job(
+                    DeactivateJob(self.connection_id),
+                    trigger=DateTrigger(run_date=None),
+                    id=f"{str(self.connection_id)}-DeactivateJob",
+                )
             self.log.debug("Sending message", method="ReleaseConfirmed", request_message=response)
             stub.ReleaseConfirmed(response)
         else:

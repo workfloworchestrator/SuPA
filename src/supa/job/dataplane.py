@@ -63,9 +63,7 @@ class ActivateJob(Job):
 
         response: Union[DataPlaneStateChangeRequest, ErrorRequest]
         with db_session() as session:
-            reservation = (
-                session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one_or_none()
-            )
+            reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
             connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
             dpsm = DataPlaneStateMachine(reservation, state_field="data_plane_state")
             try:
@@ -94,23 +92,24 @@ class ActivateJob(Job):
                     self.connection_id,
                 )
             else:
-                from supa import scheduler
-
                 dpsm.activate_confirmed()
                 response = to_data_plane_state_change_request(reservation)
-                if reservation.end_time != NO_END_DATE:
+                if auto_end_job := ((end_time := reservation.end_time) != NO_END_DATE):
                     dpsm.auto_end_request()
-                    scheduler.add_job(
-                        AutoEndJob(self.connection_id),
-                        trigger=DateTrigger(run_date=reservation.end_time),
-                        id=f"{str(self.connection_id)}-AutoEndJob",
-                    )
                     self.log.info(
                         "Automatic disable of data plane at end time", end_time=reservation.end_time.isoformat()
                     )
 
         stub = requester.get_stub()
         if type(response) == DataPlaneStateChangeRequest:
+            if auto_end_job:
+                from supa import scheduler
+
+                scheduler.add_job(
+                    AutoEndJob(self.connection_id),
+                    trigger=DateTrigger(run_date=end_time),
+                    id=f"{str(self.connection_id)}-AutoEndJob",
+                )
             self.log.debug("Sending message", method="DataPlaneStateChange", request_message=response)
             stub.DataPlaneStateChange(response)
         else:
@@ -185,9 +184,7 @@ class DeactivateJob(Job):
 
         response: Union[DataPlaneStateChangeRequest, ErrorRequest]
         with db_session() as session:
-            reservation = (
-                session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one_or_none()
-            )
+            reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
             connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
             dpsm = DataPlaneStateMachine(reservation, state_field="data_plane_state")
             # lsm = LifecycleStateMachine(reservation, state_field="lifecycle_state")
@@ -294,19 +291,17 @@ class AutoStartJob(Job):
         from supa.db.session import db_session
 
         with db_session() as session:
-            reservation = (
-                session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one_or_none()
-            )
+            reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
             dpsm = DataPlaneStateMachine(reservation, state_field="data_plane_state")
-
-            from supa import scheduler
-
             dpsm.activate_request()
-            scheduler.add_job(
-                ActivateJob(self.connection_id),
-                trigger=DateTrigger(run_date=None),
-                id=f"{str(self.connection_id)}-ActivateJob",
-            )
+
+        from supa import scheduler
+
+        scheduler.add_job(
+            ActivateJob(self.connection_id),
+            trigger=DateTrigger(run_date=None),
+            id=f"{str(self.connection_id)}-ActivateJob",
+        )
 
     @classmethod
     def recover(cls: Type[AutoStartJob]) -> List[Job]:
@@ -378,16 +373,16 @@ class AutoEndJob(Job):
             reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
             dpsm = DataPlaneStateMachine(reservation, state_field="data_plane_state")
             lsm = LifecycleStateMachine(reservation, state_field="lifecycle_state")
-
-            from supa import scheduler
-
             lsm.endtime_event()
             dpsm.deactivate_request()
-            scheduler.add_job(
-                DeactivateJob(self.connection_id),
-                trigger=DateTrigger(run_date=None),
-                id=f"{str(self.connection_id)}-DeactivateJob",
-            )
+
+        from supa import scheduler
+
+        scheduler.add_job(
+            DeactivateJob(self.connection_id),
+            trigger=DateTrigger(run_date=None),
+            id=f"{str(self.connection_id)}-DeactivateJob",
+        )
 
     @classmethod
     def recover(cls: Type[AutoEndJob]) -> List[Job]:

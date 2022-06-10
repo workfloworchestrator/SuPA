@@ -279,20 +279,21 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                         ),
                     )
                 else:
-                    from supa import scheduler
-
-                    scheduler.remove_job(job_id=f"{str(connection_id)}-ReserveTimeoutJob")
-                    log.info("Canceled reservation timeout timer")
                     reservation.correlation_id = UUID(pb_reserve_commit_request.header.correlation_id)
-                    scheduler.add_job(
-                        job := ReserveCommitJob(connection_id),
-                        trigger=job.trigger(),
-                        id=f"{str(connection_id)}-ReserveCommitJob",
-                    )
                     reserve_commit_response = ReserveCommitResponse(
                         header=to_response_header(pb_reserve_commit_request.header)
                     )
 
+        if not reserve_commit_response.service_exception.connection_id:
+            from supa import scheduler
+
+            scheduler.remove_job(job_id=f"{str(connection_id)}-ReserveTimeoutJob")
+            log.info("Canceled reservation timeout timer")
+            scheduler.add_job(
+                job := ReserveCommitJob(connection_id),
+                trigger=job.trigger(),
+                id=f"{str(connection_id)}-ReserveCommitJob",
+            )
         log.debug("Sending response.", response_message=reserve_commit_response)
         return reserve_commit_response
 
@@ -354,18 +355,19 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                         ),
                     )
                 else:
-                    from supa import scheduler
-
                     reservation.correlation_id = UUID(pb_reserve_abort_request.header.correlation_id)
-                    scheduler.add_job(
-                        job := ReserveAbortJob(connection_id),
-                        trigger=job.trigger(),
-                        id=f"{str(connection_id)}-ReserveAbortJob",
-                    )
                     reserve_abort_response = ReserveAbortResponse(
                         header=to_response_header(pb_reserve_abort_request.header)
                     )
 
+        if not reserve_abort_response.service_exception.connection_id:
+            from supa import scheduler
+
+            scheduler.add_job(
+                job := ReserveAbortJob(connection_id),
+                trigger=job.trigger(),
+                id=f"{str(connection_id)}-ReserveAbortJob",
+            )
         log.debug("Sending response.", response_message=reserve_abort_response)
         return reserve_abort_response
 
@@ -461,16 +463,17 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                         ),
                     )
                 else:
-                    from supa import scheduler
-
                     reservation.correlation_id = UUID(pb_provision_request.header.correlation_id)
-                    scheduler.add_job(
-                        job := ProvisionJob(connection_id),
-                        trigger=job.trigger(),
-                        id=f"{str(connection_id)}-ProvisionJob",
-                    )
                     provision_response = ProvisionResponse(header=to_response_header(pb_provision_request.header))
 
+        if not provision_response.service_exception.connection_id:
+            from supa import scheduler
+
+            scheduler.add_job(
+                job := ProvisionJob(connection_id),
+                trigger=job.trigger(),
+                id=f"{str(connection_id)}-ProvisionJob",
+            )
         log.debug("Sending response.", response_message=provision_response)
         return provision_response
 
@@ -566,16 +569,17 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                         ),
                     )
                 else:
-                    from supa import scheduler
-
                     reservation.correlation_id = UUID(pb_release_request.header.correlation_id)
-                    scheduler.add_job(
-                        job := ReleaseJob(connection_id),
-                        trigger=job.trigger(),
-                        id=f"{str(connection_id)}-ReleaseJob",
-                    )
                     release_response = ReleaseResponse(header=to_response_header(pb_release_request.header))
 
+        if not release_response.service_exception.connection_id:
+            from supa import scheduler
+
+            scheduler.add_job(
+                job := ReleaseJob(connection_id),
+                trigger=job.trigger(),
+                id=f"{str(connection_id)}-ReleaseJob",
+            )
         log.debug("Sending response.", response_message=release_response)
         return release_response
 
@@ -635,15 +639,16 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                         ),
                     )
                 else:
-                    from supa import scheduler
-
                     reservation.correlation_id = UUID(pb_terminate_request.header.correlation_id)
-                    scheduler.add_job(
-                        job := TerminateJob(connection_id),
-                        trigger=job.trigger(),
-                        id=f"{str(connection_id)}-TerminateJob",
-                    )
                     terminate_response = TerminateResponse(header=to_response_header(pb_terminate_request.header))
 
+        if not terminate_response.service_exception.connection_id:
+            from supa import scheduler
+
+            scheduler.add_job(
+                job := TerminateJob(connection_id),
+                trigger=job.trigger(),
+                id=f"{str(connection_id)}-TerminateJob",
+            )
         log.debug("Sending response.", response_message=terminate_response)
         return terminate_response

@@ -119,16 +119,20 @@ class TerminateJob(Job):
                         if previous_data_plane_state == DataPlaneStateMachine.AutoEnd.value:
                             scheduler.remove_job(job_id=f"{str(self.connection_id)}-AutoEndJob")
                             self.log.info("Canceled automatic disable of data plane at end time")
-                        scheduler.add_job(
-                            DeactivateJob(self.connection_id),
-                            trigger=DateTrigger(run_date=None),
-                            id=f"{str(self.connection_id)}-DeactivateJob",
-                        )
                 response = self._to_terminate_confirmed_request(reservation)
                 lsm.terminate_confirmed()
 
         stub = requester.get_stub()
         if type(response) == TerminateConfirmedRequest:
+            if (
+                previous_data_plane_state == DataPlaneStateMachine.AutoEnd.value
+                or previous_data_plane_state == DataPlaneStateMachine.Activated.value
+            ):
+                scheduler.add_job(
+                    DeactivateJob(self.connection_id),
+                    trigger=DateTrigger(run_date=None),
+                    id=f"{str(self.connection_id)}-DeactivateJob",
+                )
             self.log.debug("Sending message", method="TerminateConfirmed", request_message=response)
             stub.TerminateConfirmed(response)
         else:
