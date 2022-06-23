@@ -609,7 +609,7 @@ class ReserveTimeoutJob(Job):
 
         pb_rt_req.header.CopyFrom(to_header(reservation, add_path_segment=True))  # Yes, add our segment!
         pb_rt_req.notification.CopyFrom(requester.new_notification_header(reservation))
-        pb_rt_req.timeout_value = 30  # TODO make timeout_value configurable
+        pb_rt_req.timeout_value = settings.reserve_timeout
         pb_rt_req.originating_connection_id = str(reservation.connection_id)
         pb_rt_req.originating_nsa = reservation.provider_nsa
 
