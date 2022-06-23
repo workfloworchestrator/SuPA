@@ -168,6 +168,7 @@ def refresh_topology() -> None:
 """Namespace map for topology document."""
 nsmap = {
     "ns3": "http://schemas.ogf.org/nml/2013/05/base#",
+    "ns4": "http://schemas.ogf.org/nml/2012/10/ethernet",
     "ns5": "http://schemas.ogf.org/nsi/2013/12/services/definition",
 }
 
@@ -235,24 +236,33 @@ class TopologyEndpoint(object):
                 inbound_port.set("id", f"{network_id}:{stp.stp_id}:out")
             relation_switching_sd = SubElement(relation_switching_service, QName(nsmap["ns5"], "serviceDefinition"))
             relation_switching_sd.set("id", f"{network_id}:sd:EVTS.A-GOLE")
-            relation = SubElement(topology, QName(nsmap["ns3"], "Relation"))
-            relation.set("type", "http://schemas.ogf.org/nml/2013/05/base#hasInboundPort")
             # inbound and outbound LabelGroup's
-            for stp in stps:
-                relation_port_group = SubElement(relation, QName(nsmap["ns3"], "PortGroup"))
-                relation_port_group.set("encoding", "http://schemas.ogf.org/nml/2012/10/ethernet")
-                relation_port_group.set("id", f"{network_id}:{stp.stp_id}:in")
-                relation_port_group_label_group = SubElement(relation_port_group, QName(nsmap["ns3"], "LabelGroup"))
-                relation_port_group_label_group.set("labeltype", "http://schemas.ogf.org/nml/2012/10/ethernet#vlan")
-                relation_port_group_label_group.text = stp.vlans
-            relation = SubElement(topology, QName(nsmap["ns3"], "Relation"))
-            relation.set("type", "http://schemas.ogf.org/nml/2013/05/base#hasOutboundPort")
-            for stp in stps:
-                relation_port_group = SubElement(relation, QName(nsmap["ns3"], "PortGroup"))
-                relation_port_group.set("encoding", "http://schemas.ogf.org/nml/2012/10/ethernet")
-                relation_port_group.set("id", f"{network_id}:{stp.stp_id}:out")
-                relation_port_group_label_group = SubElement(relation_port_group, QName(nsmap["ns3"], "LabelGroup"))
-                relation_port_group_label_group.set("labeltype", "http://schemas.ogf.org/nml/2012/10/ethernet#vlan")
-                relation_port_group_label_group.text = stp.vlans
+            for relation_type in (
+                "http://schemas.ogf.org/nml/2013/05/base#hasInboundPort",
+                "http://schemas.ogf.org/nml/2013/05/base#hasOutboundPort",
+            ):
+                relation = SubElement(topology, QName(nsmap["ns3"], "Relation"))
+                relation.set("type", relation_type)
+                for stp in stps:
+                    relation_port_group = SubElement(relation, QName(nsmap["ns3"], "PortGroup"))
+                    relation_port_group.set("encoding", "http://schemas.ogf.org/nml/2012/10/ethernet")
+                    relation_port_group.set("id", f"{network_id}:{stp.stp_id}:in")
+                    relation_port_group_label_group = SubElement(relation_port_group, QName(nsmap["ns3"], "LabelGroup"))
+                    relation_port_group_label_group.set("labeltype", "http://schemas.ogf.org/nml/2012/10/ethernet#vlan")
+                    relation_port_group_label_group.text = stp.vlans
+                    relation_port_group_capacity = SubElement(relation_port_group, QName(nsmap["ns4"], "capacity"))
+                    relation_port_group_capacity.text = str(stp.bandwidth * 1000000)
+                    relation_port_group_granularity = SubElement(
+                        relation_port_group, QName(nsmap["ns4"], "granularity")
+                    )
+                    relation_port_group_granularity.text = str(1000000)
+                    relation_port_group_minimumReservableCapacity = SubElement(
+                        relation_port_group, QName(nsmap["ns4"], "minimumReservableCapacity")
+                    )
+                    relation_port_group_minimumReservableCapacity.text = str(1000000)
+                    relation_port_group_maximumReservableCapacity = SubElement(
+                        relation_port_group, QName(nsmap["ns4"], "maximumReservableCapacity")
+                    )
+                    relation_port_group_maximumReservableCapacity.text = str(stp.bandwidth * 1000000)
 
         return tostring(topology, encoding="iso-8859-1", pretty_print=True)  # .decode('iso-8859-1')
