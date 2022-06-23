@@ -72,12 +72,14 @@ class TerminateJob(Job):
         response: Union[TerminateConfirmedRequest, ErrorRequest]
         with db_session() as session:
             reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
-            connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
+            connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one_or_none()
             lsm = LifecycleStateMachine(reservation, state_field="lifecycle_state")
             dpsm = DataPlaneStateMachine(reservation, state_field="data_plane_state")
             try:
-                if circuit_id := backend.terminate(**connection_to_dict(connection)):
-                    connection.circuit_id = circuit_id
+                # skip call to the NRM when Terminate is executed before a connection was registered
+                if connection:
+                    if circuit_id := backend.terminate(**connection_to_dict(connection)):
+                        connection.circuit_id = circuit_id
             except NsiException as nsi_exc:
                 self.log.info("Terminate failed.", reason=nsi_exc.text)
                 response = to_error_request(
