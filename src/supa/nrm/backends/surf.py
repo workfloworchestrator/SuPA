@@ -239,7 +239,7 @@ class Backend(BaseBackend):
                         description=nsi_stp_dict["settings"]["stp_description"],
                         is_alias_in=nsi_stp_dict["settings"]["is_alias_in"],
                         is_alias_out=nsi_stp_dict["settings"]["is_alias_out"],
-                        bandwidth=1000000000,  # TODO return NSISTP bandwidth once implemented
+                        bandwidth=nsi_stp_dict["settings"]["bandwidth"],
                         enabled=nsi_stp_dict["settings"]["expose_in_topology"],
                     )
                 )
