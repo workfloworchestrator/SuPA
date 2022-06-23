@@ -80,6 +80,12 @@ from supa.util.timestamp import EPOCH, current_timestamp
 log = structlog.get_logger(__name__)
 last_refresh: datetime = EPOCH
 
+# TODO The ability to fetch topology is used in the healthcheck, in K8S the default timeout of liveness
+#      and readiness probes is 1 second, but fetching topology from the NRM can take much longer than that,
+#      resulting in periodic Unhealthy states on the pod.
+#      It would probably be better to move the topology refresh to a job and add a second configuration
+#      parameter topology_refresh_interval, when setting topology_refresh_interval to 60 seconds and
+#      topology_freshness to 120 seconds would allow a 60 second period to fetch topology form the NRM.
 
 def refresh_topology() -> None:
     """Refresh list of STP's in the database with topology from NRM.
