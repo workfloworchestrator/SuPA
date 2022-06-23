@@ -45,11 +45,13 @@ spec:
               path: /healthcheck
               port: http-alt
             initialDelaySeconds: 3
+            timeoutSeconds: 30
           readinessProbe:
             httpGet:
               path: /healthcheck
               port: http-alt
             initialDelaySeconds: 3
+            timeoutSeconds: 30
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           volumeMounts:
