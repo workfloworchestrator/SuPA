@@ -87,6 +87,7 @@ last_refresh: datetime = EPOCH
 #      parameter topology_refresh_interval, when setting topology_refresh_interval to 60 seconds and
 #      topology_freshness to 120 seconds would allow a 60 second period to fetch topology form the NRM.
 
+
 def refresh_topology() -> None:
     """Refresh list of STP's in the database with topology from NRM.
 
@@ -225,34 +226,33 @@ class TopologyEndpoint(object):
             service_definition_service_type.text = "http://services.ogf.org/nsi/2013/12/descriptions/EVTS.A-GOLE"
             relation = SubElement(topology, QName(nsmap["ns3"], "Relation"))
             relation.set("type", "http://schemas.ogf.org/nml/2013/05/base#hasService")
-            relation_switching_service = SubElement(relation, QName(nsmap["ns3"], "SwitchingService"))
-            relation_switching_service.set("encoding", "http://schemas.ogf.org/nml/2012/10/ethernet")
-            relation_switching_service.set("id", f"{network_id}:switch:EVTS.A-GOLE")
-            relation_switching_service.set("labelSwapping", "true")
-            relation_switching_service.set("labelType", "http://schemas.ogf.org/nml/2012/10/ethernet#vlan")
-            relation_switching_service_inbound = SubElement(relation_switching_service, QName(nsmap["ns3"], "Relation"))
-            relation_switching_service_inbound.set("type", "http://schemas.ogf.org/nml/2013/05/base#hasInboundPort")
-            for stp in stps:
-                inbound_port = SubElement(relation_switching_service_inbound, QName(nsmap["ns3"], "PortGroup"))
-                inbound_port.set("id", f"{network_id}:{stp.stp_id}:in")
-            relation_switching_service_inbound = SubElement(relation_switching_service, QName(nsmap["ns3"], "Relation"))
-            relation_switching_service_inbound.set("type", "http://schemas.ogf.org/nml/2013/05/base#hasOutboundPort")
-            for stp in stps:
-                inbound_port = SubElement(relation_switching_service_inbound, QName(nsmap["ns3"], "PortGroup"))
-                inbound_port.set("id", f"{network_id}:{stp.stp_id}:out")
-            relation_switching_sd = SubElement(relation_switching_service, QName(nsmap["ns5"], "serviceDefinition"))
+            relation_sw = SubElement(relation, QName(nsmap["ns3"], "SwitchingService"))
+            relation_sw.set("encoding", "http://schemas.ogf.org/nml/2012/10/ethernet")
+            relation_sw.set("id", f"{network_id}:switch:EVTS.A-GOLE")
+            relation_sw.set("labelSwapping", "true")
+            relation_sw.set("labelType", "http://schemas.ogf.org/nml/2012/10/ethernet#vlan")
+            for relation_type, suffix in (
+                ("http://schemas.ogf.org/nml/2013/05/base#hasInboundPort", "in"),
+                ("http://schemas.ogf.org/nml/2013/05/base#hasOutboundPort", "out"),
+            ):
+                relation_sw_port = SubElement(relation_sw, QName(nsmap["ns3"], "Relation"))
+                relation_sw_port.set("type", relation_type)
+                for stp in stps:
+                    port_group = SubElement(relation_sw_port, QName(nsmap["ns3"], "PortGroup"))
+                    port_group.set("id", f"{network_id}:{stp.stp_id}:{suffix}")
+            relation_switching_sd = SubElement(relation_sw, QName(nsmap["ns5"], "serviceDefinition"))
             relation_switching_sd.set("id", f"{network_id}:sd:EVTS.A-GOLE")
             # inbound and outbound LabelGroup's
-            for relation_type in (
-                "http://schemas.ogf.org/nml/2013/05/base#hasInboundPort",
-                "http://schemas.ogf.org/nml/2013/05/base#hasOutboundPort",
+            for relation_type, suffix in (
+                ("http://schemas.ogf.org/nml/2013/05/base#hasInboundPort", "in"),
+                ("http://schemas.ogf.org/nml/2013/05/base#hasOutboundPort", "out"),
             ):
                 relation = SubElement(topology, QName(nsmap["ns3"], "Relation"))
                 relation.set("type", relation_type)
                 for stp in stps:
                     relation_port_group = SubElement(relation, QName(nsmap["ns3"], "PortGroup"))
                     relation_port_group.set("encoding", "http://schemas.ogf.org/nml/2012/10/ethernet")
-                    relation_port_group.set("id", f"{network_id}:{stp.stp_id}:in")
+                    relation_port_group.set("id", f"{network_id}:{stp.stp_id}:{suffix}")
                     relation_port_group_label_group = SubElement(relation_port_group, QName(nsmap["ns3"], "LabelGroup"))
                     relation_port_group_label_group.set("labeltype", "http://schemas.ogf.org/nml/2012/10/ethernet#vlan")
                     relation_port_group_label_group.text = stp.vlans
