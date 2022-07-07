@@ -168,22 +168,27 @@ class Backend(BaseBackend):
 
     def _get_process_info(self, process_id: str) -> Any:
         access_token = self._retrieve_access_token()
-        process = get(
-            f"{self.backend_settings.host}/api/processes/{process_id}",
-            headers={"Authorization": f"bearer {access_token}"},
-        )
+        try:
+            process = get(
+                f"{self.backend_settings.host}/api/processes/{process_id}",
+                headers={"Authorization": f"bearer {access_token}"},
+            )
+        except ConnectionError as con_err:
+            self.log.warning("cannot get process status", reason=str(con_err))
+            raise NsiException(GenericRmError, str(con_err)) from con_err
         self.log.debug("process status", process_status=process.json()["status"])
         return process.json()
 
     def _wait_for_completion(self, process_id: str) -> None:
         log = self.log.bind(process_id=process_id)
         sleep(1)
-        while (info := self._get_process_info(process_id))["status"] == "running":
-            log.info("waiting on workflow process to finish")
+        while (info := self._get_process_info(process_id))["status"] == "created" or info["status"] == "running":
+            log.info("waiting on workflow process to finish", status=info["status"])
             sleep(3)
-        log.info("workflow process finished")
-        if info["status"] != "completed":
-            log.warning("workflow process failed", reason=info["failed_reason"])
+        if info["status"] == "completed":
+            log.info("workflow process finished", status=info["status"])
+        else:
+            log.warning("workflow process failed", status=info["status"], reason=info["failed_reason"])
             raise NsiException(GenericRmError, info["failed_reason"]) from None
 
     def _get_subscription_id(self, process_id: str) -> str:
