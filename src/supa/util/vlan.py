@@ -82,7 +82,7 @@ class VlanRanges(abc.Set):
             if val.strip() != "":
                 # This might look complex, but it does handle strings such as `"  3, 4, 6-9, 4, 8 - 10"`
                 try:
-                    vlans = list(map(lambda s: list(map(int, s.strip().split("-"))), val.split(",")))
+                    vlans = [list(map(int, s.strip().split("-"))) for s in val.split(",")]
                 except ValueError:
                     raise ValueError(f"{val} could not be converted to a {self.__class__.__name__} object.") from None
         elif isinstance(val, int):
@@ -90,11 +90,11 @@ class VlanRanges(abc.Set):
         elif isinstance(val, abc.Sequence):
             if len(val) > 0:
                 if isinstance(val[0], int):
-                    vlans = list(map(lambda x: [x], val))
+                    vlans = [[x] for x in val]  # type: ignore
                 elif isinstance(val[0], abc.Sequence):
                     vlans = cast(Sequence[Sequence[int]], val)
         elif isinstance(val, abc.Iterable):
-            vlans = list(map(lambda x: [x], val))  # type: ignore
+            vlans = [[x] for x in val]  # type: ignore
         else:
             raise ValueError(f"{val} could not be converted to a {self.__class__.__name__} object.")
 
@@ -124,7 +124,7 @@ class VlanRanges(abc.Set):
 
     def __contains__(self, key: object) -> bool:
         """Membership test."""
-        return any(map(lambda range_from_self: key in range_from_self, self._vlan_ranges))
+        return any(key in range_from_self for range_from_self in self._vlan_ranges)
 
     def __iter__(self) -> Iterator[int]:
         """Return an iterator that iterates over all the VLANs."""
