@@ -18,8 +18,8 @@ jobs:
           apt update
           apt install -y curl git
           python -m pip install --upgrade pip
-          python setup.py gen_code
           pip install -e '.[dev]'
+          python setup.py gen_code
       - name: Run Unit tests
         run: pytest --cov-report term-missing --cov-report=xml --cov=src tests
       - name: "Upload coverage to Codecov"
