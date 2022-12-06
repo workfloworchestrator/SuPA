@@ -165,7 +165,7 @@ def refresh_topology() -> None:
                     )
         for stp in session.query(Topology).filter(Topology.enabled):
             if stp.stp_id not in nrm_stp_ids:
-                log.info("disable vanished STP", stp_id=stp.stp_id, port_id=nrm_stp.port_id, vlans=nrm_stp.vlans)
+                log.info("disable vanished STP", stp_id=stp.stp_id, port_id=stp.port_id, vlans=stp.vlans)
                 stp.enabled = False
     last_refresh = now
     refresh_topology_lock.release()
