@@ -26,7 +26,7 @@ from supa.grpc_nsi.connection_common_pb2 import (
     ServiceException,
     TypeValuePair,
 )
-from supa.grpc_nsi.connection_requester_pb2 import ReservationConfirmCriteria
+from supa.grpc_nsi.connection_requester_pb2 import QuerySummaryResultCriteria, ReservationConfirmCriteria
 from supa.grpc_nsi.policy_pb2 import Segment
 from supa.grpc_nsi.services_pb2 import PointToPointService
 from supa.job.shared import NsiException
@@ -185,7 +185,7 @@ def to_p2p_service(reservation: model.Reservation) -> PointToPointService:
 
 
 def to_confirm_criteria(reservation: model.Reservation) -> ReservationConfirmCriteria:
-    """Create Protobuf ``ReservationConfirmCriteria`` out of DB storen reservation data.
+    """Create Protobuf ``ReservationConfirmCriteria`` out of DB stored reservation data.
 
     Args:
         reservation: DB Model
@@ -199,6 +199,24 @@ def to_confirm_criteria(reservation: model.Reservation) -> ReservationConfirmCri
     pb_rcc.serviceType = const.SERVICE_TYPE
     pb_rcc.ptps.CopyFrom(to_p2p_service(reservation))
     return pb_rcc
+
+
+def to_summary_criteria(reservation: model.Reservation) -> QuerySummaryResultCriteria:
+    """Create Protobuf ``QuerySummaryResultCriteria`` out of DB stored reservation data.
+
+    Args:
+        reservation: DB Model
+
+    Returns:
+        A ``QuerySummaryResultCriteria`` object.
+    """
+    pb_rsc = QuerySummaryResultCriteria()
+    pb_rsc.version = reservation.version
+    pb_rsc.schedule.CopyFrom(to_schedule(reservation))
+    pb_rsc.service_type = const.SERVICE_TYPE
+    # Leave empty as this is an uPA, and an uPA does not have children
+    # pb_rsc.child
+    return pb_rsc
 
 
 def to_response_header(request_header: Header) -> Header:

@@ -2,11 +2,37 @@ syntax = "proto3";
 
 package connection.requester;
 
+import "google/protobuf/timestamp.proto";
 import "connection_common.proto";
 
 option java_multiple_files = true;
 option java_package = "org.ogf.nsi.grpc.connection.requester";
 import "services.proto";
+
+message ChildSummary {
+  string connection_id = 1;
+  string provider_nsa = 2;
+  string service_type = 3;
+  int32 order = 4;
+}
+
+message QuerySummaryResultCriteria {
+  common.Schedule schedule = 1;
+  string service_type = 2;
+  repeated ChildSummary child = 3;
+  int32 version = 4;
+}
+
+message QuerySummaryResult {
+  string connection_id = 1;
+  string global_reservation_id = 2;
+  string description = 3;
+  repeated QuerySummaryResultCriteria criteria = 4;
+  string requester_nsa = 5;
+  common.ConnectionStates connection_states = 6;
+  int64 notification_id = 7;
+  int64 result_id = 8;
+}
 
 /*
   SOAP's version of ReserveFailed is an alias of GenericFailedType. Unfortunately protobuf does not
@@ -132,6 +158,16 @@ message ReserveTimeoutResponse {
   common.Header header = 1;
 }
 
+message QuerySummaryConfirmedRequest {
+  common.Header header = 1;
+  repeated QuerySummaryResult reservation = 2;
+  google.protobuf.Timestamp last_modified = 3;
+}
+
+message QuerySummaryConfirmedResponse {
+  common.Header header = 1;
+}
+
 service ConnectionRequester {
   rpc ReserveFailed(ReserveFailedRequest) returns (ReserveFailedResponse);
   rpc ReserveConfirmed(ReserveConfirmedRequest) returns (ReserveConfirmedResponse);
@@ -144,4 +180,5 @@ service ConnectionRequester {
   rpc Error(ErrorRequest) returns (ErrorResponse);
   rpc DataPlaneStateChange(DataPlaneStateChangeRequest) returns (DataPlaneStateChangeResponse);
   rpc ReserveTimeout(ReserveTimeoutRequest) returns (ReserveTimeoutResponse);
+  rpc QuerySummaryConfirmed(QuerySummaryConfirmedRequest) returns (QuerySummaryConfirmedResponse);
 }

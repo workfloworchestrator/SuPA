@@ -33,6 +33,8 @@ from supa.grpc_nsi.connection_common_pb2 import Header, Schedule
 from supa.grpc_nsi.connection_provider_pb2 import (
     ProvisionRequest,
     ProvisionResponse,
+    QuerySummaryRequest,
+    QuerySummaryResponse,
     ReleaseRequest,
     ReleaseResponse,
     ReservationRequestCriteria,
@@ -49,6 +51,7 @@ from supa.grpc_nsi.policy_pb2 import PathTrace
 from supa.grpc_nsi.services_pb2 import Directionality, PointToPointService
 from supa.job.lifecycle import TerminateJob
 from supa.job.provision import ProvisionJob, ReleaseJob
+from supa.job.query import QuerySummaryJob
 from supa.job.reserve import ReserveAbortJob, ReserveCommitJob, ReserveJob, ReserveTimeoutJob
 from supa.job.shared import Job, NsiException
 from supa.util.converter import to_response_header, to_service_exception
@@ -652,3 +655,37 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             )
         log.debug("Sending response.", response_message=terminate_response)
         return terminate_response
+
+    def QuerySummary(
+        self, pb_query_summary_request: QuerySummaryRequest, context: ServicerContext
+    ) -> QuerySummaryResponse:
+        """Query reservation(s) summary.
+
+        Start an :class:`~supa.job.reserve.QuerySummaryJob` to gather and return
+        all requested information.
+
+        Args:
+            pb_query_summary_request: protobuf query summary request message
+            context: gRPC server context object.
+
+        Returns:
+            A response telling the caller we have received its query summary request.
+        """
+        log = logger.bind(
+            method="QuerySummary",
+            connection_ids=pb_query_summary_request.connection_id,
+            global_reservation_ids=pb_query_summary_request.global_reservation_id,
+            if_modified_since=as_utc_timestamp(pb_query_summary_request.if_modified_since).isoformat(),
+        )
+        log.debug("Received message.", request_message=pb_query_summary_request)
+
+        from supa import scheduler
+
+        scheduler.add_job(
+            job := QuerySummaryJob(pb_query_summary_request=pb_query_summary_request),
+            trigger=job.trigger(),
+            id=f"{str(UUID(pb_query_summary_request.header.correlation_id))}-QuerySummaryJob",
+        )
+        query_summary_response = QuerySummaryResponse(header=to_response_header(pb_query_summary_request.header))
+        log.debug("Sending response.", response_message=query_summary_response)
+        return query_summary_response
