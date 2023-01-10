@@ -21,16 +21,78 @@ from sqlalchemy import or_
 from structlog.stdlib import BoundLogger
 
 from supa.connection import requester
-from supa.connection.fsm import DataPlaneStateMachine
+from supa.connection.fsm import DataPlaneStateMachine, ReservationStateMachine
 from supa.db.model import Reservation
 from supa.grpc_nsi.connection_common_pb2 import Header
 from supa.grpc_nsi.connection_provider_pb2 import QuerySummaryRequest
 from supa.grpc_nsi.connection_requester_pb2 import ErrorRequest, QuerySummaryConfirmedRequest, QuerySummaryResult
 from supa.job.shared import Job
-from supa.util.converter import to_connection_states, to_summary_criteria
+from supa.util.converter import to_confirm_criteria, to_connection_states
 from supa.util.timestamp import as_utc_timestamp
 
 logger = structlog.get_logger(__name__)
+
+
+def create_query_summary_confirmed_request(
+    pb_query_summary_request: QuerySummaryRequest,
+) -> QuerySummaryConfirmedRequest:
+    """Create a list of reservation summary information matching the request.
+
+    Args:
+        pb_query_summary_request: Query summary request with match criteria.
+
+    Returns:
+        List of reservation summary information.
+    """
+    from supa.db.session import db_session
+
+    request: Union[QuerySummaryConfirmedRequest, ErrorRequest]
+    with db_session() as session:
+        or_filter = []
+        if pb_query_summary_request.connection_id:
+            or_filter += [
+                Reservation.connection_id == UUID(str(connection_id))
+                for connection_id in pb_query_summary_request.connection_id
+            ]
+        if pb_query_summary_request.global_reservation_id:
+            or_filter += [
+                Reservation.global_reservation_id == global_reservation_id
+                for global_reservation_id in pb_query_summary_request.global_reservation_id
+            ]
+        # TODO: implement ifModifiedSince filter after adding last_modified field to Reservation table
+        reservations: List[Reservation] = (
+            session.query(Reservation)
+            .filter(or_(*or_filter))
+            .filter(Reservation.reservation_state != ReservationStateMachine.ReserveChecking.value)
+            .filter(Reservation.reservation_state != ReservationStateMachine.ReserveFailed.value)
+            .all()
+        )
+
+        header = Header()
+        header.CopyFrom(pb_query_summary_request.header)
+        request = QuerySummaryConfirmedRequest(header=header)
+        for reservation in reservations:
+            result = QuerySummaryResult()
+            result.connection_id = str(reservation.connection_id)
+            result.requester_nsa = reservation.requester_nsa
+            result.connection_states.CopyFrom(
+                to_connection_states(
+                    reservation,
+                    data_plane_active=reservation.data_plane_state == DataPlaneStateMachine.Activated.value,
+                )
+            )
+            if reservation.global_reservation_id:
+                result.global_reservation_id = reservation.global_reservation_id
+            if reservation.description:
+                result.description = reservation.description
+            # TODO: when Modify Reservation is implemented, add all criteria
+            result.criteria.append(to_confirm_criteria(reservation))
+            # TODO: implement notification_id and result_id
+            # result.notification_id
+            # result.result_id
+            request.reservation.append(result)
+
+        return request
 
 
 class QuerySummaryJob(Job):
@@ -78,56 +140,10 @@ class QuerySummaryJob(Job):
         global reservation id(s) and if modified since timestamp.
         """
         self.log.info("gathering matching reservations")
-
-        from supa.db.session import db_session
-
-        request: Union[QuerySummaryConfirmedRequest, ErrorRequest]
-        with db_session() as session:
-            or_filter = []
-            if self.pb_query_summary_request.connection_id:
-                or_filter += [
-                    Reservation.connection_id == UUID(str(connection_id))
-                    for connection_id in self.pb_query_summary_request.connection_id
-                ]
-            if self.pb_query_summary_request.global_reservation_id:
-                or_filter += [
-                    Reservation.global_reservation_id == global_reservation_id
-                    for global_reservation_id in self.pb_query_summary_request.global_reservation_id
-                ]
-            # TODO: implement ifModifiedSince filter after adding last_modified field to Reservation table
-            reservations: List[Reservation] = session.query(Reservation).filter(or_(*or_filter)).all()
-
-            header = Header()
-            header.CopyFrom(self.pb_query_summary_request.header)
-            request = QuerySummaryConfirmedRequest(header=header)
-            for reservation in reservations:
-                result = QuerySummaryResult()
-                result.connection_id = str(reservation.connection_id)
-                result.requester_nsa = reservation.requester_nsa
-                result.connection_states.CopyFrom(
-                    to_connection_states(
-                        reservation,
-                        data_plane_active=reservation.data_plane_state == DataPlaneStateMachine.Activated.value,
-                    )
-                )
-                if reservation.global_reservation_id:
-                    result.global_reservation_id = reservation.global_reservation_id
-                if reservation.description:
-                    result.description = reservation.description
-                # TODO: when Modify Reservation is implemented, add all criteria
-                result.criteria.append(to_summary_criteria(reservation))
-                # TODO: implement notification_id and result_id
-                # result.notification_id
-                # result.result_id
-                request.reservation.append(result)
-
+        request = create_query_summary_confirmed_request(self.pb_query_summary_request)
         stub = requester.get_stub()
-        if type(request) == QuerySummaryConfirmedRequest:
-            self.log.debug("Sending message", method="QuerySummaryConfirmed", request_message=request)
-            stub.QuerySummaryConfirmed(request)
-        else:
-            self.log.debug("Sending message", method="Error", request_message=request)
-            stub.Error(request)
+        self.log.debug("Sending message", method="QuerySummaryConfirmed", request_message=request)
+        stub.QuerySummaryConfirmed(request)
 
     @classmethod
     def recover(cls: Type[QuerySummaryJob]) -> List[Job]:

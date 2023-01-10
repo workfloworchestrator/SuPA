@@ -47,11 +47,12 @@ from supa.grpc_nsi.connection_provider_pb2 import (
     TerminateRequest,
     TerminateResponse,
 )
+from supa.grpc_nsi.connection_requester_pb2 import QuerySummaryConfirmedRequest
 from supa.grpc_nsi.policy_pb2 import PathTrace
 from supa.grpc_nsi.services_pb2 import Directionality, PointToPointService
 from supa.job.lifecycle import TerminateJob
 from supa.job.provision import ProvisionJob, ReleaseJob
-from supa.job.query import QuerySummaryJob
+from supa.job.query import QuerySummaryJob, create_query_summary_confirmed_request
 from supa.job.reserve import ReserveAbortJob, ReserveCommitJob, ReserveJob, ReserveTimeoutJob
 from supa.job.shared import Job, NsiException
 from supa.util.converter import to_response_header, to_service_exception
@@ -689,3 +690,27 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         query_summary_response = QuerySummaryResponse(header=to_response_header(pb_query_summary_request.header))
         log.debug("Sending response.", response_message=query_summary_response)
         return query_summary_response
+
+    def QuerySummarySync(
+        self, pb_query_summary_request: QuerySummaryRequest, context: ServicerContext
+    ) -> QuerySummaryConfirmedRequest:
+        """Query reservation(s) summary and synchronously return result.
+
+        Args:
+            pb_query_summary_request: protobuf query summary request message
+            context: gRPC server context object.
+
+        Returns:
+            The matching reservation summary information.
+        """
+        log = logger.bind(
+            method="QuerySummarySync",
+            connection_ids=pb_query_summary_request.connection_id,
+            global_reservation_ids=pb_query_summary_request.global_reservation_id,
+            if_modified_since=as_utc_timestamp(pb_query_summary_request.if_modified_since).isoformat(),
+        )
+        log.debug("Received message.", request_message=pb_query_summary_request)
+        log.info("gathering matching reservations")
+        request = create_query_summary_confirmed_request(pb_query_summary_request)
+        log.debug("Sending response.", response_message=request)
+        return request

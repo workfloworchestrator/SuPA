@@ -4,6 +4,7 @@ package connection.provider;
 
 import "google/protobuf/timestamp.proto";
 import "connection_common.proto";
+import "connection_requester.proto";
 import "services.proto";
 
 option java_multiple_files = true;
@@ -159,4 +160,6 @@ service ConnectionProvider {
   rpc Release(ReleaseRequest) returns (ReleaseResponse);
   rpc Terminate(TerminateRequest) returns (TerminateResponse);
   rpc QuerySummary(QuerySummaryRequest) returns (QuerySummaryResponse);
+  // QuerySummarySync returns a QuerySummaryConfirmedRequest bypassing the associated Response messages
+  rpc QuerySummarySync(QuerySummaryRequest) returns (requester.QuerySummaryConfirmedRequest);
 }
