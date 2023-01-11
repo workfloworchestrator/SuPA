@@ -35,7 +35,7 @@ message QuerySummaryResult {
   string connection_id = 1;
   string global_reservation_id = 2;
   string description = 3;
-  repeated ReservationConfirmCriteria criteria = 4;
+  repeated QuerySummaryResultCriteria criteria = 4;
   string requester_nsa = 5;
   common.ConnectionStates connection_states = 6;
   int64 notification_id = 7;

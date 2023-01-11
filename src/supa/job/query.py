@@ -27,7 +27,7 @@ from supa.grpc_nsi.connection_common_pb2 import Header
 from supa.grpc_nsi.connection_provider_pb2 import QuerySummaryRequest
 from supa.grpc_nsi.connection_requester_pb2 import ErrorRequest, QuerySummaryConfirmedRequest, QuerySummaryResult
 from supa.job.shared import Job
-from supa.util.converter import to_confirm_criteria, to_connection_states
+from supa.util.converter import to_connection_states, to_summary_criteria
 from supa.util.timestamp import as_utc_timestamp
 
 logger = structlog.get_logger(__name__)
@@ -86,7 +86,7 @@ def create_query_summary_confirmed_request(
             if reservation.description:
                 result.description = reservation.description
             # TODO: when Modify Reservation is implemented, add all criteria
-            result.criteria.append(to_confirm_criteria(reservation))
+            result.criteria.append(to_summary_criteria(reservation))
             # TODO: implement notification_id and result_id
             # result.notification_id
             # result.result_id
