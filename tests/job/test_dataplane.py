@@ -131,7 +131,7 @@ def test_auto_start_job_trigger(connection_id: Column, caplog: Any) -> None:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        assert job_trigger.run_date.replace(microsecond=0) == reservation.start_time
+        assert job_trigger.run_date == reservation.start_time
 
 
 def test_auto_end_job(connection_id: Column, auto_end: None, get_stub: None, caplog: Any) -> None:
@@ -169,4 +169,4 @@ def test_auto_end_job_trigger(connection_id: Column, caplog: Any) -> None:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        assert job_trigger.run_date.replace(microsecond=0) == reservation.end_time
+        assert job_trigger.run_date == reservation.end_time

@@ -17,7 +17,7 @@ from uuid import UUID
 
 import structlog
 from apscheduler.triggers.date import DateTrigger
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from structlog.stdlib import BoundLogger
 
 from supa.connection import requester
@@ -65,12 +65,15 @@ def create_query_summary_confirmed_request(
             .filter(or_(*or_filter))
             .filter(Reservation.reservation_state != ReservationStateMachine.ReserveChecking.value)
             .filter(Reservation.reservation_state != ReservationStateMachine.ReserveFailed.value)
+            .filter(Reservation.last_modified > as_utc_timestamp(pb_query_summary_request.if_modified_since))
             .all()
         )
+        last_modified = session.query(func.max(Reservation.last_modified)).one()[0]
 
         header = Header()
         header.CopyFrom(pb_query_summary_request.header)
         request = QuerySummaryConfirmedRequest(header=header)
+        request.last_modified.FromDatetime(last_modified)
         for reservation in reservations:
             result = QuerySummaryResult()
             result.connection_id = str(reservation.connection_id)

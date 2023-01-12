@@ -165,7 +165,7 @@ class UtcTimestamp(TypeDecorator):
     **UTC is always implied.**
     """
 
-    impl = sqlite.DATETIME(truncate_microseconds=True)
+    impl = sqlite.DATETIME(truncate_microseconds=False)
 
     def process_bind_param(self, value: Optional[datetime], dialect: Dialect) -> Optional[datetime]:  # noqa: D102
         if value is not None:
@@ -255,6 +255,10 @@ class Reservation(Base):
     data_plane_state = Column(Enum(*[s.value for s in DataPlaneStateMachine.states]))
     # need this because the reservation state machine is missing a state
     reservation_timeout = Column(Boolean, nullable=False, default=False)
+
+    # some housekeeping, last_modified is used by the Query lastModifiedSince
+    create_date = Column(UtcTimestamp, nullable=False, default=current_timestamp)
+    last_modified = Column(UtcTimestamp, onupdate=current_timestamp, index=True)
 
     # another header part
     path_trace = relationship(
