@@ -2,7 +2,9 @@ syntax = "proto3";
 
 package connection.provider;
 
+import "google/protobuf/timestamp.proto";
 import "connection_common.proto";
+import "connection_requester.proto";
 import "services.proto";
 
 option java_multiple_files = true;
@@ -138,6 +140,18 @@ message TerminateResponse {
   common.ServiceException service_exception = 2; // MUST be translated to ServiceException by PolyNSI
 }
 
+message QuerySummaryRequest {
+  common.Header header = 1;
+  repeated string connection_id = 2;
+  repeated string global_reservation_id = 3;
+  google.protobuf.Timestamp if_modified_since = 4;
+}
+
+message QuerySummaryResponse {
+  common.Header header = 1;
+  common.ServiceException service_exception = 2; // MUST be translated to ServiceException by PolyNSI
+}
+
 service ConnectionProvider {
   rpc Reserve(ReserveRequest) returns (ReserveResponse);
   rpc ReserveCommit(ReserveCommitRequest) returns (ReserveCommitResponse);
@@ -145,4 +159,7 @@ service ConnectionProvider {
   rpc Provision(ProvisionRequest) returns (ProvisionResponse);
   rpc Release(ReleaseRequest) returns (ReleaseResponse);
   rpc Terminate(TerminateRequest) returns (TerminateResponse);
+  rpc QuerySummary(QuerySummaryRequest) returns (QuerySummaryResponse);
+  // QuerySummarySync returns a QuerySummaryConfirmedRequest bypassing the associated Response messages
+  rpc QuerySummarySync(QuerySummaryRequest) returns (requester.QuerySummaryConfirmedRequest);
 }

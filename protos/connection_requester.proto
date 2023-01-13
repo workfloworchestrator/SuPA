@@ -2,11 +2,45 @@ syntax = "proto3";
 
 package connection.requester;
 
+import "google/protobuf/timestamp.proto";
 import "connection_common.proto";
 
 option java_multiple_files = true;
 option java_package = "org.ogf.nsi.grpc.connection.requester";
 import "services.proto";
+
+message ChildSummary {
+  int32 order = 1;
+  string connection_id = 2;
+  string provider_nsa = 3;
+  string service_type = 4;
+}
+
+message QuerySummaryResultCriteria {
+  int32 version = 1;
+  common.Schedule schedule = 2;
+  string service_type = 3;
+  repeated ChildSummary child = 4;
+  oneof service_specific_messages {
+    services.PointToPointService ptps = 5;
+  }
+}
+
+/*
+  QuerySummaryResult uses ReservationConfirmCriteria instead of the above QuerySummaryResultCriteria
+  message that also has room for children, this because SuPA is an uPA and therefor will never have
+  child reservations.
+ */
+message QuerySummaryResult {
+  string connection_id = 1;
+  string global_reservation_id = 2;
+  string description = 3;
+  repeated QuerySummaryResultCriteria criteria = 4;
+  string requester_nsa = 5;
+  common.ConnectionStates connection_states = 6;
+  int64 notification_id = 7;
+  int64 result_id = 8;
+}
 
 /*
   SOAP's version of ReserveFailed is an alias of GenericFailedType. Unfortunately protobuf does not
@@ -132,6 +166,16 @@ message ReserveTimeoutResponse {
   common.Header header = 1;
 }
 
+message QuerySummaryConfirmedRequest {
+  common.Header header = 1;
+  repeated QuerySummaryResult reservation = 2;
+  google.protobuf.Timestamp last_modified = 3;
+}
+
+message QuerySummaryConfirmedResponse {
+  common.Header header = 1;
+}
+
 service ConnectionRequester {
   rpc ReserveFailed(ReserveFailedRequest) returns (ReserveFailedResponse);
   rpc ReserveConfirmed(ReserveConfirmedRequest) returns (ReserveConfirmedResponse);
@@ -144,4 +188,5 @@ service ConnectionRequester {
   rpc Error(ErrorRequest) returns (ErrorResponse);
   rpc DataPlaneStateChange(DataPlaneStateChangeRequest) returns (DataPlaneStateChangeResponse);
   rpc ReserveTimeout(ReserveTimeoutRequest) returns (ReserveTimeoutResponse);
+  rpc QuerySummaryConfirmed(QuerySummaryConfirmedRequest) returns (QuerySummaryConfirmedResponse);
 }
