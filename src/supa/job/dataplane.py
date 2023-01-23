@@ -56,7 +56,7 @@ class ActivateJob(Job):
         If the data plane state machine is not in the correct state for a Activate
         an NSI exception is returned leaving the state machine unchanged.
         """
-        self.log.info("Activating data plane")
+        self.log.info("Activate data plane")
 
         from supa.db.session import db_session
         from supa.nrm.backend import backend
@@ -96,19 +96,17 @@ class ActivateJob(Job):
                 response = to_data_plane_state_change_request(reservation)
                 if auto_end_job := ((end_time := reservation.end_time) != NO_END_DATE):
                     dpsm.auto_end_request()
-                    self.log.info(
-                        "Automatic disable of data plane at end time", end_time=reservation.end_time.isoformat()
-                    )
 
         stub = requester.get_stub()
         if type(response) == DataPlaneStateChangeRequest:
             if auto_end_job:
                 from supa import scheduler
 
+                self.log.info("Schedule auto end", job="AutoEndJob", end_time=end_time.isoformat())
                 scheduler.add_job(
                     AutoEndJob(self.connection_id),
                     trigger=DateTrigger(run_date=end_time),
-                    id=f"{str(self.connection_id)}-AutoEndJob",
+                    id="=".join(["AutoEndJob", str(self.connection_id)]),
                 )
             self.log.debug("Sending message", method="DataPlaneStateChange", request_message=response)
             stub.DataPlaneStateChange(response)
@@ -177,7 +175,7 @@ class DeactivateJob(Job):
         If the data plane state machine is not in the correct state for a Deactivate
         a NSI exception is returned leaving the state machine unchanged.
         """
-        self.log.info("Deactivating data plane")
+        self.log.info("Deactivate data plane")
 
         from supa.db.session import db_session
         from supa.nrm.backend import backend
@@ -286,7 +284,7 @@ class AutoStartJob(Job):
 
         Now that start time was reached schedule a ActivateJob to activate the data plane.
         """
-        self.log.info("AutoStarting data plane")
+        self.log.info("Auto start data plane")
 
         from supa.db.session import db_session
 
@@ -297,10 +295,11 @@ class AutoStartJob(Job):
 
         from supa import scheduler
 
+        self.log.info("Schedule activate", job="ActivateJob")
         scheduler.add_job(
             ActivateJob(self.connection_id),
             trigger=DateTrigger(run_date=None),
-            id=f"{str(self.connection_id)}-ActivateJob",
+            id="=".join(["ActivateJob", str(self.connection_id)]),
         )
 
     @classmethod
@@ -365,7 +364,7 @@ class AutoEndJob(Job):
 
         Now that end time was reached schedule a DeactivateJob to deactivate the data plane.
         """
-        self.log.info("AutoEnding data plane")
+        self.log.info("Auto end data plane")
 
         from supa.db.session import db_session
 
@@ -378,10 +377,11 @@ class AutoEndJob(Job):
 
         from supa import scheduler
 
+        self.log.info("Schedule deactivate", job="DeactivateJob")
         scheduler.add_job(
             DeactivateJob(self.connection_id),
             trigger=DateTrigger(run_date=None),
-            id=f"{str(self.connection_id)}-DeactivateJob",
+            id="=".join(["DeactivateJob", str(self.connection_id)]),
         )
 
     @classmethod

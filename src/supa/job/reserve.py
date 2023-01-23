@@ -276,7 +276,7 @@ class ReserveJob(Job):
         from supa.db.session import db_session
         from supa.nrm.backend import backend
 
-        self.log.info("Checking reservation request")
+        self.log.info("Reserve reservation")
 
         response = Union[ReserveConfirmedRequest, ReserveFailedRequest]
         with db_session() as session:
@@ -354,8 +354,8 @@ class ReserveJob(Job):
         else:
             from supa import scheduler
 
-            scheduler.remove_job(job_id=f"{str(self.connection_id)}-ReserveTimeoutJob")
-            self.log.info("Canceled reservation timeout timer")
+            self.log.info("Cancel reserve timeout")
+            scheduler.remove_job(job_id="=".join(["ReserveTimeoutJob", str(self.connection_id)]))
             self.log.debug("Sending message.", method="ReserveFailed", request_message=response)
             stub.ReserveFailed(response)
 
@@ -432,7 +432,7 @@ class ReserveCommitJob(Job):
         from supa.db.session import db_session
         from supa.nrm.backend import backend
 
-        self.log.info("Committing reservation")
+        self.log.info("Reserve commit reservation")
 
         response: Union[ReserveCommitConfirmedRequest, ReserveCommitFailedRequest]
         with db_session() as session:
@@ -525,7 +525,7 @@ class ReserveAbortJob(Job):
         If the reservation state machine is not in the correct state for a ReserveCommit
         an NSI error is returned leaving the state machine unchanged.
         """
-        self.log.info("Aborting reservation")
+        self.log.info("Reserve abort reservation")
 
         from supa.db.session import db_session
         from supa.nrm.backend import backend
@@ -633,7 +633,7 @@ class ReserveTimeoutJob(Job):
         If another transition already moved the state beyond ReserveHeld
         then this is practically a no-op.
         """
-        self.log.info("Timeout reservation")
+        self.log.info("Reserve timeout reservation")
 
         from supa.db.session import db_session
         from supa.nrm.backend import backend
@@ -647,10 +647,11 @@ class ReserveTimeoutJob(Job):
                 rsm.reserve_timeout_notification()
                 if circuit_id := backend.reserve_timeout(**connection_to_dict(connection)):
                     connection.circuit_id = circuit_id
-            except TransitionNotAllowed:
+            except TransitionNotAllowed as tna:
                 # Reservation is already in another state turning this into a no-op.
                 self.log.info(
-                    "Reservation not timed out",
+                    "Reserve timeout failed",
+                    reason=str(tna),
                     state=rsm.current_state.identifier,
                     connection_id=str(self.connection_id),
                 )
@@ -680,7 +681,7 @@ class ReserveTimeoutJob(Job):
                 #
                 # TODO: release reserved resources(?)
                 #
-                self.log.debug("setting reservation.reservation_timeout to true in db")
+                self.log.debug("set reservation timeout to true in db")
                 response = self._to_reserve_timeout_request(reservation)
                 reservation.reservation_timeout = True
 

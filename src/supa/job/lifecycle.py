@@ -64,7 +64,7 @@ class TerminateJob(Job):
         if the data plane is still active a job to deactivate the data plane will be scheduled and
         a TerminateConfirmed message will be sent to the NSA/AG.
         """
-        self.log.info("Terminating reservation")
+        self.log.info("Terminate reservation")
 
         from supa.db.session import db_session
         from supa.nrm.backend import backend
@@ -115,12 +115,12 @@ class TerminateJob(Job):
                     pass  # silently pass if no data plane related actions are required
                 else:
                     if previous_data_plane_state == DataPlaneStateMachine.AutoStart.value:
-                        scheduler.remove_job(job_id=f"{str(self.connection_id)}-AutoStartJob")
-                        self.log.info("Canceled automatic enable of data plane at start time")
+                        self.log.info("Cancel auto start")
+                        scheduler.remove_job(job_id="=".join(["AutoStartJob", str(self.connection_id)]))
                     else:  # previous data plane state is either AutoEnd or Activated
                         if previous_data_plane_state == DataPlaneStateMachine.AutoEnd.value:
-                            scheduler.remove_job(job_id=f"{str(self.connection_id)}-AutoEndJob")
-                            self.log.info("Canceled automatic disable of data plane at end time")
+                            self.log.info("Cancel auto end")
+                            scheduler.remove_job(job_id="=".join(["AutoEndJob", str(self.connection_id)]))
                 response = self._to_terminate_confirmed_request(reservation)
                 lsm.terminate_confirmed()
 
@@ -130,10 +130,11 @@ class TerminateJob(Job):
                 previous_data_plane_state == DataPlaneStateMachine.AutoEnd.value
                 or previous_data_plane_state == DataPlaneStateMachine.Activated.value
             ):
+                self.log.info("Schedule deactivate", job="DeactivateJob")
                 scheduler.add_job(
                     DeactivateJob(self.connection_id),
                     trigger=DateTrigger(run_date=None),
-                    id=f"{str(self.connection_id)}-DeactivateJob",
+                    id="=".join(["DeactivateJob", str(self.connection_id)]),
                 )
             self.log.debug("Sending message", method="TerminateConfirmed", request_message=response)
             stub.TerminateConfirmed(response)

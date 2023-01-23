@@ -300,7 +300,7 @@ def test_reserve_timeout_job_invalid_transition(
     reserve_timeout_job = ReserveTimeoutJob(connection_id)
     caplog.clear()
     reserve_timeout_job.__call__()
-    assert "Reservation not timed out" in caplog.text
+    assert "Reserve timeout failed" in caplog.text
     assert state_machine.is_reserve_committing(connection_id)
 
 

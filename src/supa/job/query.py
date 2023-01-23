@@ -129,7 +129,7 @@ class QuerySummaryJob(Job):
                 has undergone a change since the specified ifModifiedSince time.
         """
         self.log = logger.bind(
-            method="QuerySummary",
+            job="QuerySummaryJob",
             connection_ids=pb_query_summary_request.connection_id,
             global_reservation_ids=pb_query_summary_request.global_reservation_id,
             if_modified_since=as_utc_timestamp(pb_query_summary_request.if_modified_since).isoformat(),
@@ -142,7 +142,7 @@ class QuerySummaryJob(Job):
         Query summary listing reservations matching the optional connection id(s),
         global reservation id(s) and if modified since timestamp.
         """
-        self.log.info("gathering matching reservations")
+        self.log.info("Query summary")
         request = create_query_summary_confirmed_request(self.pb_query_summary_request)
         stub = requester.get_stub()
         self.log.debug("Sending message", method="QuerySummaryConfirmed", request_message=request)

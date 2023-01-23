@@ -40,6 +40,7 @@ from typing import Union
 
 import pytz
 import structlog
+from apscheduler.events import EVENT_JOB_ERROR, JobExecutionEvent
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.jobstores.memory import MemoryJobStore
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -384,6 +385,15 @@ eg. after command line processing.
 """
 
 
+def _job_error_event_listener(event: JobExecutionEvent) -> None:
+    """Catch job execution errors and log warning."""
+    try:
+        job, connection_id = event.job_id.split("=")
+        logger.warning(event.exception.details(), job=job, connection_id=connection_id)
+    except ValueError:
+        logger.error(event.exception.details())
+
+
 def init_app(with_scheduler: bool = True) -> None:
     """Initialize the application (database, scheduler, etc) and recover jobs``.
 
@@ -456,6 +466,9 @@ def init_app(with_scheduler: bool = True) -> None:
         scheduler = BackgroundScheduler(
             jobstores=jobstores, executors=executors, job_defaults=job_defaults, timezone=pytz.utc
         )
+        # silence apscheduler logging and only process job error events
+        logging.getLogger("apscheduler").setLevel(logging.CRITICAL)
+        scheduler.add_listener(_job_error_event_listener, EVENT_JOB_ERROR)
         scheduler.start()
 
 

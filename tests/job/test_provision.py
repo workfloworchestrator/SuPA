@@ -18,7 +18,7 @@ def test_provision_job_provision_confirmed(
     provision_job.__call__()
     assert state_machine.is_provisioned(connection_id)
     assert state_machine.is_auto_start(connection_id)
-    assert 'Added job "AutoStartJob"' in caplog.text
+    assert 'Schedule auto start' in caplog.text
 
 
 def test_provision_job_already_terminated(
@@ -29,7 +29,7 @@ def test_provision_job_already_terminated(
     provision_job.__call__()
     assert state_machine.is_provisioning(connection_id)
     assert "Reservation already terminated" in caplog.text
-    assert "Not scheduling AutoStartJob or ActivateJob" in caplog.text
+    assert "No auto start or activate" in caplog.text
 
 
 def test_provision_passed_start_time(
@@ -45,7 +45,7 @@ def test_provision_passed_start_time(
     provision_job = ProvisionJob(connection_id)
     provision_job.__call__()
     assert state_machine.is_provisioned(connection_id)
-    assert 'Added job "ActivateJob"' in caplog.text
+    assert 'Schedule activate' in caplog.text
 
 
 def test_provision_cannot_auto_start(
@@ -55,7 +55,7 @@ def test_provision_cannot_auto_start(
     provision_job = ProvisionJob(connection_id)
     provision_job.__call__()
     assert state_machine.is_provisioning(connection_id)
-    assert "Not scheduling AutoStartJo" in caplog.text
+    assert "No auto start" in caplog.text
     assert "Can't auto_start_request when in Activated" in caplog.text
 
 
@@ -72,7 +72,7 @@ def test_provision_cannot_activate(
     provision_job = ProvisionJob(connection_id)
     provision_job.__call__()
     assert state_machine.is_provisioning(connection_id)
-    assert "Not scheduling ActivateJob" in caplog.text
+    assert "No activate" in caplog.text
     assert "Can't activate_request when in ActivateFailed" in caplog.text
 
 
@@ -114,7 +114,7 @@ def test_release_job_release_confirmed_auto_start(
     release_job.__call__()
     assert state_machine.is_released(connection_id)
     assert state_machine.is_deactivated(connection_id)
-    assert "Canceled automatic enable of data plane at start time" in caplog.text
+    assert "Cancel auto start" in caplog.text
 
 
 def test_release_job_release_confirmed_auto_end(
@@ -125,7 +125,7 @@ def test_release_job_release_confirmed_auto_end(
     release_job.__call__()
     assert state_machine.is_released(connection_id)
     assert state_machine.is_deactivated(connection_id)
-    assert "Canceled automatic disable of data plane at end time" in caplog.text
+    assert "Cancel auto end" in caplog.text
 
 
 def test_release_job_release_confirmed_invalid_data_plane_state(
@@ -136,7 +136,7 @@ def test_release_job_release_confirmed_invalid_data_plane_state(
     release_job.__call__()
     assert state_machine.is_released(connection_id)
     assert "Can't deactivate_request when in ActivateFailed" in caplog.text
-    assert "Not scheduling DeactivateJob" in caplog.text
+    assert "No deactivate" in caplog.text
 
 
 def test_release_job_already_terminated(
@@ -147,7 +147,7 @@ def test_release_job_already_terminated(
     release_job.__call__()
     assert state_machine.is_releasing(connection_id)
     assert "Reservation already terminated" in caplog.text
-    assert "Not scheduling DeactivateJob" in caplog.text
+    assert "No deactivate" in caplog.text
 
 
 def test_release_job_recover(connection_id: Column, releasing: None, get_stub: None, caplog: Any) -> None:

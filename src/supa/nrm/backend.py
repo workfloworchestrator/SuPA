@@ -91,7 +91,7 @@ class BaseBackend:
     ) -> Optional[str]:
         """Reserve resources in NRM."""
         self.log.info(
-            "reserve resources in NRM", backend="no-op", primitive="reserve", connection_id=str(connection_id)
+            "Reserve resources in NRM", backend="no-op", primitive="reserve", connection_id=str(connection_id)
         )
         return None
 
@@ -107,7 +107,7 @@ class BaseBackend:
     ) -> Optional[str]:
         """Reserve timeout resources in NRM."""
         self.log.info(
-            "reserve timeout resources in NRM",
+            "Reserve timeout resources in NRM",
             backend="no-op",
             primitive="reserve_timeout",
             connection_id=str(connection_id),
@@ -126,7 +126,7 @@ class BaseBackend:
     ) -> Optional[str]:
         """Reserve commit resources in NRM."""
         self.log.info(
-            "reserve commit resources in NRM",
+            "Reserve commit resources in NRM",
             backend="no-op",
             primitive="reserve_commit",
             connection_id=str(connection_id),
@@ -145,7 +145,7 @@ class BaseBackend:
     ) -> Optional[str]:
         """Reserve abort resources in NRM."""
         self.log.info(
-            "reserve abort resources in NRM",
+            "Reserve abort resources in NRM",
             backend="no-op",
             primitive="reserve_abort",
             connection_id=str(connection_id),
@@ -164,7 +164,7 @@ class BaseBackend:
     ) -> Optional[str]:
         """Provision resources in NRM."""
         self.log.info(
-            "provision resources in NRM", backend="no-op", primitive="provision", connection_id=str(connection_id)
+            "Provision resources in NRM", backend="no-op", primitive="provision", connection_id=str(connection_id)
         )
         return None
 
@@ -180,7 +180,7 @@ class BaseBackend:
     ) -> Optional[str]:
         """Release resources in NRM."""
         self.log.info(
-            "release resources in NRM", backend="no-op", primitive="release", connection_id=str(connection_id)
+            "Release resources in NRM", backend="no-op", primitive="release", connection_id=str(connection_id)
         )
         return None
 
@@ -196,7 +196,7 @@ class BaseBackend:
     ) -> Optional[str]:
         """Activate resources in NRM."""
         self.log.info(
-            "activate resources in NRM", backend="no-op", primitive="activate", connection_id=str(connection_id)
+            "Activate resources in NRM", backend="no-op", primitive="activate", connection_id=str(connection_id)
         )
         return None
 
@@ -212,7 +212,7 @@ class BaseBackend:
     ) -> Optional[str]:
         """Deactivate resources in NRM."""
         self.log.info(
-            "deactivate resources in NRM", backend="no-op", primitive="deactivate", connection_id=str(connection_id)
+            "Deactivate resources in NRM", backend="no-op", primitive="deactivate", connection_id=str(connection_id)
         )
         return None
 
@@ -228,7 +228,7 @@ class BaseBackend:
     ) -> Optional[str]:
         """Terminate resources in NRM."""
         self.log.info(
-            "terminate resources in NRM", backend="no-op", primitive="terminate", connection_id=str(connection_id)
+            "Terminate resources in NRM", backend="no-op", primitive="terminate", connection_id=str(connection_id)
         )
         return None
 

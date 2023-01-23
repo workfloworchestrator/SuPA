@@ -192,8 +192,9 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
 
         job: Job
 
+        log.info("Schedule reserve", job="ReserveJob")
         scheduler.add_job(
-            job := ReserveJob(connection_id), trigger=job.trigger(), id=f"{str(connection_id)}-ReserveJob"
+            job := ReserveJob(connection_id), trigger=job.trigger(), id="=".join(["ReserveJob", str(connection_id)])
         )
         reserve_response = ReserveResponse(
             header=to_response_header(pb_reserve_request.header), connection_id=str(connection_id)
@@ -201,11 +202,16 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         #
         # TODO: add reservation version to timeout job so we do not accidentally timeout a modify
         #
-        log.info("Schedule reserve timeout", connection_id=str(connection_id), timeout=settings.reserve_timeout)
+        log.info(
+            "Schedule reserve timeout",
+            job="ReserveTimeoutJob",
+            connection_id=str(connection_id),
+            timeout=settings.reserve_timeout,
+        )
         scheduler.add_job(
             job := ReserveTimeoutJob(connection_id),
             trigger=job.trigger(),
-            id=f"{str(connection_id)}-ReserveTimeoutJob",
+            id="=".join(["ReserveTimeoutJob", str(connection_id)]),
         )
 
         log.debug("Sending response.", response_message=reserve_response)
@@ -291,12 +297,13 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         if not reserve_commit_response.service_exception.connection_id:
             from supa import scheduler
 
-            scheduler.remove_job(job_id=f"{str(connection_id)}-ReserveTimeoutJob")
-            log.info("Canceled reservation timeout timer")
+            log.info("Cancel reserve timeout", job="ReserveTimeoutJob")
+            scheduler.remove_job(job_id="=".join(["ReserveTimeoutJob", str(connection_id)]))
+            log.info("Schedule reserve commit", job="ReserveCommitJob")
             scheduler.add_job(
                 job := ReserveCommitJob(connection_id),
                 trigger=job.trigger(),
-                id=f"{str(connection_id)}-ReserveCommitJob",
+                id="=".join(["ReserveCommitJob", str(connection_id)]),
             )
         log.debug("Sending response.", response_message=reserve_commit_response)
         return reserve_commit_response
@@ -367,10 +374,11 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         if not reserve_abort_response.service_exception.connection_id:
             from supa import scheduler
 
+            log.info("Schedule reserve abort", job="ReserveAbortJob")
             scheduler.add_job(
                 job := ReserveAbortJob(connection_id),
                 trigger=job.trigger(),
-                id=f"{str(connection_id)}-ReserveAbortJob",
+                id="=".join(["ReserveAbortJob", str(connection_id)]),
             )
         log.debug("Sending response.", response_message=reserve_abort_response)
         return reserve_abort_response
@@ -473,10 +481,11 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         if not provision_response.service_exception.connection_id:
             from supa import scheduler
 
+            log.info("Schedule provision", job="ProvisionJob")
             scheduler.add_job(
                 job := ProvisionJob(connection_id),
                 trigger=job.trigger(),
-                id=f"{str(connection_id)}-ProvisionJob",
+                id="=".join(["ProvisionJob", str(connection_id)]),
             )
         log.debug("Sending response.", response_message=provision_response)
         return provision_response
@@ -579,10 +588,11 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         if not release_response.service_exception.connection_id:
             from supa import scheduler
 
+            log.info("Schedule release", job="ReleaseJob")
             scheduler.add_job(
                 job := ReleaseJob(connection_id),
                 trigger=job.trigger(),
-                id=f"{str(connection_id)}-ReleaseJob",
+                id="=".join(["ReleaseJob", str(connection_id)]),
             )
         log.debug("Sending response.", response_message=release_response)
         return release_response
@@ -649,10 +659,11 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         if not terminate_response.service_exception.connection_id:
             from supa import scheduler
 
+            log.info("Schedule terminate", job="TerminateJob")
             scheduler.add_job(
                 job := TerminateJob(connection_id),
                 trigger=job.trigger(),
-                id=f"{str(connection_id)}-TerminateJob",
+                id="=".join(["TerminateJob", str(connection_id)]),
             )
         log.debug("Sending response.", response_message=terminate_response)
         return terminate_response
@@ -682,10 +693,11 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
 
         from supa import scheduler
 
+        log.info("Schedule query summary", job="QuerySummaryJob")
         scheduler.add_job(
             job := QuerySummaryJob(pb_query_summary_request=pb_query_summary_request),
             trigger=job.trigger(),
-            id=f"{str(UUID(pb_query_summary_request.header.correlation_id))}-QuerySummaryJob",
+            id="=".join(["QuerySummaryJob", str(UUID(pb_query_summary_request.header.correlation_id))]),
         )
         query_summary_response = QuerySummaryResponse(header=to_response_header(pb_query_summary_request.header))
         log.debug("Sending response.", response_message=query_summary_response)
@@ -710,7 +722,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             if_modified_since=as_utc_timestamp(pb_query_summary_request.if_modified_since).isoformat(),
         )
         log.debug("Received message.", request_message=pb_query_summary_request)
-        log.info("gathering matching reservations")
+        log.info("Query summary sync")
         request = create_query_summary_confirmed_request(pb_query_summary_request)
         log.debug("Sending response.", response_message=request)
         return request

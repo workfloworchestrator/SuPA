@@ -66,7 +66,7 @@ class ProvisionJob(Job):
         or otherwise a job to auto start the data plane at start time will be scheduled
         and in both cases a ProvisionConfirmed message will be sent to the NSA/AG.
         """
-        self.log.info("Provisioning reservation")
+        self.log.info("Provision reservation")
 
         from supa.db.session import db_session
         from supa.nrm.backend import backend
@@ -107,7 +107,7 @@ class ProvisionJob(Job):
                 # check if reservation is not terminated and data plane can be activated,
                 # if start time has already passed schedule a ActivateJob otherwise a AutoStartJob
                 if lsm.current_state != LifecycleStateMachine.Created:
-                    self.log.info("Not scheduling AutoStartJob or ActivateJob", reason="Reservation already terminated")
+                    self.log.info("No auto start or activate data plane", reason="Reservation already terminated")
                     response = to_error_request(
                         to_header(reservation),
                         NsiException(
@@ -123,7 +123,7 @@ class ProvisionJob(Job):
                     try:
                         dpsm.auto_start_request()
                     except TransitionNotAllowed as tna:
-                        self.log.info("Not scheduling AutoStartJob", reason=str(tna))
+                        self.log.info("No auto start", reason=str(tna))
                         response = to_error_request(
                             to_header(reservation),
                             NsiException(
@@ -143,7 +143,7 @@ class ProvisionJob(Job):
                     try:
                         dpsm.activate_request()
                     except TransitionNotAllowed as tna:
-                        self.log.info("Not scheduling ActivateJob", reason=str(tna))
+                        self.log.info("No activate data plane", reason=str(tna))
                         response = to_error_request(
                             to_header(reservation),
                             NsiException(
@@ -165,20 +165,18 @@ class ProvisionJob(Job):
             from supa import scheduler
 
             if new_data_plane_state == DataPlaneStateMachine.AutoStart.value:
+                self.log.info("Schedule auto start", job="AutoStartJob", start_time=start_time.isoformat())
                 scheduler.add_job(
                     AutoStartJob(self.connection_id),
                     trigger=DateTrigger(run_date=start_time),
-                    id=f"{str(self.connection_id)}-AutoStartJob",
-                )
-                self.log.info(
-                    "Automatic enable of data plane at start time",
-                    start_time=start_time.isoformat(),
+                    id="=".join(["AutoStartJob", str(self.connection_id)]),
                 )
             elif new_data_plane_state == DataPlaneStateMachine.Activating.value:
+                self.log.info("Schedule activate", job="ActivateJob")
                 scheduler.add_job(
                     ActivateJob(self.connection_id),
                     trigger=DateTrigger(run_date=None),
-                    id=f"{str(self.connection_id)}-ActivateJob",
+                    id="=".join(["ActivateJob", str(self.connection_id)]),
                 )
             self.log.debug("Sending message", method="ProvisionConfirmed", request_message=response)
             stub.ProvisionConfirmed(response)
@@ -250,7 +248,7 @@ class ReleaseJob(Job):
         a job to deactivate the data plane will be scheduled and
         a ReleaseConfirmed message will be sent to the NSA/AG.
         """
-        self.log.info("Releasing reservation")
+        self.log.info("Release reservation")
 
         from supa.db.session import db_session
         from supa.nrm.backend import backend
@@ -292,7 +290,7 @@ class ReleaseJob(Job):
                 # cancel the AutoStartJob or AutoEndJob,
                 # and schedule a DeactivateJob if the data plane is active
                 if lsm.current_state != LifecycleStateMachine.Created:
-                    self.log.info("Not scheduling DeactivateJob", reason="Reservation already terminated")
+                    self.log.info("No deactivate data plane", reason="Reservation already terminated")
                     response = to_error_request(
                         to_header(reservation),
                         NsiException(
@@ -309,7 +307,7 @@ class ReleaseJob(Job):
                     try:
                         dpsm.deactivate_request()
                     except TransitionNotAllowed as tna:
-                        self.log.info("Not scheduling DeactivateJob", reason=str(tna))
+                        self.log.info("No deactivate data plane", reason=str(tna))
                         response = to_error_request(
                             to_header(reservation),
                             NsiException(
@@ -329,16 +327,17 @@ class ReleaseJob(Job):
             from supa import scheduler
 
             if previous_data_plane_state == DataPlaneStateMachine.AutoStart.value:
-                scheduler.remove_job(job_id=f"{str(self.connection_id)}-AutoStartJob")
-                self.log.info("Canceled automatic enable of data plane at start time")
+                self.log.info("Cancel auto start")
+                scheduler.remove_job(job_id="=".join(["AutoStartJob", str(self.connection_id)]))
             else:  # previous data plane state is either AutoEnd or Activated
                 if previous_data_plane_state == DataPlaneStateMachine.AutoEnd.value:
-                    scheduler.remove_job(job_id=f"{str(self.connection_id)}-AutoEndJob")
-                    self.log.info("Canceled automatic disable of data plane at end time")
+                    self.log.info("Cancel auto end")
+                    scheduler.remove_job(job_id="=".join(["AutoEndJob", str(self.connection_id)]))
+                self.log.info("Schedule deactivate", job="DeactivateJob")
                 scheduler.add_job(
                     DeactivateJob(self.connection_id),
                     trigger=DateTrigger(run_date=None),
-                    id=f"{str(self.connection_id)}-DeactivateJob",
+                    id="=".join(["DeactivateJob", str(self.connection_id)]),
                 )
             self.log.debug("Sending message", method="ReleaseConfirmed", request_message=response)
             stub.ReleaseConfirmed(response)

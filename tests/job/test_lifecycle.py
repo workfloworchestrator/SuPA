@@ -23,8 +23,8 @@ def test_terminate_job_auto_start(
     terminate_job.__call__()
     assert state_machine.is_deactivated(connection_id)
     assert state_machine.is_terminated(connection_id)
-    assert "Terminating reservation" in caplog.text
-    assert "Canceled automatic enable of data plane at start time" in caplog.text
+    assert "Terminate reservation" in caplog.text
+    assert "Cancel auto start" in caplog.text
 
 
 def test_terminate_job_auto_end(
@@ -35,9 +35,9 @@ def test_terminate_job_auto_end(
     terminate_job.__call__()
     # assert state_machine.is_deactivating(connection_id) # FIXME need DeactivateJob monkey patch
     assert state_machine.is_terminated(connection_id)
-    assert "Terminating reservation" in caplog.text
-    assert "Canceled automatic disable of data plane at end time" in caplog.text
-    assert 'Added job "DeactivateJob" to job store' in caplog.text
+    assert "Terminate reservation" in caplog.text
+    assert "Cancel auto end" in caplog.text
+    assert 'Schedule deactivate' in caplog.text
 
 
 def test_terminate_job_activated(
@@ -48,9 +48,9 @@ def test_terminate_job_activated(
     terminate_job.__call__()
     # assert state_machine.is_deactivating(connection_id) # FIXME need DeactivateJob monkey patch
     assert state_machine.is_terminated(connection_id)
-    assert "Terminating reservation" in caplog.text
-    assert "Canceled automatic disable of data plane at end time" not in caplog.text
-    assert 'Added job "DeactivateJob" to job store' in caplog.text
+    assert "Terminate reservation" in caplog.text
+    assert "Cancel auto end" not in caplog.text
+    assert 'Schedule deactivate' in caplog.text
 
 
 def test_terminate_job_recover(connection_id: Column, terminating: None, get_stub: None, caplog: Any) -> None:

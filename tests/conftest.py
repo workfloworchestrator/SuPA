@@ -133,7 +133,7 @@ def reserve_timeout_job(connection_id: Column) -> None:
     scheduler.add_job(
         job := ReserveTimeoutJob(connection_id),
         trigger=job.trigger(),
-        id=f"{str(connection_id)}-ReserveTimeoutJob",
+        id="=".join(["ReserveTimeoutJob", str(connection_id)])
     )
 
 
@@ -268,7 +268,7 @@ def reserve_held(connection_id: Column) -> Generator:
     job_handle = scheduler.add_job(
         job := ReserveTimeoutJob(connection_id),
         trigger=job.trigger(),
-        id=f"{str(connection_id)}-ReserveTimeoutJob",
+        id="=".join(["ReserveTimeoutJob", str(connection_id)])
     )
 
     yield None
@@ -417,7 +417,7 @@ def auto_start_job(connection_id: Column) -> Generator:
     job_handle = scheduler.add_job(
         job := AutoStartJob(connection_id),
         trigger=job.trigger(),
-        id=f"{str(connection_id)}-AutoStartJob",
+        id="=".join(["AutoStartJob", str(connection_id)]),
     )
 
     yield None
@@ -442,7 +442,7 @@ def auto_end(connection_id: Column) -> Generator:
     job_handle = scheduler.add_job(
         job := AutoEndJob(connection_id),
         trigger=job.trigger(),
-        id=f"{str(connection_id)}-AutoEndJob",
+        id="=".join(["AutoEndJob", str(connection_id)]),
     )
 
     yield None
