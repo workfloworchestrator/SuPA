@@ -490,4 +490,7 @@ def recover_jobs() -> None:
         recovered_jobs.extend(job_type.recover())
     logger.info("Recovering jobs.", num_recovered_jobs=len(recovered_jobs))
     for job in recovered_jobs:
-        scheduler.add_job(job, trigger=job.trigger())
+        scheduler.add_job(job, trigger=job.trigger(), id=job.job_id)
+    for job in scheduler.get_jobs():
+        next_run_time = job.next_run_time.isoformat()  # type: ignore[attr-defined]
+        logger.debug("scheduled job", job=job.id, next_run_time=next_run_time)  # type: ignore[attr-defined]

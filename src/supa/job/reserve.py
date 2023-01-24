@@ -50,7 +50,6 @@ from supa.grpc_nsi.connection_requester_pb2 import (
 from supa.job.shared import Job, NsiException
 from supa.util.bandwidth import format_bandwidth
 from supa.util.converter import to_confirm_criteria, to_connection_states, to_header, to_service_exception
-from supa.util.timestamp import current_timestamp
 from supa.util.vlan import VlanRanges
 
 logger = structlog.get_logger(__name__)
@@ -355,7 +354,7 @@ class ReserveJob(Job):
             from supa import scheduler
 
             self.log.info("Cancel reserve timeout")
-            scheduler.remove_job(job_id="=".join(["ReserveTimeoutJob", str(self.connection_id)]))
+            scheduler.remove_job(job_id=ReserveTimeoutJob(self.connection_id).job_id)
             self.log.debug("Sending message.", method="ReserveFailed", request_message=response)
             stub.ReserveFailed(response)
 
@@ -721,4 +720,11 @@ class ReserveTimeoutJob(Job):
 
     def trigger(self) -> DateTrigger:
         """Trigger for ReserveTimeoutJobs."""
-        return DateTrigger(run_date=current_timestamp() + timedelta(seconds=settings.reserve_timeout))
+        from supa.db.session import db_session
+
+        with db_session() as session:
+            timeout_date = session.query(Reservation.create_date).filter(
+                Reservation.connection_id == self.connection_id
+            ).one()[0] + timedelta(seconds=settings.reserve_timeout)
+
+        return DateTrigger(run_date=timeout_date)

@@ -27,7 +27,7 @@ from supa.connection.fsm import DataPlaneStateMachine, LifecycleStateMachine
 from supa.connection.requester import to_error_request
 from supa.db.model import Connection, Reservation, connection_to_dict
 from supa.grpc_nsi.connection_requester_pb2 import ErrorRequest, TerminateConfirmedRequest
-from supa.job.dataplane import DeactivateJob
+from supa.job.dataplane import AutoEndJob, AutoStartJob, DeactivateJob
 from supa.job.shared import Job, NsiException
 from supa.util.converter import to_header
 
@@ -116,11 +116,11 @@ class TerminateJob(Job):
                 else:
                     if previous_data_plane_state == DataPlaneStateMachine.AutoStart.value:
                         self.log.info("Cancel auto start")
-                        scheduler.remove_job(job_id="=".join(["AutoStartJob", str(self.connection_id)]))
+                        scheduler.remove_job(job_id=AutoStartJob(self.connection_id).job_id)
                     else:  # previous data plane state is either AutoEnd or Activated
                         if previous_data_plane_state == DataPlaneStateMachine.AutoEnd.value:
                             self.log.info("Cancel auto end")
-                            scheduler.remove_job(job_id="=".join(["AutoEndJob", str(self.connection_id)]))
+                            scheduler.remove_job(job_id=AutoEndJob(self.connection_id).job_id)
                 response = self._to_terminate_confirmed_request(reservation)
                 lsm.terminate_confirmed()
 
@@ -131,11 +131,7 @@ class TerminateJob(Job):
                 or previous_data_plane_state == DataPlaneStateMachine.Activated.value
             ):
                 self.log.info("Schedule deactivate", job="DeactivateJob")
-                scheduler.add_job(
-                    DeactivateJob(self.connection_id),
-                    trigger=DateTrigger(run_date=None),
-                    id="=".join(["DeactivateJob", str(self.connection_id)]),
-                )
+                scheduler.add_job(job := DeactivateJob(self.connection_id), trigger=job.trigger(), id=job.job_id)
             self.log.debug("Sending message", method="TerminateConfirmed", request_message=response)
             stub.TerminateConfirmed(response)
         else:

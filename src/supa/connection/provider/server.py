@@ -193,9 +193,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         job: Job
 
         log.info("Schedule reserve", job="ReserveJob")
-        scheduler.add_job(
-            job := ReserveJob(connection_id), trigger=job.trigger(), id="=".join(["ReserveJob", str(connection_id)])
-        )
+        scheduler.add_job(job := ReserveJob(connection_id), trigger=job.trigger(), id=job.job_id)
         reserve_response = ReserveResponse(
             header=to_response_header(pb_reserve_request.header), connection_id=str(connection_id)
         )
@@ -208,11 +206,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             connection_id=str(connection_id),
             timeout=settings.reserve_timeout,
         )
-        scheduler.add_job(
-            job := ReserveTimeoutJob(connection_id),
-            trigger=job.trigger(),
-            id="=".join(["ReserveTimeoutJob", str(connection_id)]),
-        )
+        scheduler.add_job(job := ReserveTimeoutJob(connection_id), trigger=job.trigger(), id=job.job_id)
 
         log.debug("Sending response.", response_message=reserve_response)
         return reserve_response
@@ -298,13 +292,9 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             from supa import scheduler
 
             log.info("Cancel reserve timeout", job="ReserveTimeoutJob")
-            scheduler.remove_job(job_id="=".join(["ReserveTimeoutJob", str(connection_id)]))
+            scheduler.remove_job(job_id=ReserveTimeoutJob(connection_id).job_id)
             log.info("Schedule reserve commit", job="ReserveCommitJob")
-            scheduler.add_job(
-                job := ReserveCommitJob(connection_id),
-                trigger=job.trigger(),
-                id="=".join(["ReserveCommitJob", str(connection_id)]),
-            )
+            scheduler.add_job(job := ReserveCommitJob(connection_id), trigger=job.trigger(), id=job.job_id)
         log.debug("Sending response.", response_message=reserve_commit_response)
         return reserve_commit_response
 
@@ -375,11 +365,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             from supa import scheduler
 
             log.info("Schedule reserve abort", job="ReserveAbortJob")
-            scheduler.add_job(
-                job := ReserveAbortJob(connection_id),
-                trigger=job.trigger(),
-                id="=".join(["ReserveAbortJob", str(connection_id)]),
-            )
+            scheduler.add_job(job := ReserveAbortJob(connection_id), trigger=job.trigger(), id=job.job_id)
         log.debug("Sending response.", response_message=reserve_abort_response)
         return reserve_abort_response
 
@@ -482,11 +468,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             from supa import scheduler
 
             log.info("Schedule provision", job="ProvisionJob")
-            scheduler.add_job(
-                job := ProvisionJob(connection_id),
-                trigger=job.trigger(),
-                id="=".join(["ProvisionJob", str(connection_id)]),
-            )
+            scheduler.add_job(job := ProvisionJob(connection_id), trigger=job.trigger(), id=job.job_id)
         log.debug("Sending response.", response_message=provision_response)
         return provision_response
 
@@ -589,11 +571,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             from supa import scheduler
 
             log.info("Schedule release", job="ReleaseJob")
-            scheduler.add_job(
-                job := ReleaseJob(connection_id),
-                trigger=job.trigger(),
-                id="=".join(["ReleaseJob", str(connection_id)]),
-            )
+            scheduler.add_job(job := ReleaseJob(connection_id), trigger=job.trigger(), id=job.job_id)
         log.debug("Sending response.", response_message=release_response)
         return release_response
 
@@ -660,11 +638,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             from supa import scheduler
 
             log.info("Schedule terminate", job="TerminateJob")
-            scheduler.add_job(
-                job := TerminateJob(connection_id),
-                trigger=job.trigger(),
-                id="=".join(["TerminateJob", str(connection_id)]),
-            )
+            scheduler.add_job(job := TerminateJob(connection_id), trigger=job.trigger(), id=job.job_id)
         log.debug("Sending response.", response_message=terminate_response)
         return terminate_response
 

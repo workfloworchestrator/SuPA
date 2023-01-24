@@ -103,11 +103,7 @@ class ActivateJob(Job):
                 from supa import scheduler
 
                 self.log.info("Schedule auto end", job="AutoEndJob", end_time=end_time.isoformat())
-                scheduler.add_job(
-                    AutoEndJob(self.connection_id),
-                    trigger=DateTrigger(run_date=end_time),
-                    id="=".join(["AutoEndJob", str(self.connection_id)]),
-                )
+                scheduler.add_job(job := AutoEndJob(self.connection_id), trigger=job.trigger(), id=job.job_id)
             self.log.debug("Sending message", method="DataPlaneStateChange", request_message=response)
             stub.DataPlaneStateChange(response)
         else:
@@ -296,11 +292,7 @@ class AutoStartJob(Job):
         from supa import scheduler
 
         self.log.info("Schedule activate", job="ActivateJob")
-        scheduler.add_job(
-            ActivateJob(self.connection_id),
-            trigger=DateTrigger(run_date=None),
-            id="=".join(["ActivateJob", str(self.connection_id)]),
-        )
+        scheduler.add_job(job := ActivateJob(self.connection_id), trigger=job.trigger(), id=job.job_id)
 
     @classmethod
     def recover(cls: Type[AutoStartJob]) -> List[Job]:
@@ -378,11 +370,7 @@ class AutoEndJob(Job):
         from supa import scheduler
 
         self.log.info("Schedule deactivate", job="DeactivateJob")
-        scheduler.add_job(
-            DeactivateJob(self.connection_id),
-            trigger=DateTrigger(run_date=None),
-            id="=".join(["DeactivateJob", str(self.connection_id)]),
-        )
+        scheduler.add_job(job := DeactivateJob(self.connection_id), trigger=job.trigger(), id=job.job_id)
 
     @classmethod
     def recover(cls: Type[AutoEndJob]) -> List[Job]:

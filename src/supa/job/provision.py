@@ -27,7 +27,7 @@ from supa.connection.fsm import DataPlaneStateMachine, LifecycleStateMachine, Pr
 from supa.connection.requester import to_error_request
 from supa.db.model import Connection, Reservation, connection_to_dict
 from supa.grpc_nsi.connection_requester_pb2 import ErrorRequest, ProvisionConfirmedRequest, ReleaseConfirmedRequest
-from supa.job.dataplane import ActivateJob, AutoStartJob, DeactivateJob
+from supa.job.dataplane import ActivateJob, AutoEndJob, AutoStartJob, DeactivateJob
 from supa.job.shared import Job, NsiException
 from supa.util.converter import to_header
 from supa.util.timestamp import current_timestamp
@@ -164,20 +164,13 @@ class ProvisionJob(Job):
         if type(response) == ProvisionConfirmedRequest:
             from supa import scheduler
 
+            job: Job  # help mypy understand that both AutoStartJob and ActivateJob are Job's
             if new_data_plane_state == DataPlaneStateMachine.AutoStart.value:
                 self.log.info("Schedule auto start", job="AutoStartJob", start_time=start_time.isoformat())
-                scheduler.add_job(
-                    AutoStartJob(self.connection_id),
-                    trigger=DateTrigger(run_date=start_time),
-                    id="=".join(["AutoStartJob", str(self.connection_id)]),
-                )
+                scheduler.add_job(job := AutoStartJob(self.connection_id), trigger=job.trigger(), id=job.job_id)
             elif new_data_plane_state == DataPlaneStateMachine.Activating.value:
                 self.log.info("Schedule activate", job="ActivateJob")
-                scheduler.add_job(
-                    ActivateJob(self.connection_id),
-                    trigger=DateTrigger(run_date=None),
-                    id="=".join(["ActivateJob", str(self.connection_id)]),
-                )
+                scheduler.add_job(job := ActivateJob(self.connection_id), trigger=job.trigger(), id=job.job_id)
             self.log.debug("Sending message", method="ProvisionConfirmed", request_message=response)
             stub.ProvisionConfirmed(response)
         else:
@@ -328,17 +321,13 @@ class ReleaseJob(Job):
 
             if previous_data_plane_state == DataPlaneStateMachine.AutoStart.value:
                 self.log.info("Cancel auto start")
-                scheduler.remove_job(job_id="=".join(["AutoStartJob", str(self.connection_id)]))
+                scheduler.remove_job(job_id=AutoStartJob(self.connection_id).job_id)
             else:  # previous data plane state is either AutoEnd or Activated
                 if previous_data_plane_state == DataPlaneStateMachine.AutoEnd.value:
                     self.log.info("Cancel auto end")
-                    scheduler.remove_job(job_id="=".join(["AutoEndJob", str(self.connection_id)]))
+                    scheduler.remove_job(job_id=AutoEndJob(self.connection_id).job_id)
                 self.log.info("Schedule deactivate", job="DeactivateJob")
-                scheduler.add_job(
-                    DeactivateJob(self.connection_id),
-                    trigger=DateTrigger(run_date=None),
-                    id="=".join(["DeactivateJob", str(self.connection_id)]),
-                )
+                scheduler.add_job(job := DeactivateJob(self.connection_id), trigger=job.trigger(), id=job.job_id)
             self.log.debug("Sending message", method="ReleaseConfirmed", request_message=response)
             stub.ReleaseConfirmed(response)
         else:

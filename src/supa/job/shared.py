@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from abc import ABCMeta, abstractmethod
 from typing import ClassVar, Dict, List, Optional, Type
+from uuid import uuid4
 
 from apscheduler.triggers.date import DateTrigger
 
@@ -100,6 +101,14 @@ class Job(metaclass=ABCMeta):
             Tuple of arguments to be supplied to the ``add_job`` scheduler method.
         """  # noqa: E501 B950
         return DateTrigger(run_date=None)
+
+    @property
+    def job_id(self) -> str:
+        """ID of the job like <type of job>=<connection ID>, otherwise random UUID."""
+        try:
+            return "=".join([self.__class__.__name__, str(self.connection_id)])  # type: ignore[attr-defined]
+        except AttributeError:
+            return str(uuid4())
 
 
 class NsiException(Exception):
