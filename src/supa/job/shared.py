@@ -14,11 +14,13 @@ from __future__ import annotations
 
 from abc import ABCMeta, abstractmethod
 from typing import ClassVar, Dict, List, Optional, Type
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from apscheduler.triggers.date import DateTrigger
+from sqlalchemy import func
 
 from supa.connection.error import NsiError, Variable
+from supa.db.model import Notification
 
 
 class Job(metaclass=ABCMeta):
@@ -167,3 +169,30 @@ class NsiException(Exception):
     def __str__(self) -> str:
         """Return the exception in a human readable format."""
         return self.text
+
+
+def register_notification(connection_id: UUID, notification_type: str, notification_data: bytes) -> int:
+    """Register notification against connection_id in the database and return notification_id."""
+    from supa.db.session import db_session
+
+    with db_session() as session:
+        try:
+            # find the highest notification ID for this connection ID and increment by 1
+            notification_id = (
+                session.query(func.max(Notification.notification_id))
+                .filter(Notification.connection_id == connection_id)
+                .one()[0]
+                + 1
+            )
+        except TypeError:
+            # if this is the first notification for this connection_id then start with 1
+            notification_id = 1
+        session.add(
+            Notification(
+                connection_id=connection_id,
+                notification_id=notification_id,
+                notification_type=notification_type,
+                notification_data=notification_data,
+            )
+        )
+    return int(notification_id)

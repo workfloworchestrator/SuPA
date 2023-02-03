@@ -18,7 +18,7 @@ def test_activate_job_end_date(
     activate_job.__call__()
     assert state_machine.is_auto_end(connection_id)
     assert "Activate data plane" in caplog.text
-    assert 'Schedule auto end' in caplog.text
+    assert "Schedule auto end" in caplog.text
 
 
 def test_activate_job_no_end_date(
@@ -34,7 +34,7 @@ def test_activate_job_no_end_date(
     activate_job.__call__()
     assert state_machine.is_activated(connection_id)
     assert "Activate data plane" in caplog.text
-    assert 'Schedule auto end' not in caplog.text
+    assert "Schedule auto end" not in caplog.text
 
 
 def test_activate_job_recover(connection_id: Column, activating: None, get_stub: None, caplog: Any) -> None:
@@ -100,7 +100,7 @@ def test_auto_start_job(connection_id: Column, auto_start: None, get_stub: None,
     auto_start_job = AutoStartJob(connection_id)
     auto_start_job.__call__()
     assert state_machine.is_activating(connection_id)
-    assert 'Schedule activate' in caplog.text
+    assert "Schedule activate" in caplog.text
 
 
 def test_auto_start_job_recover(connection_id: Column, auto_start: None, get_stub: None, caplog: Any) -> None:
@@ -140,7 +140,7 @@ def test_auto_end_job(connection_id: Column, auto_end: None, get_stub: None, cap
     # making this a flaky test.
     # assert state_machine.is_deactivating(connection_id)
     # assert state_machine.passed_end_time(connection_id)
-    assert 'Schedule deactivate' in caplog.text
+    assert "Schedule deactivate" in caplog.text
 
 
 def test_auto_end_job_recover(connection_id: Column, auto_end: None, get_stub: None, caplog: Any) -> None:

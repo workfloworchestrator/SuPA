@@ -272,7 +272,7 @@ def to_notification_header(reservation: model.Reservation) -> Notification:
     pb_n_header = Notification()
 
     pb_n_header.connection_id = str(reservation.connection_id)
-    pb_n_header.notification_id = 1  # TODO Add Column to database for unique notification ID for this reservation.
+    # a unique id is assigned to notification_id when it is stored in the database just before it is sent
     pb_n_header.time_stamp.FromDatetime(current_timestamp())
 
     return pb_n_header

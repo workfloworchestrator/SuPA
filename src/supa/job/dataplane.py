@@ -25,7 +25,7 @@ from supa.connection.error import GenericInternalError, Variable
 from supa.connection.fsm import DataPlaneStateMachine, LifecycleStateMachine
 from supa.db.model import Connection, Reservation, connection_to_dict
 from supa.grpc_nsi.connection_requester_pb2 import DataPlaneStateChangeRequest, ErrorEventRequest
-from supa.job.shared import Job, NsiException
+from supa.job.shared import Job, NsiException, register_notification
 from supa.util.converter import to_activate_failed_event, to_data_plane_state_change_request, to_deactivate_failed_event
 from supa.util.timestamp import NO_END_DATE, current_timestamp
 
@@ -98,9 +98,15 @@ class ActivateJob(Job):
 
                 self.log.info("Schedule auto end", job="AutoEndJob", end_time=end_time.isoformat())
                 scheduler.add_job(job := AutoEndJob(self.connection_id), trigger=job.trigger(), id=job.job_id)
+            response.notification.notification_id = register_notification(
+                self.connection_id, "DataPlaneStateChange", response.SerializeToString()
+            )
             self.log.debug("Sending message", method="DataPlaneStateChange", request_message=response)
             stub.DataPlaneStateChange(response)
         else:
+            response.notification.notification_id = register_notification(
+                self.connection_id, "ErrorEvent", response.SerializeToString()
+            )
             self.log.debug("Sending message", method="Error", request_message=response)
             stub.ErrorEvent(response)
 
@@ -206,9 +212,15 @@ class DeactivateJob(Job):
 
         stub = requester.get_stub()
         if type(response) == DataPlaneStateChangeRequest:
+            response.notification.notification_id = register_notification(
+                self.connection_id, "DataPlaneStateChange", response.SerializeToString()
+            )
             self.log.debug("Sending message", method="DataPlaneStateChange", request_message=response)
             stub.DataPlaneStateChange(response)
         else:
+            response.notification.notification_id = register_notification(
+                self.connection_id, "ErrorEvent", response.SerializeToString()
+            )
             self.log.debug("Sending message", method="Error", request_message=response)
             stub.ErrorEvent(response)
 

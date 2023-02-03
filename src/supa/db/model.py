@@ -284,6 +284,14 @@ class Reservation(Base):
         passive_deletes=True,
     )  # one-to-one
 
+    notification = relationship(
+        "Notification",
+        uselist=False,
+        back_populates="reservation",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )  # one-to-one
+
     __table_args__ = (CheckConstraint(start_time < end_time),)
 
     def src_stp(self, selected: bool = False) -> nsi.Stp:
@@ -496,3 +504,24 @@ def connection_to_dict(connection: Connection) -> Dict[str, Any]:
     A convenience function to create a dict that can be used as parameter list to all backend methods.
     """
     return {column.name: getattr(connection, column.name) for column in connection.__table__.columns}
+
+
+class Notification(Base):
+    """DB mapping for registering notifications against a connection ID.
+
+    Store the notification for a connection ID serialized to string together
+    with a linearly increasing identifier that can be used for ordering notifications in
+    the context of the connection ID.
+    """
+
+    __tablename__ = "notifications"
+
+    connection_id = Column(Uuid, ForeignKey(Reservation.connection_id, ondelete="CASCADE"), primary_key=True)
+    notification_id = Column(Integer, nullable=False, primary_key=True)
+    notification_type = Column(Text, nullable=False)
+    notification_data = Column(Text, nullable=False)
+
+    reservation = relationship(
+        Reservation,
+        back_populates="notification",
+    )  # one-to-one (cascades defined in parent)

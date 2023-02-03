@@ -47,7 +47,7 @@ from supa.grpc_nsi.connection_requester_pb2 import (
     ReserveFailedRequest,
     ReserveTimeoutRequest,
 )
-from supa.job.shared import Job, NsiException
+from supa.job.shared import Job, NsiException, register_notification
 from supa.util.bandwidth import format_bandwidth
 from supa.util.converter import (
     to_confirm_criteria,
@@ -693,6 +693,9 @@ class ReserveTimeoutJob(Job):
 
         stub = requester.get_stub()
         if type(response) == ReserveTimeoutRequest:
+            response.notification.notification_id = register_notification(
+                self.connection_id, "ReserveTimeout", response.SerializeToString()
+            )
             self.log.debug("Sending message", method="ReserveTimeout", request_message=response)
             stub.ReserveTimeout(response)
         else:

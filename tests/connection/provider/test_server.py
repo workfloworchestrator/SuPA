@@ -160,8 +160,8 @@ def test_reserve_request(pb_reserve_request: ReserveRequest, caplog: Any) -> Non
     assert not reserve_response.header.reply_to
     assert reserve_response.connection_id
     assert not reserve_response.HasField("service_exception")
-    assert 'Schedule reserve' in caplog.text
-    assert 'Schedule reserve timeout' in caplog.text
+    assert "Schedule reserve" in caplog.text
+    assert "Schedule reserve timeout" in caplog.text
 
 
 def test_reserve_request_end_time_before_start_time(
@@ -201,7 +201,7 @@ def test_reserve_commit(pb_reserve_commit_request: ReserveCommitRequest, reserve
     assert not reserve_commit_response.header.reply_to
     assert not reserve_commit_response.HasField("service_exception")
     assert "Cancel reserve timeout" in caplog.text
-    assert 'Schedule reserve commit' in caplog.text
+    assert "Schedule reserve commit" in caplog.text
 
 
 def test_reserve_commit_random_connection_id(pb_reserve_commit_request: ReserveCommitRequest, caplog: Any) -> None:
@@ -268,7 +268,7 @@ def test_reserve_abort(pb_reserve_abort_request: ReserveAbortRequest, reserve_he
     assert pb_reserve_abort_request.header.correlation_id == reserve_abort_response.header.correlation_id
     assert not reserve_abort_response.header.reply_to
     assert not reserve_abort_response.HasField("service_exception")
-    assert 'Schedule reserve abort' in caplog.text
+    assert "Schedule reserve abort" in caplog.text
 
 
 def test_reserve_abort_random_connection_id(pb_reserve_abort_request: ReserveAbortRequest, caplog: Any) -> None:
@@ -317,7 +317,7 @@ def test_provision(pb_provision_request: ProvisionRequest, released: None, caplo
     assert pb_provision_request.header.correlation_id == provision_response.header.correlation_id
     assert not provision_response.header.reply_to
     assert not provision_response.HasField("service_exception")
-    assert 'Schedule provision' in caplog.text
+    assert "Schedule provision" in caplog.text
 
 
 def test_provision_random_connection_id(pb_provision_request: ProvisionRequest, caplog: Any) -> None:
@@ -408,7 +408,7 @@ def test_release(pb_release_request: ReleaseRequest, provisioned: None, caplog: 
     assert pb_release_request.header.correlation_id == release_response.header.correlation_id
     assert not release_response.header.reply_to
     assert not release_response.HasField("service_exception")
-    assert 'Schedule release' in caplog.text
+    assert "Schedule release" in caplog.text
 
 
 def test_release_random_connection_id(pb_release_request: ReleaseRequest, caplog: Any) -> None:
@@ -497,7 +497,7 @@ def test_terminate(pb_terminate_request: TerminateRequest, provisioned: None, ca
     assert pb_terminate_request.header.correlation_id == terminate_response.header.correlation_id
     assert not terminate_response.header.reply_to
     assert not terminate_response.HasField("service_exception")
-    assert 'Schedule terminate' in caplog.text
+    assert "Schedule terminate" in caplog.text
 
 
 def test_terminate_random_connection_id(pb_terminate_request: TerminateRequest, caplog: Any) -> None:

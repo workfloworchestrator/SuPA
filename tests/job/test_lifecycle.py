@@ -37,7 +37,7 @@ def test_terminate_job_auto_end(
     assert state_machine.is_terminated(connection_id)
     assert "Terminate reservation" in caplog.text
     assert "Cancel auto end" in caplog.text
-    assert 'Schedule deactivate' in caplog.text
+    assert "Schedule deactivate" in caplog.text
 
 
 def test_terminate_job_activated(
@@ -50,7 +50,7 @@ def test_terminate_job_activated(
     assert state_machine.is_terminated(connection_id)
     assert "Terminate reservation" in caplog.text
     assert "Cancel auto end" not in caplog.text
-    assert 'Schedule deactivate' in caplog.text
+    assert "Schedule deactivate" in caplog.text
 
 
 def test_terminate_job_recover(connection_id: Column, terminating: None, get_stub: None, caplog: Any) -> None:

@@ -18,7 +18,7 @@ def test_provision_job_provision_confirmed(
     provision_job.__call__()
     assert state_machine.is_provisioned(connection_id)
     assert state_machine.is_auto_start(connection_id)
-    assert 'Schedule auto start' in caplog.text
+    assert "Schedule auto start" in caplog.text
 
 
 def test_provision_job_already_terminated(
@@ -45,7 +45,7 @@ def test_provision_passed_start_time(
     provision_job = ProvisionJob(connection_id)
     provision_job.__call__()
     assert state_machine.is_provisioned(connection_id)
-    assert 'Schedule activate' in caplog.text
+    assert "Schedule activate" in caplog.text
 
 
 def test_provision_cannot_auto_start(
