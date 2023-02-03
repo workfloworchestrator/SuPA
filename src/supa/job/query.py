@@ -59,7 +59,6 @@ def create_query_summary_confirmed_request(
                 Reservation.global_reservation_id == global_reservation_id
                 for global_reservation_id in pb_query_summary_request.global_reservation_id
             ]
-        # TODO: implement ifModifiedSince filter after adding last_modified field to Reservation table
         reservations: List[Reservation] = (
             session.query(Reservation)
             .filter(or_(*or_filter))

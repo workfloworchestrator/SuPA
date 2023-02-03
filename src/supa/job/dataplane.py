@@ -23,11 +23,10 @@ from structlog.stdlib import BoundLogger
 from supa.connection import requester
 from supa.connection.error import GenericInternalError, Variable
 from supa.connection.fsm import DataPlaneStateMachine, LifecycleStateMachine
-from supa.connection.requester import to_data_plane_state_change_request, to_error_request
 from supa.db.model import Connection, Reservation, connection_to_dict
-from supa.grpc_nsi.connection_requester_pb2 import DataPlaneStateChangeRequest, ErrorRequest
+from supa.grpc_nsi.connection_requester_pb2 import DataPlaneStateChangeRequest, ErrorEventRequest
 from supa.job.shared import Job, NsiException
-from supa.util.converter import to_header
+from supa.util.converter import to_activate_failed_event, to_data_plane_state_change_request, to_deactivate_failed_event
 from supa.util.timestamp import NO_END_DATE, current_timestamp
 
 logger = structlog.get_logger(__name__)
@@ -61,7 +60,7 @@ class ActivateJob(Job):
         from supa.db.session import db_session
         from supa.nrm.backend import backend
 
-        response: Union[DataPlaneStateChangeRequest, ErrorRequest]
+        response: Union[DataPlaneStateChangeRequest, ErrorEventRequest]
         with db_session() as session:
             reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
             connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
@@ -72,16 +71,12 @@ class ActivateJob(Job):
             except NsiException as nsi_exc:
                 dpsm.activate_failed()
                 self.log.info("Data plane activation failed", reason=nsi_exc.text)
-                response = to_error_request(
-                    to_header(reservation),
-                    nsi_exc,
-                    self.connection_id,
-                )
+                response = to_activate_failed_event(reservation, nsi_exc)
             except Exception as exc:
                 dpsm.activate_failed()
                 self.log.exception("Unexpected error occurred", reason=str(exc))
-                response = to_error_request(
-                    to_header(reservation),
+                response = to_activate_failed_event(
+                    reservation,
                     NsiException(
                         GenericInternalError,
                         str(exc),
@@ -89,7 +84,6 @@ class ActivateJob(Job):
                             Variable.CONNECTION_ID: str(self.connection_id),
                         },
                     ),
-                    self.connection_id,
                 )
             else:
                 dpsm.activate_confirmed()
@@ -108,7 +102,7 @@ class ActivateJob(Job):
             stub.DataPlaneStateChange(response)
         else:
             self.log.debug("Sending message", method="Error", request_message=response)
-            stub.Error(response)
+            stub.ErrorEvent(response)
 
     @classmethod
     def recover(cls: Type[ActivateJob]) -> List[Job]:
@@ -176,7 +170,7 @@ class DeactivateJob(Job):
         from supa.db.session import db_session
         from supa.nrm.backend import backend
 
-        response: Union[DataPlaneStateChangeRequest, ErrorRequest]
+        response: Union[DataPlaneStateChangeRequest, ErrorEventRequest]
         with db_session() as session:
             reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
             connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
@@ -192,16 +186,12 @@ class DeactivateJob(Job):
             except NsiException as nsi_exc:
                 dpsm.deactivate_failed()
                 self.log.info("Data plane deactivation failed", reason=nsi_exc.text)
-                response = to_error_request(
-                    to_header(reservation),
-                    nsi_exc,
-                    self.connection_id,
-                )
+                response = to_deactivate_failed_event(reservation, nsi_exc)
             except Exception as exc:
                 dpsm.deactivate_failed()
                 self.log.exception("Unexpected error occurred", reason=str(exc))
-                response = to_error_request(
-                    to_header(reservation),
+                response = to_deactivate_failed_event(
+                    reservation,
                     NsiException(
                         GenericInternalError,
                         str(exc),
@@ -209,7 +199,6 @@ class DeactivateJob(Job):
                             Variable.CONNECTION_ID: str(self.connection_id),
                         },
                     ),
-                    self.connection_id,
                 )
             else:
                 dpsm.deactivate_confirm()
@@ -221,7 +210,7 @@ class DeactivateJob(Job):
             stub.DataPlaneStateChange(response)
         else:
             self.log.debug("Sending message", method="Error", request_message=response)
-            stub.Error(response)
+            stub.ErrorEvent(response)
 
     @classmethod
     def recover(cls: Type[DeactivateJob]) -> List[Job]:

@@ -12,25 +12,34 @@
 #  limitations under the License.
 """Converter functions for converting data to and from Protobuf messages."""
 from typing import Optional
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from supa import const, settings
+from supa.connection.fsm import DataPlaneStateMachine
 from supa.db import model
 from supa.grpc_nsi.connection_common_pb2 import (
     ConnectionStates,
+    EventType,
     Header,
     LifecycleState,
+    Notification,
     ProvisionState,
     ReservationState,
     Schedule,
     ServiceException,
     TypeValuePair,
 )
-from supa.grpc_nsi.connection_requester_pb2 import QuerySummaryResultCriteria, ReservationConfirmCriteria
+from supa.grpc_nsi.connection_requester_pb2 import (
+    DataPlaneStateChangeRequest,
+    ErrorEventRequest,
+    ErrorRequest,
+    QuerySummaryResultCriteria,
+    ReservationConfirmCriteria,
+)
 from supa.grpc_nsi.policy_pb2 import Segment
 from supa.grpc_nsi.services_pb2 import PointToPointService
 from supa.job.shared import NsiException
-from supa.util.timestamp import NO_END_DATE
+from supa.util.timestamp import NO_END_DATE, current_timestamp
 
 
 def to_header(reservation: model.Reservation, *, add_path_segment: bool = False) -> Header:
@@ -239,3 +248,101 @@ def to_response_header(request_header: Header) -> Header:
     response_header.CopyFrom(request_header)
     response_header.ClearField("reply_to")
     return response_header
+
+
+def to_error_request(request_header: Header, nsi_exc: NsiException, connection_id: UUID) -> ErrorRequest:
+    """Return a NSI ErrorRequest referencing the request correlation_id together with details from the NsiException.
+
+    The error message is sent from a PA to an RA in response to an outstanding operation request
+    when an error condition encountered, and as a result, the operation cannot be successfully completed.
+    The correlationId carried in the NSI CS header structure will identify the original request associated
+    with this error message.
+    """
+    from supa.util.converter import to_service_exception
+
+    pb_e_req = ErrorRequest()
+    pb_e_req.header.CopyFrom(request_header)
+    pb_e_req.service_exception.CopyFrom(to_service_exception(nsi_exc, connection_id))
+
+    return pb_e_req
+
+
+def to_notification_header(reservation: model.Reservation) -> Notification:
+    """Return new notification with unique id in the context of the reservation."""
+    pb_n_header = Notification()
+
+    pb_n_header.connection_id = str(reservation.connection_id)
+    pb_n_header.notification_id = 1  # TODO Add Column to database for unique notification ID for this reservation.
+    pb_n_header.time_stamp.FromDatetime(current_timestamp())
+
+    return pb_n_header
+
+
+def to_data_plane_state_change_request(reservation: model.Reservation) -> DataPlaneStateChangeRequest:
+    """Return a NSI dataPlaneStateChange notification.
+
+    The dataPlaneStateChange is an autonomous notification sent from a PA to an RA
+    to inform about a change in status of the data plane.
+    """
+    dpsm = DataPlaneStateMachine(reservation, state_field="data_plane_state")
+    pb_dpsc_req = DataPlaneStateChangeRequest()
+
+    pb_dpsc_req.header.CopyFrom(to_header(reservation, add_path_segment=True))  # Yes, add our segment!
+    pb_dpsc_req.notification.CopyFrom(to_notification_header(reservation))
+    pb_dpsc_req.data_plane_status.version = reservation.version
+    pb_dpsc_req.data_plane_status.version_consistent = True  # always True for an uPA
+    pb_dpsc_req.data_plane_status.active = dpsm.current_state == DataPlaneStateMachine.Activated
+
+    return pb_dpsc_req
+
+
+def to_error_event(reservation: model.Reservation, nsi_exc: NsiException, event: int) -> ErrorEventRequest:
+    """Return a NSI Error Event notification.
+
+    An Error Event is an autonomous message issued from a Provider NSA to
+    a Requester NSA when an existing reservation encounters an
+    autonomous error condition such as being administratively terminated
+    before the reservation's scheduled end-time.
+    """
+    pb_header = Header()
+    pb_header.protocol_version = reservation.protocol_version
+    pb_header.correlation_id = uuid4().urn  # TODO: should store correlation ID(?)
+    pb_header.requester_nsa = reservation.requester_nsa
+    pb_header.provider_nsa = reservation.provider_nsa
+    pb_header.reply_to = reservation.reply_to
+
+    pb_ee_req = ErrorEventRequest()
+    pb_ee_req.header.CopyFrom(pb_header)
+    pb_ee_req.notification.CopyFrom(to_notification_header(reservation))
+    pb_ee_req.event = event
+    pb_ee_req.originating_connection_id = str(reservation.connection_id)
+    pb_ee_req.originating_nsa = reservation.provider_nsa
+    for var in nsi_exc.variables:
+        tvp = TypeValuePair()
+        tvp.type = var.variable
+        tvp.namespace = var.namespace
+        tvp.value = nsi_exc.variables[var]
+        pb_ee_req.additional_info.append(tvp)
+    pb_ee_req.service_exception.CopyFrom(to_service_exception(nsi_exc, reservation.connection_id))
+
+    return pb_ee_req
+
+
+def to_activate_failed_event(reservation: model.Reservation, nsi_exc: NsiException) -> ErrorEventRequest:
+    """Return a NSI Error Event of type Activate Failed."""
+    return to_error_event(reservation, nsi_exc, EventType.ACTIVATE_FAILED)
+
+
+def to_deactivate_failed_event(reservation: model.Reservation, nsi_exc: NsiException) -> ErrorEventRequest:
+    """Return a NSI Error Event of type Deactivate Failed."""
+    return to_error_event(reservation, nsi_exc, EventType.DEACTIVATE_FAILED)
+
+
+def to_dataplane_error_event(reservation: model.Reservation, nsi_exc: NsiException) -> ErrorEventRequest:
+    """Return a NSI Error Event of type Dataplane Error."""
+    return to_error_event(reservation, nsi_exc, EventType.DATAPLANE_ERROR)
+
+
+def to_forced_end_event(reservation: model.Reservation, nsi_exc: NsiException) -> ErrorEventRequest:
+    """Return a NSI Error Event of type Forced End."""
+    return to_error_event(reservation, nsi_exc, EventType.FORCED_END)

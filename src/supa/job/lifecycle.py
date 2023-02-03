@@ -24,12 +24,11 @@ from structlog.stdlib import BoundLogger
 from supa.connection import requester
 from supa.connection.error import GenericInternalError, Variable
 from supa.connection.fsm import DataPlaneStateMachine, LifecycleStateMachine
-from supa.connection.requester import to_error_request
 from supa.db.model import Connection, Reservation, connection_to_dict
 from supa.grpc_nsi.connection_requester_pb2 import ErrorRequest, TerminateConfirmedRequest
 from supa.job.dataplane import AutoEndJob, AutoStartJob, DeactivateJob
 from supa.job.shared import Job, NsiException
-from supa.util.converter import to_header
+from supa.util.converter import to_error_request, to_header
 
 logger = structlog.get_logger(__name__)
 

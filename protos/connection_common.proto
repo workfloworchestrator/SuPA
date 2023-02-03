@@ -83,6 +83,14 @@ enum LifecycleState {
   TERMINATED = 4;
 }
 
+enum EventType {
+  UNSPECIFIED = 0;
+  ACTIVATE_FAILED = 1;
+  DEACTIVATE_FAILED = 2;
+  DATAPLANE_ERROR = 3;
+  FORCED_END = 4;
+}
+
 message DataPlaneStatus {
   bool active = 1;
   int32 version = 2;

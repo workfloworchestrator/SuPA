@@ -144,6 +144,20 @@ message ErrorResponse {
   common.Header header = 1;
 }
 
+message ErrorEventRequest {
+  common.Header header = 1;
+  common.Notification notification = 2;
+  common.EventType event = 3;
+  string originating_connection_id = 4;
+  string originating_nsa = 5;
+  repeated common.TypeValuePair additional_info = 6;
+  common.ServiceException service_exception = 7;
+}
+
+message ErrorEventResponse {
+  common.Header header = 1;
+}
+
 message DataPlaneStateChangeRequest {
   common.Header header = 1;
   common.Notification notification = 2;
@@ -186,6 +200,7 @@ service ConnectionRequester {
   rpc ReleaseConfirmed(ReleaseConfirmedRequest) returns (ReleaseConfirmedResponse);
   rpc TerminateConfirmed(TerminateConfirmedRequest) returns (TerminateConfirmedResponse);
   rpc Error(ErrorRequest) returns (ErrorResponse);
+  rpc ErrorEvent(ErrorEventRequest) returns (ErrorEventResponse);
   rpc DataPlaneStateChange(DataPlaneStateChangeRequest) returns (DataPlaneStateChangeResponse);
   rpc ReserveTimeout(ReserveTimeoutRequest) returns (ReserveTimeoutResponse);
   rpc QuerySummaryConfirmed(QuerySummaryConfirmedRequest) returns (QuerySummaryConfirmedResponse);

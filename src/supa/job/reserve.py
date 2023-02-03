@@ -49,7 +49,14 @@ from supa.grpc_nsi.connection_requester_pb2 import (
 )
 from supa.job.shared import Job, NsiException
 from supa.util.bandwidth import format_bandwidth
-from supa.util.converter import to_confirm_criteria, to_connection_states, to_header, to_service_exception
+from supa.util.converter import (
+    to_confirm_criteria,
+    to_connection_states,
+    to_error_request,
+    to_header,
+    to_notification_header,
+    to_service_exception,
+)
 from supa.util.vlan import VlanRanges
 
 logger = structlog.get_logger(__name__)
@@ -539,14 +546,14 @@ class ReserveAbortJob(Job):
                     connection.circuit_id = circuit_id
             except NsiException as nsi_exc:
                 self.log.info("Reserve abort failed.", reason=nsi_exc.text)
-                response = requester.to_error_request(
+                response = to_error_request(
                     to_header(reservation),
                     nsi_exc,
                     self.connection_id,
                 )
             except Exception as exc:
                 self.log.exception("Unexpected error occurred.", reason=str(exc))
-                response = requester.to_error_request(
+                response = to_error_request(
                     to_header(reservation),
                     NsiException(
                         GenericInternalError,
@@ -607,7 +614,7 @@ class ReserveTimeoutJob(Job):
         pb_rt_req = ReserveTimeoutRequest()
 
         pb_rt_req.header.CopyFrom(to_header(reservation, add_path_segment=True))  # Yes, add our segment!
-        pb_rt_req.notification.CopyFrom(requester.new_notification_header(reservation))
+        pb_rt_req.notification.CopyFrom(to_notification_header(reservation))
         pb_rt_req.timeout_value = settings.reserve_timeout
         pb_rt_req.originating_connection_id = str(reservation.connection_id)
         pb_rt_req.originating_nsa = reservation.provider_nsa
@@ -657,14 +664,14 @@ class ReserveTimeoutJob(Job):
                 return
             except NsiException as nsi_exc:
                 self.log.info("Reserve timeout failed.", reason=nsi_exc.text)
-                response = requester.to_error_request(
+                response = to_error_request(
                     to_header(reservation),
                     nsi_exc,
                     self.connection_id,
                 )
             except Exception as exc:
                 self.log.exception("Unexpected error occurred.", reason=str(exc))
-                response = requester.to_error_request(
+                response = to_error_request(
                     to_header(reservation),
                     NsiException(
                         GenericInternalError,

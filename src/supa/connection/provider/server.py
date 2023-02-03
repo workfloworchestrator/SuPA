@@ -373,7 +373,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         """Provision reservation.
 
         Check if the connection ID exists, if the provision state machine exists (as an indication
-        that the reservation was committed, and if the provision state machine transition is
+        that the reservation was committed), and if the provision state machine transition is
         allowed, all real work for provisioning the reservation is done asynchronously by
         :class:`~supa.job.reserve.ProvisionJob`
 
