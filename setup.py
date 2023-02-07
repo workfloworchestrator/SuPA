@@ -65,7 +65,7 @@ class GenCode(setuptools.Command):
         proto_files = list(PROTOS_PATH.glob("*.proto"))
         if len(proto_files) == 0:
             raise RuntimeError(
-                f"Could not find any protobuf files in directory '{PROTOS_PATH}'. Hence no Python code to generate."
+                f"Could not find any protobuf files in directory {PROTOS_PATH}. Hence no Python code to generate."
             )
         # The protoc compiler (with gRPC plugin) seem to only accept one proto file at a time
         for pf in proto_files:
@@ -81,7 +81,7 @@ class GenCode(setuptools.Command):
                 ]
             )
             if exit_code != 0:
-                raise RuntimeError(f"Could not generate Python code from protobuf file '{pf}'. Exit code: {exit_code}")
+                raise RuntimeError(f"Could not generate Python code from protobuf file {pf}. Exit code: {exit_code}")
 
         # Post process generated Python modules to fix imports of generated modules.
         #
