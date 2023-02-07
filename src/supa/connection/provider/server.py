@@ -183,7 +183,16 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                 connection_id = reservation.connection_id  # Can't reference it outside of the session, hence new var.
 
             log = log.bind(connection_id=str(connection_id))
-
+            log.info(
+                "new reservation",
+                version=reservation.version,
+                src_stp=src_stp,
+                dst_stp=dst_stp,
+                start_time=start_time.isoformat(),
+                end_time=end_time.isoformat(),
+                description=pb_reserve_request.description,
+                global_reservation_id=pb_reserve_request.global_reservation_id,
+            )
         else:
             log = log.bind(connection_id=pb_reserve_request.connection_id)
             # TODO modify reservation (else clause)

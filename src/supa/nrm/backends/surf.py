@@ -75,9 +75,7 @@ class Backend(BaseBackend):
         self.log.debug("workflow credentials", access_token=access_token, host=self.backend_settings.host)
         return access_token
 
-    def _workflow_create(
-        self, src_port_id: str, src_vlan: int, dst_port_id: str, dst_vlan: int, bandwidth: int
-    ) -> Any:
+    def _workflow_create(self, src_port_id: str, src_vlan: int, dst_port_id: str, dst_vlan: int, bandwidth: int) -> Any:
         self.log.info("start workflow create")
         access_token = self._retrieve_access_token()
         json = [
