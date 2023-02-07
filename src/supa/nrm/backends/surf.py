@@ -76,7 +76,7 @@ class Backend(BaseBackend):
         return access_token
 
     def _workflow_create(
-        self, connection_id: UUID, src_port_id: str, src_vlan: int, dst_port_id: str, dst_vlan: int, bandwidth: int
+        self, src_port_id: str, src_vlan: int, dst_port_id: str, dst_vlan: int, bandwidth: int
     ) -> Any:
         self.log.info("start workflow create")
         access_token = self._retrieve_access_token()
@@ -263,7 +263,7 @@ class Backend(BaseBackend):
     ) -> str:
         """Activate resources in NRM."""
         self.log: BoundLogger = self.log.bind(primitive="activate", connection_id=str(connection_id))
-        process = self._workflow_create(connection_id, src_port_id, src_vlan, dst_port_id, dst_vlan, bandwidth)
+        process = self._workflow_create(src_port_id, src_vlan, dst_port_id, dst_vlan, bandwidth)
         self._wait_for_completion(process["id"])
         subscription_id = self._get_subscription_id(process["id"])
         self.log = self.log.bind(subscription_id=subscription_id)
