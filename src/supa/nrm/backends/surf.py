@@ -56,7 +56,7 @@ class Backend(BaseBackend):
     def _retrieve_access_token(self) -> str:
         access_token = ""  # noqa: S105
         if self.backend_settings.oauth2_active:
-            self.log.info("retrieve access_token")
+            self.log.debug("retrieve access_token")
             token = post(
                 self.backend_settings.oidc_url,
                 auth=HTTPBasicAuth(self.backend_settings.oidc_user, self.backend_settings.oidc_password),
@@ -140,11 +140,11 @@ class Backend(BaseBackend):
                 raise NsiException(GenericRmError, str(http_err)) from http_err
         return result.json()
 
-    def _add_note(self, connection_id: UUID, subscription_id: str) -> None:
+    def _add_note(self, connection_id: UUID, subscription_id: str) -> Any:
         self.log.info("start workflow modify note")
         access_token = self._retrieve_access_token()
         try:
-            self.log.info("adding connection id to note of subscription")
+            self.log.debug("adding connection id to note of subscription")
             result = post(
                 f"{self.backend_settings.host}/api/processes/modify_note",
                 headers={
@@ -165,6 +165,7 @@ class Backend(BaseBackend):
             except HTTPError as http_err:
                 self.log.warning("failed to add note to subscription", reason=str(http_err))
                 raise NsiException(GenericRmError, str(http_err)) from http_err
+        return result.json()
 
     def _get_process_info(self, process_id: str) -> Any:
         access_token = self._retrieve_access_token()
@@ -183,10 +184,10 @@ class Backend(BaseBackend):
         log = self.log.bind(process_id=process_id)
         sleep(1)
         while (info := self._get_process_info(process_id))["status"] == "created" or info["status"] == "running":
-            log.info("waiting on workflow process to finish", status=info["status"])
+            log.debug("waiting on workflow to finish", status=info["status"])
             sleep(3)
         if info["status"] == "completed":
-            log.info("workflow process finished", status=info["status"])
+            log.info("workflow finished", status=info["status"])
         else:
             log.warning("workflow process failed", status=info["status"], reason=info["failed_reason"])
             raise NsiException(GenericRmError, info["failed_reason"]) from None
@@ -266,7 +267,8 @@ class Backend(BaseBackend):
         self._wait_for_completion(process["id"])
         subscription_id = self._get_subscription_id(process["id"])
         self.log = self.log.bind(subscription_id=subscription_id)
-        self._add_note(connection_id, subscription_id)
+        process = self._add_note(connection_id, subscription_id)
+        self._wait_for_completion(process["id"])
         return subscription_id
 
     def deactivate(
