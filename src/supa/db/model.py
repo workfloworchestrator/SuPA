@@ -108,7 +108,7 @@ class Uuid(TypeDecorator):
     def process_bind_param(self, value: Optional[uuid.UUID], dialect: Dialect) -> Optional[str]:  # noqa: D102
         if value is not None:
             if not isinstance(value, uuid.UUID):
-                raise ValueError(f"'{value}' is not a valid UUID.")
+                raise ValueError(f"{value} is not a valid UUID.")
             return str(value)
         return value
 

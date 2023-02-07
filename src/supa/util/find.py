@@ -24,7 +24,7 @@ def find_file(pathname: Union[str, Path]) -> Path:
             return candidate
     raise FileNotFoundError(
         errno.ENOENT,
-        f"Could not find '{pathname}' file on sys.path.",
+        f"Could not find {pathname} file on sys.path.",
         path,
     )
 
@@ -36,6 +36,6 @@ def find_directory(pathname: Union[str, Path]) -> Path:
             return candidate
     raise FileNotFoundError(
         errno.ENOENT,
-        f"Could not find '{pathname}' file on sys.path.",
+        f"Could not find {pathname} file on sys.path.",
         path,
     )
