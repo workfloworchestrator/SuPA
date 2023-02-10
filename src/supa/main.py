@@ -432,7 +432,7 @@ def add(
 @click.option("--only", type=click.Choice(("enabled", "disabled")), help="Limit list of ports [default: list all]")
 @common_options  # type: ignore
 def list_cmd(only: Optional[str]) -> None:
-    """List Orchestrator ports made available to SuPA."""
+    """List STP's known to this uPA."""
     init_app(with_scheduler=False)
     from supa.db.model import Topology
     from supa.db.session import db_session
@@ -510,7 +510,7 @@ def _set_enable(stp_id: str, enabled: bool) -> None:
         with db_session() as session:
             stp = session.query(Topology).filter(Topology.stp_id == stp_id).one()
             stp.enabled = enabled
-            click.echo(f"Topology '{stp.stp_id}' has been {'enabled' if enabled else 'disabled'}.")
+            click.echo(f"STP {stp.stp_id} has been {'enabled' if enabled else 'disabled'}.")
     except sqlalchemy.orm.exc.NoResultFound:
         click.echo("STP could not be found.", err=True)
 

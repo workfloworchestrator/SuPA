@@ -90,6 +90,17 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         """
         log = logger.bind(method="Reserve")
         log.debug("Received message.", request_message=pb_reserve_request)
+        log.info(
+            "new reservation",
+            connection_id=pb_reserve_request.connection_id,
+            version=pb_reserve_request.criteria.version,
+            src_stp=pb_reserve_request.criteria.ptps.source_stp,
+            dst_stp=pb_reserve_request.criteria.ptps.dest_stp,
+            start_time=as_utc_timestamp(pb_reserve_request.criteria.schedule.start_time).isoformat(),
+            end_time=as_utc_timestamp(pb_reserve_request.criteria.schedule.end_time).isoformat(),
+            description=pb_reserve_request.description,
+            global_reservation_id=pb_reserve_request.global_reservation_id,
+        )
 
         # Sanity check on start and end time, in case of problem return ServiceException
         pb_criteria: ReservationRequestCriteria = pb_reserve_request.criteria
@@ -183,7 +194,6 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                 connection_id = reservation.connection_id  # Can't reference it outside of the session, hence new var.
 
             log = log.bind(connection_id=str(connection_id))
-
         else:
             log = log.bind(connection_id=pb_reserve_request.connection_id)
             # TODO modify reservation (else clause)

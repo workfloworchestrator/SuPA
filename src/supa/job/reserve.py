@@ -284,7 +284,7 @@ class ReserveJob(Job):
 
         self.log.info("Reserve reservation")
 
-        response = Union[ReserveConfirmedRequest, ReserveFailedRequest]
+        request = Union[ReserveConfirmedRequest, ReserveFailedRequest]
         with db_session() as session:
             reservation: Reservation = (
                 session.query(Reservation)
@@ -342,28 +342,28 @@ class ReserveJob(Job):
 
             except NsiException as nsi_exc:
                 self.log.info("Reservation failed.", reason=nsi_exc.text)
-                response = self._to_reserve_failed_request(reservation, nsi_exc)  # type: ignore[misc]
+                request = self._to_reserve_failed_request(reservation, nsi_exc)  # type: ignore[misc]
                 rsm.reserve_failed()
             except Exception as exc:
                 self.log.exception("Unexpected error occurred.", reason=str(exc))
                 nsi_exc = NsiException(GenericInternalError, str(exc))  # type: ignore[misc]
-                response = self._to_reserve_failed_request(reservation, nsi_exc)  # type: ignore[misc]
+                request = self._to_reserve_failed_request(reservation, nsi_exc)  # type: ignore[misc]
                 rsm.reserve_failed()
             else:
-                response = self._to_reserve_confirmed_request(reservation)  # type: ignore[misc]
+                request = self._to_reserve_confirmed_request(reservation)  # type: ignore[misc]
                 rsm.reserve_confirmed()
 
         stub = requester.get_stub()
-        if type(response) == ReserveConfirmedRequest:
-            self.log.debug("Sending message.", method="ReserveConfirmed", request_message=response)
-            stub.ReserveConfirmed(response)
+        if type(request) == ReserveConfirmedRequest:
+            self.log.debug("Sending message.", method="ReserveConfirmed", request_message=request)
+            stub.ReserveConfirmed(request)
         else:
             from supa import scheduler
 
             self.log.info("Cancel reserve timeout")
             scheduler.remove_job(job_id=ReserveTimeoutJob(self.connection_id).job_id)
-            self.log.debug("Sending message.", method="ReserveFailed", request_message=response)
-            stub.ReserveFailed(response)
+            self.log.debug("Sending message.", method="ReserveFailed", request_message=request)
+            stub.ReserveFailed(request)
 
     @classmethod
     def recover(cls: Type[ReserveJob]) -> List[Job]:
@@ -440,7 +440,7 @@ class ReserveCommitJob(Job):
 
         self.log.info("Reserve commit reservation")
 
-        response: Union[ReserveCommitConfirmedRequest, ReserveCommitFailedRequest]
+        request: Union[ReserveCommitConfirmedRequest, ReserveCommitFailedRequest]
         with db_session() as session:
             reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
             connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
@@ -450,27 +450,27 @@ class ReserveCommitJob(Job):
                     connection.circuit_id = circuit_id
             except NsiException as nsi_exc:
                 self.log.info("Reserve commit failed.", reason=nsi_exc.text)
-                response = self._to_reserve_commit_failed_request(session, nsi_exc)
+                request = self._to_reserve_commit_failed_request(session, nsi_exc)
                 rsm.reserve_commit_failed()
             except Exception as exc:
                 self.log.exception("Unexpected error occurred.", reason=str(exc))
                 nsi_exc = NsiException(GenericInternalError, str(exc))  # type: ignore[misc]
-                response = self._to_reserve_commit_failed_request(session, nsi_exc)  # type: ignore[misc]
+                request = self._to_reserve_commit_failed_request(session, nsi_exc)  # type: ignore[misc]
                 rsm.reserve_commit_failed()
             else:
-                response = self._to_reserve_commit_confirmed_request(reservation)
+                request = self._to_reserve_commit_confirmed_request(reservation)
                 # create new psm just before the reserveCommitConfirmed,
                 # this will set initial provision_state on reservation
                 psm = ProvisionStateMachine(reservation, state_field="provision_state")  # noqa: F841
                 rsm.reserve_commit_confirmed()
 
         stub = requester.get_stub()
-        if type(response) == ReserveCommitConfirmedRequest:
-            self.log.debug("Sending message", method="ReserveCommitConfirmed", request_message=response)
-            stub.ReserveCommitConfirmed(response)
+        if type(request) == ReserveCommitConfirmedRequest:
+            self.log.debug("Sending message", method="ReserveCommitConfirmed", request_message=request)
+            stub.ReserveCommitConfirmed(request)
         else:
-            self.log.debug("Sending message.", method="ReserveCommitFailed", request_message=response)
-            stub.ReserveCommitFailed(response)
+            self.log.debug("Sending message.", method="ReserveCommitFailed", request_message=request)
+            stub.ReserveCommitFailed(request)
 
     @classmethod
     def recover(cls: Type[ReserveCommitJob]) -> List[Job]:
@@ -536,7 +536,7 @@ class ReserveAbortJob(Job):
         from supa.db.session import db_session
         from supa.nrm.backend import backend
 
-        response: Union[ReserveAbortConfirmedRequest, ErrorRequest]
+        request: Union[ReserveAbortConfirmedRequest, ErrorRequest]
         with db_session() as session:
             reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
             connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
@@ -546,14 +546,14 @@ class ReserveAbortJob(Job):
                     connection.circuit_id = circuit_id
             except NsiException as nsi_exc:
                 self.log.info("Reserve abort failed.", reason=nsi_exc.text)
-                response = to_error_request(
+                request = to_error_request(
                     to_header(reservation),
                     nsi_exc,
                     self.connection_id,
                 )
             except Exception as exc:
                 self.log.exception("Unexpected error occurred.", reason=str(exc))
-                response = to_error_request(
+                request = to_error_request(
                     to_header(reservation),
                     NsiException(
                         GenericInternalError,
@@ -566,16 +566,16 @@ class ReserveAbortJob(Job):
                     self.connection_id,
                 )
             else:
-                response = self._to_reserve_abort_confirmed_request(reservation)
+                request = self._to_reserve_abort_confirmed_request(reservation)
                 rsm.reserve_abort_confirmed()
 
         stub = requester.get_stub()
-        if type(response) == ReserveAbortConfirmedRequest:
-            self.log.debug("Sending message", method="ReserveAbortConfirmed", request_message=response)
-            stub.ReserveAbortConfirmed(response)
+        if type(request) == ReserveAbortConfirmedRequest:
+            self.log.debug("Sending message", method="ReserveAbortConfirmed", request_message=request)
+            stub.ReserveAbortConfirmed(request)
         else:
-            self.log.debug("Sending message", method="Error", request_message=response)
-            stub.Error(response)
+            self.log.debug("Sending message", method="Error", request_message=request)
+            stub.Error(request)
 
     @classmethod
     def recover(cls: Type[ReserveAbortJob]) -> List[Job]:
@@ -644,7 +644,7 @@ class ReserveTimeoutJob(Job):
         from supa.db.session import db_session
         from supa.nrm.backend import backend
 
-        response: Union[ReserveTimeoutRequest, ErrorRequest]
+        request: Union[ReserveTimeoutRequest, ErrorRequest]
         with db_session() as session:
             reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
             connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
@@ -664,14 +664,14 @@ class ReserveTimeoutJob(Job):
                 return
             except NsiException as nsi_exc:
                 self.log.info("Reserve timeout failed.", reason=nsi_exc.text)
-                response = to_error_request(
+                request = to_error_request(
                     to_header(reservation),
                     nsi_exc,
                     self.connection_id,
                 )
             except Exception as exc:
                 self.log.exception("Unexpected error occurred.", reason=str(exc))
-                response = to_error_request(
+                request = to_error_request(
                     to_header(reservation),
                     NsiException(
                         GenericInternalError,
@@ -688,19 +688,19 @@ class ReserveTimeoutJob(Job):
                 # TODO: release reserved resources(?)
                 #
                 self.log.debug("set reservation timeout to true in db")
-                response = self._to_reserve_timeout_request(reservation)
+                request = self._to_reserve_timeout_request(reservation)
                 reservation.reservation_timeout = True
 
         stub = requester.get_stub()
-        if type(response) == ReserveTimeoutRequest:
-            response.notification.notification_id = register_notification(
-                self.connection_id, "ReserveTimeout", response.SerializeToString()
+        if type(request) == ReserveTimeoutRequest:
+            request.notification.notification_id = register_notification(
+                self.connection_id, "ReserveTimeout", request.SerializeToString()
             )
-            self.log.debug("Sending message", method="ReserveTimeout", request_message=response)
-            stub.ReserveTimeout(response)
+            self.log.debug("Sending message", method="ReserveTimeout", request_message=request)
+            stub.ReserveTimeout(request)
         else:
-            self.log.debug("Sending message", method="Error", request_message=response)
-            stub.Error(response)
+            self.log.debug("Sending message", method="Error", request_message=request)
+            stub.Error(request)
 
     @classmethod
     def recover(cls: Type[ReserveTimeoutJob]) -> List[Job]:

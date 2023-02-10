@@ -70,7 +70,7 @@ class ProvisionJob(Job):
         from supa.db.session import db_session
         from supa.nrm.backend import backend
 
-        response: Union[ProvisionConfirmedRequest, ErrorRequest]
+        request: Union[ProvisionConfirmedRequest, ErrorRequest]
         with db_session() as session:
             reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
             connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
@@ -82,14 +82,14 @@ class ProvisionJob(Job):
                     connection.circuit_id = circuit_id
             except NsiException as nsi_exc:
                 self.log.info("Provision failed.", reason=nsi_exc.text)
-                response = to_error_request(
+                request = to_error_request(
                     to_header(reservation),
                     nsi_exc,
                     self.connection_id,
                 )
             except Exception as exc:
                 self.log.exception("Unexpected error occurred.", reason=str(exc))
-                response = to_error_request(
+                request = to_error_request(
                     to_header(reservation),
                     NsiException(
                         GenericInternalError,
@@ -107,7 +107,7 @@ class ProvisionJob(Job):
                 # if start time has already passed schedule a ActivateJob otherwise a AutoStartJob
                 if lsm.current_state != LifecycleStateMachine.Created:
                     self.log.info("No auto start or activate data plane", reason="Reservation already terminated")
-                    response = to_error_request(
+                    request = to_error_request(
                         to_header(reservation),
                         NsiException(
                             GenericConnectionError,
@@ -123,7 +123,7 @@ class ProvisionJob(Job):
                         dpsm.auto_start_request()
                     except TransitionNotAllowed as tna:
                         self.log.info("No auto start", reason=str(tna))
-                        response = to_error_request(
+                        request = to_error_request(
                             to_header(reservation),
                             NsiException(
                                 InvalidTransition,
@@ -136,14 +136,14 @@ class ProvisionJob(Job):
                         )
                     else:
                         start_time = reservation.start_time
-                        response = self._to_provision_confirmed_request(reservation)
+                        request = self._to_provision_confirmed_request(reservation)
                         psm.provision_confirmed()
                 else:
                     try:
                         dpsm.activate_request()
                     except TransitionNotAllowed as tna:
                         self.log.info("No activate data plane", reason=str(tna))
-                        response = to_error_request(
+                        request = to_error_request(
                             to_header(reservation),
                             NsiException(
                                 InvalidTransition,
@@ -155,12 +155,12 @@ class ProvisionJob(Job):
                             self.connection_id,
                         )
                     else:
-                        response = self._to_provision_confirmed_request(reservation)
+                        request = self._to_provision_confirmed_request(reservation)
                         psm.provision_confirmed()
                 new_data_plane_state = reservation.data_plane_state
 
         stub = requester.get_stub()
-        if type(response) == ProvisionConfirmedRequest:
+        if type(request) == ProvisionConfirmedRequest:
             from supa import scheduler
 
             job: Job  # help mypy understand that both AutoStartJob and ActivateJob are Job's
@@ -170,11 +170,11 @@ class ProvisionJob(Job):
             elif new_data_plane_state == DataPlaneStateMachine.Activating.value:
                 self.log.info("Schedule activate", job="ActivateJob")
                 scheduler.add_job(job := ActivateJob(self.connection_id), trigger=job.trigger(), id=job.job_id)
-            self.log.debug("Sending message", method="ProvisionConfirmed", request_message=response)
-            stub.ProvisionConfirmed(response)
+            self.log.debug("Sending message", method="ProvisionConfirmed", request_message=request)
+            stub.ProvisionConfirmed(request)
         else:
-            self.log.debug("Sending message", method="Error", request_message=response)
-            stub.Error(response)
+            self.log.debug("Sending message", method="Error", request_message=request)
+            stub.Error(request)
 
     @classmethod
     def recover(cls: Type[ProvisionJob]) -> List[Job]:
@@ -245,7 +245,7 @@ class ReleaseJob(Job):
         from supa.db.session import db_session
         from supa.nrm.backend import backend
 
-        response: Union[ReleaseConfirmedRequest, ErrorRequest]
+        request: Union[ReleaseConfirmedRequest, ErrorRequest]
         with db_session() as session:
             reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
             connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
@@ -257,14 +257,14 @@ class ReleaseJob(Job):
                     connection.circuit_id = circuit_id
             except NsiException as nsi_exc:
                 self.log.info("Release failed.", reason=nsi_exc.text)
-                response = to_error_request(
+                request = to_error_request(
                     to_header(reservation),
                     nsi_exc,
                     self.connection_id,
                 )
             except Exception as exc:
                 self.log.exception("Unexpected error occurred.", reason=str(exc))
-                response = to_error_request(
+                request = to_error_request(
                     to_header(reservation),
                     NsiException(
                         GenericInternalError,
@@ -283,7 +283,7 @@ class ReleaseJob(Job):
                 # and schedule a DeactivateJob if the data plane is active
                 if lsm.current_state != LifecycleStateMachine.Created:
                     self.log.info("No deactivate data plane", reason="Reservation already terminated")
-                    response = to_error_request(
+                    request = to_error_request(
                         to_header(reservation),
                         NsiException(
                             GenericConnectionError,
@@ -300,7 +300,7 @@ class ReleaseJob(Job):
                         dpsm.deactivate_request()
                     except TransitionNotAllowed as tna:
                         self.log.info("No deactivate data plane", reason=str(tna))
-                        response = to_error_request(
+                        request = to_error_request(
                             to_header(reservation),
                             NsiException(
                                 InvalidTransition,
@@ -311,11 +311,11 @@ class ReleaseJob(Job):
                             ),
                             self.connection_id,
                         )
-                    response = self._to_release_confirmed_request(reservation)
+                    request = self._to_release_confirmed_request(reservation)
                     psm.release_confirmed()
 
         stub = requester.get_stub()
-        if type(response) == ReleaseConfirmedRequest:
+        if type(request) == ReleaseConfirmedRequest:
             from supa import scheduler
 
             if previous_data_plane_state == DataPlaneStateMachine.AutoStart.value:
@@ -327,11 +327,11 @@ class ReleaseJob(Job):
                     scheduler.remove_job(job_id=AutoEndJob(self.connection_id).job_id)
                 self.log.info("Schedule deactivate", job="DeactivateJob")
                 scheduler.add_job(job := DeactivateJob(self.connection_id), trigger=job.trigger(), id=job.job_id)
-            self.log.debug("Sending message", method="ReleaseConfirmed", request_message=response)
-            stub.ReleaseConfirmed(response)
+            self.log.debug("Sending message", method="ReleaseConfirmed", request_message=request)
+            stub.ReleaseConfirmed(request)
         else:
-            self.log.debug("Sending message", method="Error", request_message=response)
-            stub.Error(response)
+            self.log.debug("Sending message", method="Error", request_message=request)
+            stub.Error(request)
 
     @classmethod
     def recover(cls: Type[ReleaseJob]) -> List[Job]:
