@@ -68,7 +68,7 @@ class TerminateJob(Job):
         from supa.db.session import db_session
         from supa.nrm.backend import backend
 
-        response: Union[TerminateConfirmedRequest, ErrorRequest]
+        request: Union[TerminateConfirmedRequest, ErrorRequest]
         with db_session() as session:
             reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
             connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one_or_none()
@@ -81,14 +81,14 @@ class TerminateJob(Job):
                         connection.circuit_id = circuit_id
             except NsiException as nsi_exc:
                 self.log.info("Terminate failed.", reason=nsi_exc.text)
-                response = to_error_request(
+                request = to_error_request(
                     to_header(reservation),
                     nsi_exc,
                     self.connection_id,
                 )
             except Exception as exc:
                 self.log.exception("Unexpected error occurred.", reason=str(exc))
-                response = to_error_request(
+                request = to_error_request(
                     to_header(reservation),
                     NsiException(
                         GenericInternalError,
@@ -120,22 +120,22 @@ class TerminateJob(Job):
                         if previous_data_plane_state == DataPlaneStateMachine.AutoEnd.value:
                             self.log.info("Cancel auto end")
                             scheduler.remove_job(job_id=AutoEndJob(self.connection_id).job_id)
-                response = self._to_terminate_confirmed_request(reservation)
+                request = self._to_terminate_confirmed_request(reservation)
                 lsm.terminate_confirmed()
 
         stub = requester.get_stub()
-        if type(response) == TerminateConfirmedRequest:
+        if type(request) == TerminateConfirmedRequest:
             if (
                 previous_data_plane_state == DataPlaneStateMachine.AutoEnd.value
                 or previous_data_plane_state == DataPlaneStateMachine.Activated.value
             ):
                 self.log.info("Schedule deactivate", job="DeactivateJob")
                 scheduler.add_job(job := DeactivateJob(self.connection_id), trigger=job.trigger(), id=job.job_id)
-            self.log.debug("Sending message", method="TerminateConfirmed", request_message=response)
-            stub.TerminateConfirmed(response)
+            self.log.debug("Sending message", method="TerminateConfirmed", request_message=request)
+            stub.TerminateConfirmed(request)
         else:
-            self.log.debug("Sending message", method="Error", request_message=response)
-            stub.Error(response)
+            self.log.debug("Sending message", method="Error", request_message=request)
+            stub.Error(request)
 
     @classmethod
     def recover(cls: Type[TerminateJob]) -> List[Job]:

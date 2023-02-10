@@ -60,7 +60,7 @@ class ActivateJob(Job):
         from supa.db.session import db_session
         from supa.nrm.backend import backend
 
-        response: Union[DataPlaneStateChangeRequest, ErrorEventRequest]
+        request: Union[DataPlaneStateChangeRequest, ErrorEventRequest]
         with db_session() as session:
             reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
             connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
@@ -71,11 +71,11 @@ class ActivateJob(Job):
             except NsiException as nsi_exc:
                 dpsm.activate_failed()
                 self.log.info("Data plane activation failed", reason=nsi_exc.text)
-                response = to_activate_failed_event(reservation, nsi_exc)
+                request = to_activate_failed_event(reservation, nsi_exc)
             except Exception as exc:
                 dpsm.activate_failed()
                 self.log.exception("Unexpected error occurred", reason=str(exc))
-                response = to_activate_failed_event(
+                request = to_activate_failed_event(
                     reservation,
                     NsiException(
                         GenericInternalError,
@@ -87,28 +87,28 @@ class ActivateJob(Job):
                 )
             else:
                 dpsm.activate_confirmed()
-                response = to_data_plane_state_change_request(reservation)
+                request = to_data_plane_state_change_request(reservation)
                 if auto_end_job := ((end_time := reservation.end_time) != NO_END_DATE):
                     dpsm.auto_end_request()
 
         stub = requester.get_stub()
-        if type(response) == DataPlaneStateChangeRequest:
+        if type(request) == DataPlaneStateChangeRequest:
             if auto_end_job:
                 from supa import scheduler
 
                 self.log.info("Schedule auto end", job="AutoEndJob", end_time=end_time.isoformat())
                 scheduler.add_job(job := AutoEndJob(self.connection_id), trigger=job.trigger(), id=job.job_id)
-            response.notification.notification_id = register_notification(
-                self.connection_id, "DataPlaneStateChange", response.SerializeToString()
+            request.notification.notification_id = register_notification(
+                self.connection_id, "DataPlaneStateChange", request.SerializeToString()
             )
-            self.log.debug("Sending message", method="DataPlaneStateChange", request_message=response)
-            stub.DataPlaneStateChange(response)
+            self.log.debug("Sending message", method="DataPlaneStateChange", request_message=request)
+            stub.DataPlaneStateChange(request)
         else:
-            response.notification.notification_id = register_notification(
-                self.connection_id, "ErrorEvent", response.SerializeToString()
+            request.notification.notification_id = register_notification(
+                self.connection_id, "ErrorEvent", request.SerializeToString()
             )
-            self.log.debug("Sending message", method="Error", request_message=response)
-            stub.ErrorEvent(response)
+            self.log.debug("Sending message", method="Error", request_message=request)
+            stub.ErrorEvent(request)
 
     @classmethod
     def recover(cls: Type[ActivateJob]) -> List[Job]:
@@ -176,7 +176,7 @@ class DeactivateJob(Job):
         from supa.db.session import db_session
         from supa.nrm.backend import backend
 
-        response: Union[DataPlaneStateChangeRequest, ErrorEventRequest]
+        request: Union[DataPlaneStateChangeRequest, ErrorEventRequest]
         with db_session() as session:
             reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
             connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
@@ -192,11 +192,11 @@ class DeactivateJob(Job):
             except NsiException as nsi_exc:
                 dpsm.deactivate_failed()
                 self.log.info("Data plane deactivation failed", reason=nsi_exc.text)
-                response = to_deactivate_failed_event(reservation, nsi_exc)
+                request = to_deactivate_failed_event(reservation, nsi_exc)
             except Exception as exc:
                 dpsm.deactivate_failed()
                 self.log.exception("Unexpected error occurred", reason=str(exc))
-                response = to_deactivate_failed_event(
+                request = to_deactivate_failed_event(
                     reservation,
                     NsiException(
                         GenericInternalError,
@@ -208,21 +208,21 @@ class DeactivateJob(Job):
                 )
             else:
                 dpsm.deactivate_confirm()
-                response = to_data_plane_state_change_request(reservation)
+                request = to_data_plane_state_change_request(reservation)
 
         stub = requester.get_stub()
-        if type(response) == DataPlaneStateChangeRequest:
-            response.notification.notification_id = register_notification(
-                self.connection_id, "DataPlaneStateChange", response.SerializeToString()
+        if type(request) == DataPlaneStateChangeRequest:
+            request.notification.notification_id = register_notification(
+                self.connection_id, "DataPlaneStateChange", request.SerializeToString()
             )
-            self.log.debug("Sending message", method="DataPlaneStateChange", request_message=response)
-            stub.DataPlaneStateChange(response)
+            self.log.debug("Sending message", method="DataPlaneStateChange", request_message=request)
+            stub.DataPlaneStateChange(request)
         else:
-            response.notification.notification_id = register_notification(
-                self.connection_id, "ErrorEvent", response.SerializeToString()
+            request.notification.notification_id = register_notification(
+                self.connection_id, "ErrorEvent", request.SerializeToString()
             )
-            self.log.debug("Sending message", method="Error", request_message=response)
-            stub.ErrorEvent(response)
+            self.log.debug("Sending message", method="Error", request_message=request)
+            stub.ErrorEvent(request)
 
     @classmethod
     def recover(cls: Type[DeactivateJob]) -> List[Job]:
