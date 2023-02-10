@@ -20,7 +20,7 @@ from apscheduler.triggers.date import DateTrigger
 from sqlalchemy import func
 
 from supa.connection.error import NsiError, Variable
-from supa.db.model import Notification
+from supa.db.model import Notification, Result
 
 
 class Job(metaclass=ABCMeta):
@@ -196,3 +196,27 @@ def register_notification(connection_id: UUID, notification_type: str, notificat
             )
         )
     return int(notification_id)
+
+
+def register_result(connection_id: UUID, correlation_id: str, result_type: str, result_data: bytes) -> None:
+    """Register result against connection_id in the database."""
+    from supa.db.session import db_session
+
+    with db_session() as session:
+        try:
+            # find the highest result ID for this connection ID and increment by 1
+            result_id = (
+                session.query(func.max(Result.result_id)).filter(Result.connection_id == connection_id).one()[0] + 1
+            )
+        except TypeError:
+            # if this is the first result for this connection_id then start with 1
+            result_id = 1
+        session.add(
+            Result(
+                connection_id=connection_id,
+                correlation_id=UUID(correlation_id),
+                result_id=result_id,
+                result_type=result_type,
+                result_data=result_data,
+            )
+        )

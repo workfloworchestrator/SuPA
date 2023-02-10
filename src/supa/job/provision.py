@@ -27,7 +27,7 @@ from supa.connection.fsm import DataPlaneStateMachine, LifecycleStateMachine, Pr
 from supa.db.model import Connection, Reservation, connection_to_dict
 from supa.grpc_nsi.connection_requester_pb2 import ErrorRequest, ProvisionConfirmedRequest, ReleaseConfirmedRequest
 from supa.job.dataplane import ActivateJob, AutoEndJob, AutoStartJob, DeactivateJob
-from supa.job.shared import Job, NsiException
+from supa.job.shared import Job, NsiException, register_result
 from supa.util.converter import to_error_request, to_header
 from supa.util.timestamp import current_timestamp
 
@@ -170,9 +170,13 @@ class ProvisionJob(Job):
             elif new_data_plane_state == DataPlaneStateMachine.Activating.value:
                 self.log.info("Schedule activate", job="ActivateJob")
                 scheduler.add_job(job := ActivateJob(self.connection_id), trigger=job.trigger(), id=job.job_id)
+            register_result(
+                self.connection_id, request.header.correlation_id, "ProvisionConfirmed", request.SerializeToString()
+            )
             self.log.debug("Sending message", method="ProvisionConfirmed", request_message=request)
             stub.ProvisionConfirmed(request)
         else:
+            register_result(self.connection_id, request.header.correlation_id, "Error", request.SerializeToString())
             self.log.debug("Sending message", method="Error", request_message=request)
             stub.Error(request)
 
@@ -327,9 +331,13 @@ class ReleaseJob(Job):
                     scheduler.remove_job(job_id=AutoEndJob(self.connection_id).job_id)
                 self.log.info("Schedule deactivate", job="DeactivateJob")
                 scheduler.add_job(job := DeactivateJob(self.connection_id), trigger=job.trigger(), id=job.job_id)
+            register_result(
+                self.connection_id, request.header.correlation_id, "ReleaseConfirmed", request.SerializeToString()
+            )
             self.log.debug("Sending message", method="ReleaseConfirmed", request_message=request)
             stub.ReleaseConfirmed(request)
         else:
+            register_result(self.connection_id, request.header.correlation_id, "Error", request.SerializeToString())
             self.log.debug("Sending message", method="Error", request_message=request)
             stub.Error(request)
 

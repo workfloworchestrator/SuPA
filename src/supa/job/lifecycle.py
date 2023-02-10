@@ -27,7 +27,7 @@ from supa.connection.fsm import DataPlaneStateMachine, LifecycleStateMachine
 from supa.db.model import Connection, Reservation, connection_to_dict
 from supa.grpc_nsi.connection_requester_pb2 import ErrorRequest, TerminateConfirmedRequest
 from supa.job.dataplane import AutoEndJob, AutoStartJob, DeactivateJob
-from supa.job.shared import Job, NsiException
+from supa.job.shared import Job, NsiException, register_result
 from supa.util.converter import to_error_request, to_header
 
 logger = structlog.get_logger(__name__)
@@ -131,9 +131,13 @@ class TerminateJob(Job):
             ):
                 self.log.info("Schedule deactivate", job="DeactivateJob")
                 scheduler.add_job(job := DeactivateJob(self.connection_id), trigger=job.trigger(), id=job.job_id)
+            register_result(
+                self.connection_id, request.header.correlation_id, "TerminateConfirmed", request.SerializeToString()
+            )
             self.log.debug("Sending message", method="TerminateConfirmed", request_message=request)
             stub.TerminateConfirmed(request)
         else:
+            register_result(self.connection_id, request.header.correlation_id, "Error", request.SerializeToString())
             self.log.debug("Sending message", method="Error", request_message=request)
             stub.Error(request)
 

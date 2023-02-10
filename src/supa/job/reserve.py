@@ -47,7 +47,7 @@ from supa.grpc_nsi.connection_requester_pb2 import (
     ReserveFailedRequest,
     ReserveTimeoutRequest,
 )
-from supa.job.shared import Job, NsiException, register_notification
+from supa.job.shared import Job, NsiException, register_notification, register_result
 from supa.util.bandwidth import format_bandwidth
 from supa.util.converter import (
     to_confirm_criteria,
@@ -355,6 +355,9 @@ class ReserveJob(Job):
 
         stub = requester.get_stub()
         if type(request) == ReserveConfirmedRequest:
+            register_result(
+                self.connection_id, request.header.correlation_id, "ReserveConfirmed", request.SerializeToString()
+            )
             self.log.debug("Sending message.", method="ReserveConfirmed", request_message=request)
             stub.ReserveConfirmed(request)
         else:
@@ -362,6 +365,12 @@ class ReserveJob(Job):
 
             self.log.info("Cancel reserve timeout")
             scheduler.remove_job(job_id=ReserveTimeoutJob(self.connection_id).job_id)
+            register_result(
+                self.connection_id,
+                request.header.correlation_id,  # type: ignore[attr-defined]
+                "ReserveFailed",
+                request.SerializeToString(),
+            )
             self.log.debug("Sending message.", method="ReserveFailed", request_message=request)
             stub.ReserveFailed(request)
 
@@ -466,9 +475,15 @@ class ReserveCommitJob(Job):
 
         stub = requester.get_stub()
         if type(request) == ReserveCommitConfirmedRequest:
+            register_result(
+                self.connection_id, request.header.correlation_id, "ReserveCommitConfirmed", request.SerializeToString()
+            )
             self.log.debug("Sending message", method="ReserveCommitConfirmed", request_message=request)
             stub.ReserveCommitConfirmed(request)
         else:
+            register_result(
+                self.connection_id, request.header.correlation_id, "ReserveCommitFailed", request.SerializeToString()
+            )
             self.log.debug("Sending message.", method="ReserveCommitFailed", request_message=request)
             stub.ReserveCommitFailed(request)
 
@@ -571,9 +586,13 @@ class ReserveAbortJob(Job):
 
         stub = requester.get_stub()
         if type(request) == ReserveAbortConfirmedRequest:
+            register_result(
+                self.connection_id, request.header.correlation_id, "ReserveAbortConfirmed", request.SerializeToString()
+            )
             self.log.debug("Sending message", method="ReserveAbortConfirmed", request_message=request)
             stub.ReserveAbortConfirmed(request)
         else:
+            register_result(self.connection_id, request.header.correlation_id, "Error", request.SerializeToString())
             self.log.debug("Sending message", method="Error", request_message=request)
             stub.Error(request)
 
@@ -699,6 +718,7 @@ class ReserveTimeoutJob(Job):
             self.log.debug("Sending message", method="ReserveTimeout", request_message=request)
             stub.ReserveTimeout(request)
         else:
+            register_result(self.connection_id, request.header.correlation_id, "Error", request.SerializeToString())
             self.log.debug("Sending message", method="Error", request_message=request)
             stub.Error(request)
 
