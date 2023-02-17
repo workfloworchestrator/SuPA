@@ -33,7 +33,7 @@ from supa.grpc_nsi.connection_requester_pb2 import (
     DataPlaneStateChangeRequest,
     ErrorEventRequest,
     ErrorRequest,
-    QuerySummaryResultCriteria,
+    QueryResultCriteria,
     ReservationConfirmCriteria,
 )
 from supa.grpc_nsi.policy_pb2 import Segment
@@ -210,16 +210,16 @@ def to_confirm_criteria(reservation: model.Reservation) -> ReservationConfirmCri
     return pb_rcc
 
 
-def to_summary_criteria(reservation: model.Reservation) -> QuerySummaryResultCriteria:
-    """Create Protobuf ``QuerySummaryResultCriteria`` out of DB stored reservation data.
+def to_criteria(reservation: model.Reservation) -> QueryResultCriteria:
+    """Create Protobuf ``QueryResultCriteria`` out of DB stored reservation data.
 
     Args:
         reservation: DB Model
 
     Returns:
-        A ``QuerySummaryResultCriteria`` object.
+        A ``QueryResultCriteria`` object.
     """
-    pb_rsc = QuerySummaryResultCriteria()
+    pb_rsc = QueryResultCriteria()
     pb_rsc.version = reservation.version
     pb_rsc.schedule.CopyFrom(to_schedule(reservation))
     pb_rsc.service_type = const.SERVICE_TYPE
