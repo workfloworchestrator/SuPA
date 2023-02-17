@@ -67,7 +67,7 @@ def create_query_summary_confirmed_request(
             .filter(Reservation.last_modified > as_utc_timestamp(pb_query_summary_request.if_modified_since))
             .all()
         )
-        last_modified = session.query(func.max(Reservation.last_modified)).one()[0]
+        last_modified = session.query(func.max(Reservation.last_modified)).scalar()
 
         header = Header()
         header.CopyFrom(pb_query_summary_request.header)

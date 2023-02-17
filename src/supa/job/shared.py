@@ -181,7 +181,7 @@ def register_notification(connection_id: UUID, notification_type: str, notificat
             notification_id = (
                 session.query(func.max(Notification.notification_id))
                 .filter(Notification.connection_id == connection_id)
-                .one()[0]
+                .scalar()
                 + 1
             )
         except TypeError:
@@ -206,7 +206,7 @@ def register_result(connection_id: UUID, correlation_id: str, result_type: str, 
         try:
             # find the highest result ID for this connection ID and increment by 1
             result_id = (
-                session.query(func.max(Result.result_id)).filter(Result.connection_id == connection_id).one()[0] + 1
+                session.query(func.max(Result.result_id)).filter(Result.connection_id == connection_id).scalar() + 1
             )
         except TypeError:
             # if this is the first result for this connection_id then start with 1

@@ -10,6 +10,8 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
+#
+# mypy: disable-error-code=attr-defined
 from __future__ import annotations
 
 import random
@@ -366,10 +368,7 @@ class ReserveJob(Job):
             self.log.info("Cancel reserve timeout")
             scheduler.remove_job(job_id=ReserveTimeoutJob(self.connection_id).job_id)
             register_result(
-                self.connection_id,
-                request.header.correlation_id,  # type: ignore[attr-defined]
-                "ReserveFailed",
-                request.SerializeToString(),
+                self.connection_id, request.header.correlation_id, "ReserveFailed", request.SerializeToString()
             )
             self.log.debug("Sending message.", method="ReserveFailed", request_message=request)
             stub.ReserveFailed(request)
@@ -755,6 +754,6 @@ class ReserveTimeoutJob(Job):
         with db_session() as session:
             timeout_date = session.query(Reservation.create_date).filter(
                 Reservation.connection_id == self.connection_id
-            ).one()[0] + timedelta(seconds=settings.reserve_timeout)
+            ).scalar() + timedelta(seconds=settings.reserve_timeout)
 
         return DateTrigger(run_date=timeout_date)
