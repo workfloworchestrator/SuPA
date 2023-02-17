@@ -52,7 +52,7 @@ from supa.grpc_nsi.policy_pb2 import PathTrace
 from supa.grpc_nsi.services_pb2 import Directionality, PointToPointService
 from supa.job.lifecycle import TerminateJob
 from supa.job.provision import ProvisionJob, ReleaseJob
-from supa.job.query import QuerySummaryJob, create_query_confirmed_request
+from supa.job.query import QueryRecursiveJob, QuerySummaryJob, create_query_confirmed_request
 from supa.job.reserve import ReserveAbortJob, ReserveCommitJob, ReserveJob, ReserveTimeoutJob
 from supa.job.shared import Job, NsiException
 from supa.util.converter import to_response_header, to_service_exception
@@ -706,3 +706,36 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         request = create_query_confirmed_request(pb_query_request)
         log.debug("Sending response.", response_message=request)
         return request
+
+    def QueryRecursive(self, pb_query_request: QueryRequest, context: ServicerContext) -> QueryResponse:
+        """Query recursive reservation(s) summary.
+
+        Start an :class:`~supa.job.reserve.QueryRecursiveJob` to gather and return
+        all requested information.
+
+        Args:
+            pb_query_request: protobuf query request message
+            context: gRPC server context object.
+
+        Returns:
+            A response telling the caller we have received its query request.
+        """
+        log = logger.bind(
+            method="QueryRecursive",
+            connection_ids=pb_query_request.connection_id,
+            global_reservation_ids=pb_query_request.global_reservation_id,
+            if_modified_since=as_utc_timestamp(pb_query_request.if_modified_since).isoformat(),
+        )
+        log.debug("Received message.", request_message=pb_query_request)
+
+        from supa import scheduler
+
+        log.info("Schedule query recursive", job="QueryRecursiveJob")
+        scheduler.add_job(
+            job := QueryRecursiveJob(pb_query_request=pb_query_request),
+            trigger=job.trigger(),
+            id="=".join(["QueryRecursiveJob", str(UUID(pb_query_request.header.correlation_id))]),
+        )
+        query_response = QueryResponse(header=to_response_header(pb_query_request.header))
+        log.debug("Sending response.", response_message=query_response)
+        return query_response
