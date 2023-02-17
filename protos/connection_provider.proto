@@ -152,6 +152,19 @@ message QueryResponse {
   common.ServiceException service_exception = 2; // MUST be translated to ServiceException by PolyNSI
 }
 
+message QueryNotificationRequest {
+  common.Header header = 1;
+  string connection_id = 2;
+  int64 start_notification_id = 3;
+  int64 end_notification_id = 4;
+}
+
+message QueryNotificationResponse {
+  common.Header header = 1;
+  common.ServiceException service_exception = 2; // MUST be translated to ServiceException by PolyNSI
+}
+
+
 service ConnectionProvider {
   rpc Reserve(ReserveRequest) returns (ReserveResponse);
   rpc ReserveCommit(ReserveCommitRequest) returns (ReserveCommitResponse);
@@ -160,7 +173,10 @@ service ConnectionProvider {
   rpc Release(ReleaseRequest) returns (ReleaseResponse);
   rpc Terminate(TerminateRequest) returns (TerminateResponse);
   rpc QuerySummary(QueryRequest) returns (QueryResponse);
-  // QuerySummarySync returns a QueryConfirmedRequest bypassing the associated Response messages
+  // QuerySummarySync returns a QueryConfirmedRequest bypassing the usual Response messages
   rpc QuerySummarySync(QueryRequest) returns (requester.QueryConfirmedRequest);
   rpc QueryRecursive(QueryRequest) returns (QueryResponse);
+  rpc QueryNotification(QueryNotificationRequest) returns (QueryNotificationResponse);
+  // QueryNotificationSync returns a QueryNotificationConfirmedRequest bypassing the usual Response messages
+  rpc QueryNotificationSync(QueryNotificationRequest) returns (requester.QueryNotificationConfirmedRequest);
 }

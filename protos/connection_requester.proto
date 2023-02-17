@@ -175,6 +175,16 @@ message ReserveTimeoutResponse {
   common.Header header = 1;
 }
 
+message MessageDeliveryTimeoutRequest {
+  common.Header header = 1;
+  common.Notification notification = 2;
+  string correlation_id = 3;
+}
+
+message MessageDeliveryTimeoutResponse {
+  common.Header header = 1;
+}
+
 message QueryConfirmedRequest {
   common.Header header = 1;
   repeated QueryResult reservation = 2;
@@ -182,6 +192,18 @@ message QueryConfirmedRequest {
 }
 
 message QueryConfirmedResponse {
+  common.Header header = 1;
+}
+
+message QueryNotificationConfirmedRequest {
+  common.Header header = 1;
+  repeated ErrorEventRequest error_event = 2;
+  repeated ReserveTimeoutRequest reserve_timeout = 3;
+  repeated DataPlaneStateChangeRequest data_plane_state_change = 4;
+  repeated MessageDeliveryTimeoutRequest message_delivery_timeout = 5;
+}
+
+message QueryNotificationConfirmedResponse {
   common.Header header = 1;
 }
 
@@ -198,6 +220,8 @@ service ConnectionRequester {
   rpc ErrorEvent(ErrorEventRequest) returns (ErrorEventResponse);
   rpc DataPlaneStateChange(DataPlaneStateChangeRequest) returns (DataPlaneStateChangeResponse);
   rpc ReserveTimeout(ReserveTimeoutRequest) returns (ReserveTimeoutResponse);
+  rpc MessageDeliveryTimeout(MessageDeliveryTimeoutRequest) returns (MessageDeliveryTimeoutResponse);
   rpc QuerySummaryConfirmed(QueryConfirmedRequest) returns (QueryConfirmedResponse);
   rpc QueryRecursiveConfirmed(QueryConfirmedRequest) returns (QueryConfirmedResponse);
+  rpc QueryNotificationConfirmed(QueryNotificationConfirmedRequest) returns (QueryNotificationConfirmedResponse);
 }

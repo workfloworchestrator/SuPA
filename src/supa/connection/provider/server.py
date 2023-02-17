@@ -33,6 +33,8 @@ from supa.grpc_nsi.connection_common_pb2 import Header, Schedule
 from supa.grpc_nsi.connection_provider_pb2 import (
     ProvisionRequest,
     ProvisionResponse,
+    QueryNotificationRequest,
+    QueryNotificationResponse,
     QueryRequest,
     QueryResponse,
     ReleaseRequest,
@@ -52,7 +54,7 @@ from supa.grpc_nsi.policy_pb2 import PathTrace
 from supa.grpc_nsi.services_pb2 import Directionality, PointToPointService
 from supa.job.lifecycle import TerminateJob
 from supa.job.provision import ProvisionJob, ReleaseJob
-from supa.job.query import QueryRecursiveJob, QuerySummaryJob, create_query_confirmed_request
+from supa.job.query import QueryNotificationJob, QueryRecursiveJob, QuerySummaryJob, create_query_confirmed_request
 from supa.job.reserve import ReserveAbortJob, ReserveCommitJob, ReserveJob, ReserveTimeoutJob
 from supa.job.shared import Job, NsiException
 from supa.util.converter import to_response_header, to_service_exception
@@ -739,3 +741,38 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         query_response = QueryResponse(header=to_response_header(pb_query_request.header))
         log.debug("Sending response.", response_message=query_response)
         return query_response
+
+    def QueryNotification(
+        self, pb_query_notification_request: QueryNotificationRequest, context: ServicerContext
+    ) -> QueryNotificationResponse:
+        """Query notification(s).
+
+        Start an :class:`~supa.job.reserve.QueryNotificationJob` to gather and return
+        all requested information.
+
+        Args:
+            pb_query_notification_request: protobuf query notification request message
+            context: gRPC server context object.
+
+        Returns:
+            A response telling the caller we have received its query request.
+        """
+        log = logger.bind(
+            method="QueryNotification",
+            connection_id=pb_query_notification_request.connection_id,
+            start_notification_id=pb_query_notification_request.start_notification_id,
+            end_notification_id=pb_query_notification_request.end_notification_id,
+        )
+        log.debug("Received message.", request_message=pb_query_notification_request)
+
+        from supa import scheduler
+
+        log.info("Schedule query notification", job="QueryNotificationJob")
+        scheduler.add_job(
+            job := QueryNotificationJob(pb_query_notification_request=pb_query_notification_request),
+            trigger=job.trigger(),
+            id="=".join(["QueryNotificationJob", str(UUID(pb_query_notification_request.header.correlation_id))]),
+        )
+        response = QueryNotificationResponse(header=to_response_header(pb_query_notification_request.header))
+        log.debug("Sending response.", response_message=response)
+        return response

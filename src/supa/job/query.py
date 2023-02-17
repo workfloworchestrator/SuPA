@@ -12,7 +12,7 @@
 #  limitations under the License.
 from __future__ import annotations
 
-from typing import List, Type, Union
+from typing import List, Type
 from uuid import UUID
 
 import structlog
@@ -24,8 +24,8 @@ from supa.connection import requester
 from supa.connection.fsm import DataPlaneStateMachine, ReservationStateMachine
 from supa.db.model import Notification, Reservation, Result
 from supa.grpc_nsi.connection_common_pb2 import Header
-from supa.grpc_nsi.connection_provider_pb2 import QueryRequest
-from supa.grpc_nsi.connection_requester_pb2 import ErrorRequest, QueryConfirmedRequest, QueryResult
+from supa.grpc_nsi.connection_provider_pb2 import QueryNotificationRequest, QueryRequest
+from supa.grpc_nsi.connection_requester_pb2 import QueryConfirmedRequest, QueryNotificationConfirmedRequest, QueryResult
 from supa.job.shared import Job
 from supa.util.converter import to_connection_states, to_criteria
 from supa.util.timestamp import as_utc_timestamp
@@ -46,7 +46,6 @@ def create_query_confirmed_request(
     """
     from supa.db.session import db_session
 
-    request: Union[QueryConfirmedRequest, ErrorRequest]
     with db_session() as session:
         or_filter = []
         if pb_query_request.connection_id:
@@ -99,6 +98,37 @@ def create_query_confirmed_request(
             ).scalar()
             query_result.result_id = max_result_id if max_result_id else 0
             request.reservation.append(query_result)
+
+        return request
+
+
+def create_query_notification_confirmed_request(
+    pb_query_notification_request: QueryNotificationRequest,
+) -> QueryNotificationConfirmedRequest:
+    """Get a list of notifications for connection ID supplied by query notification request.
+
+    Query notification(s) of requested connection ID, if any,
+    optionally limiting the notifications by start and end notification ID.
+
+    Args:
+        pb_query_notification_request (QueryNotificationRequest):
+
+    Returns:
+        QueryNotificationConfirmedRequest with list of notifications.
+    """
+    from supa.db.session import db_session
+
+    with db_session() as session:
+        query = session.query(Notification).filter(Notification.connection_id)
+        if pb_query_notification_request.start_notification_id > 0:
+            query = query.filter(Notification.notification_id >= pb_query_notification_request.start_notification_id)
+        if pb_query_notification_request.end_notification_id > 0:
+            query = query.filter(Notification.notification_id <= pb_query_notification_request.end_notification_id)
+        notifications: List[Notification] = query.all()
+
+        header = Header()
+        header.CopyFrom(pb_query_notification_request.header)
+        request = QueryNotificationConfirmedRequest(header=header)
 
         return request
 
@@ -238,6 +268,80 @@ class QueryRecursiveJob(Job):
 
     def trigger(self) -> DateTrigger:
         """Trigger for QueryRecursiveJob's.
+
+        Returns:
+            DateTrigger set to None, which means run now.
+        """
+        return DateTrigger(run_date=None)  # Run immediately
+
+
+class QueryNotificationJob(Job):
+    """Handle query recursive requests."""
+
+    log: BoundLogger
+    pb_query_notification_request: QueryNotificationRequest
+
+    def __init__(self, pb_query_notification_request: QueryNotificationRequest):
+        """Initialize the QueryNotificationJob.
+
+        The QueryNotification message provides a
+        mechanism for a Requester NSA to query a Provider NSA for a
+        set of notifications against a specific connectionId.
+
+        Args:
+           pb_query_notification_request: protobuf query notification request message
+
+                Elements compose a filter for specifying the notifications to
+                return in response to the query operation.  The filter query
+                provides an inclusive range of notification identifiers based
+                on connectionId.
+
+                Elements:
+
+                connectionId - Notifications for this connectionId.
+
+                startNotificationId - The start of the range of notificationIds
+                to return.  If not present then the query should start from
+                oldest notificationId available.
+
+                endNotificationId - The end of the range of notificationIds
+                to return.  If not present then the query should end with
+                the newest notificationId available.
+        """
+        self.log = logger.bind(
+            job="QueryNotificationJob",
+            connection_id=pb_query_notification_request.connection_id,
+            start_notification_id=pb_query_notification_request.start_notification_id,
+            end_notification_id=pb_query_notification_request.end_notification_id,
+        )
+        self.pb_query_notification_request = pb_query_notification_request
+
+    def __call__(self) -> None:
+        """Query notification request.
+
+        Query notification(s) of requested connection ID, if any,
+        optionally limiting the notifications by start and end notification ID.
+        """
+        self.log.info("Query notification")
+        request = create_query_notification_confirmed_request(self.pb_query_notification_request)
+        stub = requester.get_stub()
+        self.log.debug("Sending message", method="QueryNotificationConfirmed", request_message=request)
+        stub.QueryNotificationConfirmed(request)
+
+    @classmethod
+    def recover(cls: Type[QueryNotificationJob]) -> List[Job]:
+        """Recover QueryNotificationJob's that did not get to run before SuPA was terminated.
+
+        As no query notification request details are stored in the database (at this time),
+        it is not possible to recover QueryNotificationJob's.
+
+        Returns:
+            List of QueryNotificationJob's that still need to be run (currently always empty List).
+        """
+        return []
+
+    def trigger(self) -> DateTrigger:
+        """Trigger for QueryNotificationJob's.
 
         Returns:
             DateTrigger set to None, which means run now.
