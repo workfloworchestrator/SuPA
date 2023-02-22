@@ -98,15 +98,11 @@ class ActivateJob(Job):
 
                 self.log.info("Schedule auto end", job="AutoEndJob", end_time=end_time.isoformat())
                 scheduler.add_job(job := AutoEndJob(self.connection_id), trigger=job.trigger(), id=job.job_id)
-            request.notification.notification_id = register_notification(
-                self.connection_id, "DataPlaneStateChange", request.SerializeToString()
-            )
+            register_notification(request)
             self.log.debug("Sending message", method="DataPlaneStateChange", request_message=request)
             stub.DataPlaneStateChange(request)
         else:
-            request.notification.notification_id = register_notification(
-                self.connection_id, "ErrorEvent", request.SerializeToString()
-            )
+            register_notification(request)
             self.log.debug("Sending message", method="Error", request_message=request)
             stub.ErrorEvent(request)
 
@@ -212,15 +208,11 @@ class DeactivateJob(Job):
 
         stub = requester.get_stub()
         if type(request) == DataPlaneStateChangeRequest:
-            request.notification.notification_id = register_notification(
-                self.connection_id, "DataPlaneStateChange", request.SerializeToString()
-            )
+            register_notification(request)
             self.log.debug("Sending message", method="DataPlaneStateChange", request_message=request)
             stub.DataPlaneStateChange(request)
         else:
-            request.notification.notification_id = register_notification(
-                self.connection_id, "ErrorEvent", request.SerializeToString()
-            )
+            register_notification(request)
             self.log.debug("Sending message", method="Error", request_message=request)
             stub.ErrorEvent(request)
 

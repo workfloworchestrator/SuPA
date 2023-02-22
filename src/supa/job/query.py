@@ -25,7 +25,15 @@ from supa.connection.fsm import DataPlaneStateMachine, ReservationStateMachine
 from supa.db.model import Notification, Reservation, Result
 from supa.grpc_nsi.connection_common_pb2 import Header
 from supa.grpc_nsi.connection_provider_pb2 import QueryNotificationRequest, QueryRequest
-from supa.grpc_nsi.connection_requester_pb2 import QueryConfirmedRequest, QueryNotificationConfirmedRequest, QueryResult
+from supa.grpc_nsi.connection_requester_pb2 import (
+    DataPlaneStateChangeRequest,
+    ErrorEventRequest,
+    MessageDeliveryTimeoutRequest,
+    QueryConfirmedRequest,
+    QueryNotificationConfirmedRequest,
+    QueryResult,
+    ReserveTimeoutRequest,
+)
 from supa.job.shared import Job
 from supa.util.converter import to_connection_states, to_criteria
 from supa.util.timestamp import as_utc_timestamp
@@ -119,7 +127,9 @@ def create_query_notification_confirmed_request(
     from supa.db.session import db_session
 
     with db_session() as session:
-        query = session.query(Notification).filter(Notification.connection_id)
+        query = session.query(Notification).filter(
+            Notification.connection_id == UUID(pb_query_notification_request.connection_id)
+        )
         if pb_query_notification_request.start_notification_id > 0:
             query = query.filter(Notification.notification_id >= pb_query_notification_request.start_notification_id)
         if pb_query_notification_request.end_notification_id > 0:
@@ -129,6 +139,21 @@ def create_query_notification_confirmed_request(
         header = Header()
         header.CopyFrom(pb_query_notification_request.header)
         request = QueryNotificationConfirmedRequest(header=header)
+        for notification in notifications:
+            if notification.notification_type == "ReserveTimeoutRequest":
+                request.reserve_timeout.append(ReserveTimeoutRequest().FromString(notification.notification_data))
+            elif notification.notification_type == "ErrorEventRequest":
+                request.error_event.append(ErrorEventRequest().FromString(notification.notification_data))
+            elif notification.notification_type == "MessageDeliveryTimeoutRequest":
+                request.message_delivery_timeout.append(
+                    MessageDeliveryTimeoutRequest().FromString(notification.notification_data)
+                )
+            elif notification.notification_type == "DataPlaneStateChangeRequest":
+                request.data_plane_state_change.append(
+                    DataPlaneStateChangeRequest().FromString(notification.notification_data)
+                )
+            else:
+                logger.error("unknown notification type: %s" % notification.notification_type)
 
         return request
 

@@ -21,6 +21,12 @@ from sqlalchemy import func
 
 from supa.connection.error import NsiError, Variable
 from supa.db.model import Notification, Result
+from supa.grpc_nsi.connection_requester_pb2 import (
+    DataPlaneStateChangeRequest,
+    ErrorEventRequest,
+    MessageDeliveryTimeoutRequest,
+    ReserveTimeoutRequest,
+)
 
 
 class Job(metaclass=ABCMeta):
@@ -171,8 +177,10 @@ class NsiException(Exception):
         return self.text
 
 
-def register_notification(connection_id: UUID, notification_type: str, notification_data: bytes) -> int:
-    """Register notification against connection_id in the database and return notification_id."""
+def register_notification(
+    request: ErrorEventRequest | ReserveTimeoutRequest | DataPlaneStateChangeRequest | MessageDeliveryTimeoutRequest,
+) -> None:
+    """Register notification against connection_id in the database and add notification_id to notification."""
     from supa.db.session import db_session
 
     with db_session() as session:
@@ -180,22 +188,22 @@ def register_notification(connection_id: UUID, notification_type: str, notificat
             # find the highest notification ID for this connection ID and increment by 1
             notification_id = (
                 session.query(func.max(Notification.notification_id))
-                .filter(Notification.connection_id == connection_id)
+                .filter(Notification.connection_id == UUID(request.notification.connection_id))
                 .scalar()
                 + 1
             )
         except TypeError:
             # if this is the first notification for this connection_id then start with 1
             notification_id = 1
+        request.notification.notification_id = notification_id
         session.add(
             Notification(
-                connection_id=connection_id,
+                connection_id=UUID(request.notification.connection_id),
                 notification_id=notification_id,
-                notification_type=notification_type,
-                notification_data=notification_data,
+                notification_type=request.__class__.__name__,
+                notification_data=request.SerializeToString(),
             )
         )
-    return int(notification_id)
 
 
 def register_result(connection_id: UUID, correlation_id: str, result_type: str, result_data: bytes) -> None:

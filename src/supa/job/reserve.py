@@ -711,9 +711,7 @@ class ReserveTimeoutJob(Job):
 
         stub = requester.get_stub()
         if type(request) == ReserveTimeoutRequest:
-            request.notification.notification_id = register_notification(
-                self.connection_id, "ReserveTimeout", request.SerializeToString()
-            )
+            register_notification(request)
             self.log.debug("Sending message", method="ReserveTimeout", request_message=request)
             stub.ReserveTimeout(request)
         else:
