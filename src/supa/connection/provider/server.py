@@ -49,12 +49,18 @@ from supa.grpc_nsi.connection_provider_pb2 import (
     TerminateRequest,
     TerminateResponse,
 )
-from supa.grpc_nsi.connection_requester_pb2 import QueryConfirmedRequest
+from supa.grpc_nsi.connection_requester_pb2 import QueryConfirmedRequest, QueryNotificationConfirmedRequest
 from supa.grpc_nsi.policy_pb2 import PathTrace
 from supa.grpc_nsi.services_pb2 import Directionality, PointToPointService
 from supa.job.lifecycle import TerminateJob
 from supa.job.provision import ProvisionJob, ReleaseJob
-from supa.job.query import QueryNotificationJob, QueryRecursiveJob, QuerySummaryJob, create_query_confirmed_request
+from supa.job.query import (
+    QueryNotificationJob,
+    QueryRecursiveJob,
+    QuerySummaryJob,
+    create_query_confirmed_request,
+    create_query_notification_confirmed_request,
+)
 from supa.job.reserve import ReserveAbortJob, ReserveCommitJob, ReserveJob, ReserveTimeoutJob
 from supa.job.shared import Job, NsiException
 from supa.util.converter import to_response_header, to_service_exception
@@ -776,3 +782,27 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         response = QueryNotificationResponse(header=to_response_header(pb_query_notification_request.header))
         log.debug("Sending response.", response_message=response)
         return response
+
+    def QueryNotificationSync(
+        self, pb_query_notification_request: QueryNotificationRequest, context: ServicerContext
+    ) -> QueryNotificationConfirmedRequest:
+        """Return a QueryNotificationConfirmedRequest bypassing the usual Response message.
+
+        Args:
+            pb_query_notification_request: protobuf query notification request message
+            context: gRPC server context object.
+
+        Returns:
+            A response containing the requested notifications for this connection ID.
+        """
+        log = logger.bind(
+            method="QueryNotificationSync",
+            connection_id=pb_query_notification_request.connection_id,
+            start_notification_id=pb_query_notification_request.start_notification_id,
+            end_notification_id=pb_query_notification_request.end_notification_id,
+        )
+        log.debug("Received message.", request_message=pb_query_notification_request)
+        log.info("Query notification sync")
+        request = create_query_notification_confirmed_request(pb_query_notification_request)
+        log.debug("Sending response.", response_message=request)
+        return request
