@@ -37,6 +37,8 @@ from supa.grpc_nsi.connection_provider_pb2 import (
     QueryNotificationResponse,
     QueryRequest,
     QueryResponse,
+    QueryResultRequest,
+    QueryResultResponse,
     ReleaseRequest,
     ReleaseResponse,
     ReservationRequestCriteria,
@@ -49,7 +51,8 @@ from supa.grpc_nsi.connection_provider_pb2 import (
     TerminateRequest,
     TerminateResponse,
 )
-from supa.grpc_nsi.connection_requester_pb2 import QueryConfirmedRequest, QueryNotificationConfirmedRequest
+from supa.grpc_nsi.connection_requester_pb2 import QueryConfirmedRequest, QueryNotificationConfirmedRequest, \
+    QueryResultConfirmedRequest
 from supa.grpc_nsi.policy_pb2 import PathTrace
 from supa.grpc_nsi.services_pb2 import Directionality, PointToPointService
 from supa.job.lifecycle import TerminateJob
@@ -57,9 +60,10 @@ from supa.job.provision import ProvisionJob, ReleaseJob
 from supa.job.query import (
     QueryNotificationJob,
     QueryRecursiveJob,
+    QueryResultJob,
     QuerySummaryJob,
     create_query_confirmed_request,
-    create_query_notification_confirmed_request,
+    create_query_notification_confirmed_request, create_query_result_confirmed_request,
 )
 from supa.job.reserve import ReserveAbortJob, ReserveCommitJob, ReserveJob, ReserveTimeoutJob
 from supa.job.shared import Job, NsiException
@@ -806,3 +810,61 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         request = create_query_notification_confirmed_request(pb_query_notification_request)
         log.debug("Sending response.", response_message=request)
         return request
+
+    def QueryResult(self, pb_query_result_request: QueryResultRequest, context: ServicerContext) -> QueryResultResponse:
+        """Query result(s).
+
+        Start an :class:`~supa.job.reserve.QueryResultJob` to gather and return
+        all requested information.
+
+        Args:
+            pb_query_result_request: protobuf query result request message
+            context: gRPC server context object.
+
+        Returns:
+            A response telling the caller we have received its query request.
+        """
+        log = logger.bind(
+            method="QueryResult",
+            connection_id=pb_query_result_request.connection_id,
+            start_result_id=pb_query_result_request.start_result_id,
+            end_result_id=pb_query_result_request.end_result_id,
+        )
+        log.debug("Received message.", request_message=pb_query_result_request)
+
+        from supa import scheduler
+
+        log.info("Schedule query result", job="QueryResultJob")
+        scheduler.add_job(
+            job := QueryResultJob(pb_query_result_request=pb_query_result_request),
+            trigger=job.trigger(),
+            id="=".join(["QueryResultJob", str(UUID(pb_query_result_request.header.correlation_id))]),
+        )
+        response = QueryResultResponse(header=to_response_header(pb_query_result_request.header))
+        log.debug("Sending response.", response_message=response)
+        return response
+
+    def QueryResultSync(
+        self, pb_query_result_request: QueryResultRequest, context: ServicerContext
+    ) -> QueryResultConfirmedRequest:
+        """Return a QueryResultConfirmedRequest bypassing the usual Response message.
+
+        Args:
+            pb_query_result_request: protobuf query result request message
+            context: gRPC server context object.
+
+        Returns:
+            A response containing the requested results for this connection ID.
+        """
+        log = logger.bind(
+            method="QueryResultSync",
+            connection_id=pb_query_result_request.connection_id,
+            start_result_id=pb_query_result_request.start_result_id,
+            end_result_id=pb_query_result_request.end_result_id,
+        )
+        log.debug("Received message.", request_message=pb_query_result_request)
+        log.info("Query result sync")
+        request = create_query_result_confirmed_request(pb_query_result_request)
+        log.debug("Sending response.", response_message=request)
+        return request
+

@@ -24,8 +24,17 @@ from supa.db.model import Notification, Result
 from supa.grpc_nsi.connection_requester_pb2 import (
     DataPlaneStateChangeRequest,
     ErrorEventRequest,
+    ErrorRequest,
     MessageDeliveryTimeoutRequest,
+    ProvisionConfirmedRequest,
+    ReleaseConfirmedRequest,
+    ReserveAbortConfirmedRequest,
+    ReserveCommitConfirmedRequest,
+    ReserveCommitFailedRequest,
+    ReserveConfirmedRequest,
+    ReserveFailedRequest,
     ReserveTimeoutRequest,
+    TerminateConfirmedRequest,
 )
 
 
@@ -206,25 +215,41 @@ def register_notification(
         )
 
 
-def register_result(connection_id: UUID, correlation_id: str, result_type: str, result_data: bytes) -> None:
+def register_result(
+    request: ReserveConfirmedRequest
+    | ReserveFailedRequest
+    | ReserveCommitConfirmedRequest
+    | ReserveCommitFailedRequest
+    | ReserveAbortConfirmedRequest
+    | ProvisionConfirmedRequest
+    | ReleaseConfirmedRequest
+    | TerminateConfirmedRequest
+    | ErrorRequest,
+) -> None:
     """Register result against connection_id in the database."""
     from supa.db.session import db_session
 
+    # The connection_id on ErrorRequest is located in service_exception.
+    if type(request) == ErrorRequest:
+        connection_id = request.service_exception.connection_id
+    else:
+        connection_id = request.connection_id  # type: ignore[union-attr]
     with db_session() as session:
         try:
             # find the highest result ID for this connection ID and increment by 1
             result_id = (
-                session.query(func.max(Result.result_id)).filter(Result.connection_id == connection_id).scalar() + 1
+                session.query(func.max(Result.result_id)).filter(Result.connection_id == UUID(connection_id)).scalar()
+                + 1
             )
         except TypeError:
             # if this is the first result for this connection_id then start with 1
             result_id = 1
         session.add(
             Result(
-                connection_id=connection_id,
-                correlation_id=UUID(correlation_id),
+                connection_id=UUID(connection_id),
+                correlation_id=UUID(request.header.correlation_id),
                 result_id=result_id,
-                result_type=result_type,
-                result_data=result_data,
+                result_type=request.__class__.__name__,
+                result_data=request.SerializeToString(),
             )
         )

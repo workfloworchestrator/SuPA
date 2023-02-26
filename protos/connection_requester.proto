@@ -207,6 +207,32 @@ message QueryNotificationConfirmedResponse {
   common.Header header = 1;
 }
 
+message ResultResponse {
+  int64 result_id = 1;
+  string correlation_id = 2;
+  google.protobuf.Timestamp time_stamp = 3;
+  oneof type {
+    ReserveConfirmedRequest reserve_confirmed = 4;
+    ReserveFailedRequest reserve_failed = 5;
+    ReserveCommitConfirmedRequest reserve_commit_confirmed = 6;
+    ReserveCommitFailedRequest reserve_commit_failed = 7;
+    ReserveAbortConfirmedRequest reserve_abort_confirmed = 8;
+    ProvisionConfirmedRequest provision_confirmed = 9;
+    ReleaseConfirmedRequest release_confirmed = 10;
+    TerminateConfirmedRequest terminate_confirmed = 11;
+    ErrorRequest error = 12;
+  }
+}
+
+message QueryResultConfirmedRequest {
+  common.Header header = 1;
+  repeated ResultResponse result = 2;
+}
+
+message QueryResultConfirmedResponse {
+  common.Header header = 1;
+}
+
 service ConnectionRequester {
   rpc ReserveFailed(ReserveFailedRequest) returns (ReserveFailedResponse);
   rpc ReserveConfirmed(ReserveConfirmedRequest) returns (ReserveConfirmedResponse);
@@ -224,4 +250,5 @@ service ConnectionRequester {
   rpc QuerySummaryConfirmed(QueryConfirmedRequest) returns (QueryConfirmedResponse);
   rpc QueryRecursiveConfirmed(QueryConfirmedRequest) returns (QueryConfirmedResponse);
   rpc QueryNotificationConfirmed(QueryNotificationConfirmedRequest) returns (QueryNotificationConfirmedResponse);
+  rpc QueryResultConfirmed(QueryResultConfirmedRequest) returns (QueryResultConfirmedResponse);
 }

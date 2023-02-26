@@ -131,13 +131,11 @@ class TerminateJob(Job):
             ):
                 self.log.info("Schedule deactivate", job="DeactivateJob")
                 scheduler.add_job(job := DeactivateJob(self.connection_id), trigger=job.trigger(), id=job.job_id)
-            register_result(
-                self.connection_id, request.header.correlation_id, "TerminateConfirmed", request.SerializeToString()
-            )
+            register_result(request)
             self.log.debug("Sending message", method="TerminateConfirmed", request_message=request)
             stub.TerminateConfirmed(request)
         else:
-            register_result(self.connection_id, request.header.correlation_id, "Error", request.SerializeToString())
+            register_result(request)
             self.log.debug("Sending message", method="Error", request_message=request)
             stub.Error(request)
 

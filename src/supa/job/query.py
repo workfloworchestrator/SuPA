@@ -24,15 +24,26 @@ from supa.connection import requester
 from supa.connection.fsm import DataPlaneStateMachine, ReservationStateMachine
 from supa.db.model import Notification, Reservation, Result
 from supa.grpc_nsi.connection_common_pb2 import Header
-from supa.grpc_nsi.connection_provider_pb2 import QueryNotificationRequest, QueryRequest
+from supa.grpc_nsi.connection_provider_pb2 import QueryNotificationRequest, QueryRequest, QueryResultRequest
 from supa.grpc_nsi.connection_requester_pb2 import (
     DataPlaneStateChangeRequest,
     ErrorEventRequest,
+    ErrorRequest,
     MessageDeliveryTimeoutRequest,
+    ProvisionConfirmedRequest,
     QueryConfirmedRequest,
     QueryNotificationConfirmedRequest,
     QueryResult,
+    QueryResultConfirmedRequest,
+    ReleaseConfirmedRequest,
+    ReserveAbortConfirmedRequest,
+    ReserveCommitConfirmedRequest,
+    ReserveCommitFailedRequest,
+    ReserveConfirmedRequest,
+    ReserveFailedRequest,
     ReserveTimeoutRequest,
+    ResultResponse,
+    TerminateConfirmedRequest,
 )
 from supa.job.shared import Job
 from supa.util.converter import to_connection_states, to_criteria
@@ -154,6 +165,63 @@ def create_query_notification_confirmed_request(
                 )
             else:
                 logger.error("unknown notification type: %s" % notification.notification_type)
+
+        return request
+
+
+def create_query_result_confirmed_request(
+    pb_query_result_request: QueryResultRequest,
+) -> QueryResultConfirmedRequest:
+    """Get a list of results for connection ID supplied by query result request.
+
+    Query results(s) of requested connection ID, if any,
+    optionally limiting the notifications by start and end result ID.
+
+    Args:
+        pb_query_result_request (QueryResultRequest):
+
+    Returns:
+        QueryResultConfirmedRequest with list of results.
+    """
+    from supa.db.session import db_session
+
+    with db_session() as session:
+        query = session.query(Result).filter(Result.connection_id == UUID(pb_query_result_request.connection_id))
+        if pb_query_result_request.start_result_id > 0:
+            query = query.filter(Result.result_id >= pb_query_result_request.start_result_id)
+        if pb_query_result_request.end_result_id > 0:
+            query = query.filter(Result.result_id <= pb_query_result_request.end_result_id)
+        results: List[Result] = query.all()
+
+        header = Header()
+        header.CopyFrom(pb_query_result_request.header)
+        request = QueryResultConfirmedRequest(header=header)
+        for result in results:
+            rr = ResultResponse()
+            rr.result_id = result.result_id
+            rr.correlation_id = result.correlation_id.urn
+            rr.time_stamp.FromDatetime(result.timestamp)
+            if result.result_type == "ReserveConfirmedRequest":
+                rr.reserve_confirmed.CopyFrom(ReserveConfirmedRequest().FromString(result.result_data))
+            elif result.result_type == "ReserveFailedRequest":
+                rr.reserve_failed.CopyFrom(ReserveFailedRequest().FromString(result.result_data))
+            elif result.result_type == "ReserveCommitConfirmedRequest":
+                rr.reserve_commit_confirmed.CopyFrom(ReserveCommitConfirmedRequest().FromString(result.result_data))
+            elif result.result_type == "ReserveCommitFailedRequest":
+                rr.reserve_commit_failed.CopyFrom(ReserveCommitFailedRequest().FromString(result.result_data))
+            elif result.result_type == "ReserveAbortConfirmedRequest":
+                rr.reserve_abort_confirmed.CopyFrom(ReserveAbortConfirmedRequest().FromString(result.result_data))
+            elif result.result_type == "ProvisionConfirmedRequest":
+                rr.provision_confirmed.CopyFrom(ProvisionConfirmedRequest().FromString(result.result_data))
+            elif result.result_type == "ReleaseConfirmedRequest":
+                rr.release_confirmed.CopyFrom(ReleaseConfirmedRequest().FromString(result.result_data))
+            elif result.result_type == "TerminateConfirmedRequest":
+                rr.terminate_confirmed.CopyFrom(TerminateConfirmedRequest().FromString(result.result_data))
+            elif result.result_type == "ErrorRequest":
+                rr.error.CopyFrom(ErrorRequest().FromString(result.result_data))
+            else:
+                logger.error("unknown result type: %s" % result.result_type)
+            request.result.append(rr)
 
         return request
 
@@ -301,7 +369,7 @@ class QueryRecursiveJob(Job):
 
 
 class QueryNotificationJob(Job):
-    """Handle query recursive requests."""
+    """Handle query notification requests."""
 
     log: BoundLogger
     pb_query_notification_request: QueryNotificationRequest
@@ -367,6 +435,80 @@ class QueryNotificationJob(Job):
 
     def trigger(self) -> DateTrigger:
         """Trigger for QueryNotificationJob's.
+
+        Returns:
+            DateTrigger set to None, which means run now.
+        """
+        return DateTrigger(run_date=None)  # Run immediately
+
+
+class QueryResultJob(Job):
+    """Handle query result requests."""
+
+    log: BoundLogger
+    pb_query_result_request: QueryResultRequest
+
+    def __init__(self, pb_query_result_request: QueryResultRequest):
+        """Initialize the QueryResultJob.
+
+        The queryResult message provides a mechanism for a Requester
+        NSA to query a Provider NSA for a set of Confirmed, Failed, or
+        Errors results against a specific connectionId.
+
+        Args:
+           pb_query_result_request: protobuf query result request message
+
+                Elements compose a filter for specifying the results to
+                return in response to the query operation.  The filter query
+                provides an inclusive range of result identifiers based
+                on connectionId.
+
+                Elements:
+
+                connectionId - Retrieve results for this connectionId.
+
+                startResultId - The start of the range of result Ids to return.
+                If not present, then the query should start from oldest result
+                available.
+
+                endResultId - The end of the range of result Ids to return.  If
+                not present then the query should end with the newest result
+                available.
+        """
+        self.log = logger.bind(
+            job="QueryResultJob",
+            connection_id=pb_query_result_request.connection_id,
+            start_result_id=pb_query_result_request.start_result_id,
+            end_result_id=pb_query_result_request.end_result_id,
+        )
+        self.pb_query_result_request = pb_query_result_request
+
+    def __call__(self) -> None:
+        """Query result request.
+
+        Query result(s) of requested connection ID, if any,
+        optionally limiting the results by start and end result ID.
+        """
+        self.log.info("Query result")
+        request = create_query_result_confirmed_request(self.pb_query_result_request)
+        stub = requester.get_stub()
+        self.log.debug("Sending message", method="QueryResultConfirmed", request_message=request)
+        stub.QueryResultConfirmed(request)
+
+    @classmethod
+    def recover(cls: Type[QueryResultJob]) -> List[Job]:
+        """Recover QueryResultJob's that did not get to run before SuPA was terminated.
+
+        As no query result request details are stored in the database (at this time),
+        it is not possible to recover QueryResultJob's.
+
+        Returns:
+            List of QueryResultJob's that still need to be run (currently always empty List).
+        """
+        return []
+
+    def trigger(self) -> DateTrigger:
+        """Trigger for QueryResultJob's.
 
         Returns:
             DateTrigger set to None, which means run now.

@@ -170,13 +170,11 @@ class ProvisionJob(Job):
             elif new_data_plane_state == DataPlaneStateMachine.Activating.value:
                 self.log.info("Schedule activate", job="ActivateJob")
                 scheduler.add_job(job := ActivateJob(self.connection_id), trigger=job.trigger(), id=job.job_id)
-            register_result(
-                self.connection_id, request.header.correlation_id, "ProvisionConfirmed", request.SerializeToString()
-            )
+            register_result(request)
             self.log.debug("Sending message", method="ProvisionConfirmed", request_message=request)
             stub.ProvisionConfirmed(request)
         else:
-            register_result(self.connection_id, request.header.correlation_id, "Error", request.SerializeToString())
+            register_result(request)
             self.log.debug("Sending message", method="Error", request_message=request)
             stub.Error(request)
 
@@ -331,13 +329,11 @@ class ReleaseJob(Job):
                     scheduler.remove_job(job_id=AutoEndJob(self.connection_id).job_id)
                 self.log.info("Schedule deactivate", job="DeactivateJob")
                 scheduler.add_job(job := DeactivateJob(self.connection_id), trigger=job.trigger(), id=job.job_id)
-            register_result(
-                self.connection_id, request.header.correlation_id, "ReleaseConfirmed", request.SerializeToString()
-            )
+            register_result(request)
             self.log.debug("Sending message", method="ReleaseConfirmed", request_message=request)
             stub.ReleaseConfirmed(request)
         else:
-            register_result(self.connection_id, request.header.correlation_id, "Error", request.SerializeToString())
+            register_result(request)
             self.log.debug("Sending message", method="Error", request_message=request)
             stub.Error(request)
 
