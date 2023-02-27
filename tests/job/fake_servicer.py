@@ -8,28 +8,14 @@ from supa.connection.fsm import (
     ReservationStateMachine,
 )
 from supa.db.model import Reservation, Topology
-from supa.grpc_nsi.connection_common_pb2 import RESERVE_CHECKING
+from supa.grpc_nsi.connection_common_pb2 import RESERVE_CHECKING, GenericAcknowledgment
 from supa.grpc_nsi.connection_requester_pb2 import (
     DataPlaneStateChangeRequest,
-    DataPlaneStateChangeResponse,
     ErrorRequest,
-    ErrorResponse,
-    ProvisionConfirmedRequest,
-    ProvisionConfirmedResponse,
-    ReleaseConfirmedRequest,
-    ReleaseConfirmedResponse,
-    ReserveAbortConfirmedRequest,
-    ReserveAbortConfirmedResponse,
-    ReserveCommitConfirmedRequest,
-    ReserveCommitConfirmedResponse,
+    GenericConfirmedRequest,
+    GenericFailedRequest,
     ReserveConfirmedRequest,
-    ReserveConfirmedResponse,
-    ReserveFailedRequest,
-    ReserveFailedResponse,
     ReserveTimeoutRequest,
-    ReserveTimeoutResponse,
-    TerminateConfirmedRequest,
-    TerminateConfirmedResponse,
 )
 from supa.grpc_nsi.connection_requester_pb2_grpc import ConnectionRequesterServicer
 from supa.util.timestamp import NO_END_DATE
@@ -38,8 +24,8 @@ from supa.util.timestamp import NO_END_DATE
 class Servicer(ConnectionRequesterServicer):
     """Fake servicer to mock replies."""
 
-    def ReserveConfirmed(self, request: ReserveConfirmedRequest, context: Any) -> ReserveConfirmedResponse:
-        """Fake ReserveConfirmed to return mocked ReserveConfirmedResponse."""
+    def ReserveConfirmed(self, request: ReserveConfirmedRequest, context: Any) -> GenericAcknowledgment:
+        """Fake ReserveConfirmed to return mocked GenericAcknowledgment."""
         from supa.db.session import db_session
 
         assert request.connection_id
@@ -50,10 +36,10 @@ class Servicer(ConnectionRequesterServicer):
             )
             assert reservation.reservation_state == ReservationStateMachine.ReserveHeld.value
 
-        return ReserveConfirmedResponse(header=request.header)
+        return GenericAcknowledgment(header=request.header)
 
-    def ReserveFailed(self, request: ReserveFailedRequest, context: Any) -> ReserveFailedResponse:
-        """Fake ReserveFailed to return mocked ReserveFailedResponse."""
+    def ReserveFailed(self, request: GenericFailedRequest, context: Any) -> GenericAcknowledgment:
+        """Fake ReserveFailed to return mocked GenericAcknowledgment."""
         from supa.db.session import db_session
 
         assert request.connection_id
@@ -138,12 +124,10 @@ class Servicer(ConnectionRequesterServicer):
                 assert "all VLANs in use" in request.service_exception.text
         assert test_hit_count == 1
 
-        return ReserveFailedResponse(header=request.header)
+        return GenericAcknowledgment(header=request.header)
 
-    def ReserveCommitConfirmed(
-        self, request: ReserveCommitConfirmedRequest, context: Any
-    ) -> ReserveCommitConfirmedResponse:
-        """Fake ReserveCommitConfirmed to return mocked ReserveCommitConfirmedResponse."""
+    def ReserveCommitConfirmed(self, request: GenericConfirmedRequest, context: Any) -> GenericAcknowledgment:
+        """Fake ReserveCommitConfirmed to return mocked GenericAcknowledgment."""
         from supa.db.session import db_session
 
         assert request.connection_id
@@ -157,20 +141,18 @@ class Servicer(ConnectionRequesterServicer):
             )
             assert reservation.reservation_state == ReservationStateMachine.ReserveStart.value
 
-        return ReserveCommitConfirmedResponse(header=request.header)
+        return GenericAcknowledgment(header=request.header)
 
-    def ReserveAbortConfirmed(
-        self, request: ReserveAbortConfirmedRequest, context: Any
-    ) -> ReserveAbortConfirmedResponse:
-        """Fake ReserveAbortConfirmed to return mocked ReserveAbortConfirmedResponse."""
-        return ReserveAbortConfirmedResponse(header=request.header)
+    def ReserveAbortConfirmed(self, request: GenericConfirmedRequest, context: Any) -> GenericAcknowledgment:
+        """Fake ReserveAbortConfirmed to return mocked GenericAcknowledgment."""
+        return GenericConfirmedRequest(header=request.header)
 
-    def ReserveTimeout(self, request: ReserveTimeoutRequest, context: Any) -> ReserveTimeoutResponse:
-        """Fake ReserveTimeout to return mocked ReserveTimeoutResponse."""
-        return ReserveTimeoutResponse(header=request.header)
+    def ReserveTimeout(self, request: ReserveTimeoutRequest, context: Any) -> GenericAcknowledgment:
+        """Fake ReserveTimeout to return mocked GenericAcknowledgment."""
+        return GenericAcknowledgment(header=request.header)
 
-    def ProvisionConfirmed(self, request: ProvisionConfirmedRequest, context: Any) -> ProvisionConfirmedResponse:
-        """Fake ProvisionConfirmed to return mocked ProvisionConfirmedResponse."""
+    def ProvisionConfirmed(self, request: GenericConfirmedRequest, context: Any) -> GenericAcknowledgment:
+        """Fake ProvisionConfirmed to return mocked GenericAcknowledgment."""
         from supa.db.session import db_session
 
         assert request.connection_id
@@ -182,10 +164,10 @@ class Servicer(ConnectionRequesterServicer):
             # test_provision_job_provision_confirmed()
             assert reservation.provision_state == ProvisionStateMachine.Provisioned.value
 
-        return ReserveConfirmedResponse(header=request.header)
+        return GenericAcknowledgment(header=request.header)
 
-    def ReleaseConfirmed(self, request: ReleaseConfirmedRequest, context: Any) -> ReleaseConfirmedResponse:
-        """Fake ReleaseConfirmed to return mocked ReleaseConfirmedResponse."""
+    def ReleaseConfirmed(self, request: GenericConfirmedRequest, context: Any) -> GenericAcknowledgment:
+        """Fake ReleaseConfirmed to return mocked GenericAcknowledgment."""
         from supa.db.session import db_session
 
         assert request.connection_id
@@ -196,10 +178,10 @@ class Servicer(ConnectionRequesterServicer):
             )
             assert reservation.provision_state == ProvisionStateMachine.Released.value
 
-        return ReserveCommitConfirmedResponse(header=request.header)
+        return GenericAcknowledgment(header=request.header)
 
-    def Error(self, request: ErrorRequest, context: Any) -> ErrorResponse:
-        """Fake Error to return mocked ErrorResponse.
+    def Error(self, request: ErrorRequest, context: Any) -> GenericAcknowledgment:
+        """Fake Error to return mocked GenericAcknowledgment.
 
         The correlationId carried in the NSI CS header structure
         will identify the original request associated with this error message.
@@ -260,10 +242,10 @@ class Servicer(ConnectionRequesterServicer):
                 assert "Reservation already terminated" in request.service_exception.text
         assert test_hit_count == 1
 
-        return ErrorResponse(header=request.header)
+        return GenericAcknowledgment(header=request.header)
 
-    def TerminateConfirmed(self, request: TerminateConfirmedRequest, context: Any) -> TerminateConfirmedResponse:
-        """Fake TerminateConfirmed to return mocked TerminateConfirmedResponse."""
+    def TerminateConfirmed(self, request: GenericConfirmedRequest, context: Any) -> GenericAcknowledgment:
+        """Fake TerminateConfirmed to return mocked GenericAcknowledgment."""
         from supa.db.session import db_session
 
         assert request.connection_id
@@ -275,10 +257,10 @@ class Servicer(ConnectionRequesterServicer):
             # test_provision_job_provision_confirmed()
             assert reservation.lifecycle_state == LifecycleStateMachine.Terminated.value
 
-        return ReserveConfirmedResponse(header=request.header)
+        return GenericAcknowledgment(header=request.header)
 
-    def DataPlaneStateChange(self, request: DataPlaneStateChangeRequest, context: Any) -> DataPlaneStateChangeResponse:
-        """Fake DataPlaneStateChange to return mocked DataPlaneStateChangeResponse."""
+    def DataPlaneStateChange(self, request: DataPlaneStateChangeRequest, context: Any) -> GenericAcknowledgment:
+        """Fake DataPlaneStateChange to return mocked GenericAcknowledgment."""
         from supa.db.session import db_session
 
         assert request.HasField("notification")
@@ -315,4 +297,4 @@ class Servicer(ConnectionRequesterServicer):
 
         assert test_hit_count == 1
 
-        return DataPlaneStateChangeResponse(header=request.header)
+        return GenericAcknowledgment(header=request.header)

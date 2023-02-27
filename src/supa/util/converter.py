@@ -17,6 +17,7 @@ from uuid import UUID, uuid4
 from supa import const, settings
 from supa.connection.fsm import DataPlaneStateMachine
 from supa.db import model
+from supa.db.model import Reservation
 from supa.grpc_nsi.connection_common_pb2 import (
     ConnectionStates,
     EventType,
@@ -33,6 +34,8 @@ from supa.grpc_nsi.connection_requester_pb2 import (
     DataPlaneStateChangeRequest,
     ErrorEventRequest,
     ErrorRequest,
+    GenericConfirmedRequest,
+    GenericFailedRequest,
     QueryResultCriteria,
     ReservationConfirmCriteria,
 )
@@ -258,8 +261,6 @@ def to_error_request(request_header: Header, nsi_exc: NsiException, connection_i
     The correlationId carried in the NSI CS header structure will identify the original request associated
     with this error message.
     """
-    from supa.util.converter import to_service_exception
-
     pb_e_req = ErrorRequest()
     pb_e_req.header.CopyFrom(request_header)
     pb_e_req.service_exception.CopyFrom(to_service_exception(nsi_exc, connection_id))
@@ -306,7 +307,7 @@ def to_error_event(reservation: model.Reservation, nsi_exc: NsiException, event:
     """
     pb_header = Header()
     pb_header.protocol_version = reservation.protocol_version
-    pb_header.correlation_id = uuid4().urn  # TODO: should store correlation ID(?)
+    pb_header.correlation_id = uuid4().urn
     pb_header.requester_nsa = reservation.requester_nsa
     pb_header.provider_nsa = reservation.provider_nsa
     pb_header.reply_to = reservation.reply_to
@@ -346,3 +347,21 @@ def to_dataplane_error_event(reservation: model.Reservation, nsi_exc: NsiExcepti
 def to_forced_end_event(reservation: model.Reservation, nsi_exc: NsiException) -> ErrorEventRequest:
     """Return a NSI Error Event of type Forced End."""
     return to_error_event(reservation, nsi_exc, EventType.FORCED_END)
+
+
+def to_generic_confirmed_request(reservation: Reservation) -> GenericConfirmedRequest:
+    """Create a protobuf generic confirmed request from a Reservation."""
+    pb_gc_req = GenericConfirmedRequest()
+    pb_gc_req.header.CopyFrom(to_header(reservation, add_path_segment=True))  # Yes, add our segment!
+    pb_gc_req.connection_id = str(reservation.connection_id)
+    return pb_gc_req
+
+
+def to_generic_failed_request(reservation: Reservation, nsi_exc: NsiException) -> GenericFailedRequest:
+    """Create a protobuf generic failed request from a Reservation and NsiException."""
+    pb_gf_req = GenericFailedRequest()
+    pb_gf_req.header.CopyFrom(to_header(reservation, add_path_segment=False))
+    pb_gf_req.connection_id = str(reservation.connection_id)
+    pb_gf_req.connection_states.CopyFrom(to_connection_states(reservation, data_plane_active=False))
+    pb_gf_req.service_exception.CopyFrom(to_service_exception(nsi_exc, reservation.connection_id))
+    return pb_gf_req

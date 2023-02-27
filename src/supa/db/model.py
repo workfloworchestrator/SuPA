@@ -92,6 +92,7 @@ from supa.connection.fsm import (
 )
 from supa.util import nsi
 from supa.util.timestamp import NO_END_DATE, current_timestamp
+from supa.util.type import NotificationType, ResultType
 
 
 class Uuid(TypeDecorator):
@@ -527,7 +528,7 @@ class Notification(Base):
     connection_id = Column(Uuid, ForeignKey(Reservation.connection_id, ondelete="CASCADE"), primary_key=True)
     timestamp = Column(UtcTimestamp, nullable=False, default=current_timestamp)
     notification_id = Column(Integer, nullable=False, primary_key=True)
-    notification_type = Column(Text, nullable=False)
+    notification_type = Column(Enum(*[n_type.value for n_type in NotificationType]), nullable=False)
     notification_data = Column(Text, nullable=False)
 
     reservation = relationship(
@@ -552,7 +553,7 @@ class Result(Base):
     timestamp = Column(UtcTimestamp, nullable=False, default=current_timestamp)
     correlation_id = Column(Uuid, nullable=False, comment="urn:uid", unique=True)
     result_id = Column(Integer, nullable=False, primary_key=True)
-    result_type = Column(Text, nullable=False)
+    result_type = Column(Enum(*[r_type.value for r_type in ResultType]), nullable=False)
     result_data = Column(Text, nullable=False)
 
     reservation = relationship(

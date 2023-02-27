@@ -29,30 +29,21 @@ from supa.connection.error import (
 from supa.connection.fsm import LifecycleStateMachine, ProvisionStateMachine, ReservationStateMachine
 from supa.db import model
 from supa.grpc_nsi import connection_provider_pb2_grpc
-from supa.grpc_nsi.connection_common_pb2 import Header, Schedule
+from supa.grpc_nsi.connection_common_pb2 import GenericAcknowledgment, Header, Schedule
 from supa.grpc_nsi.connection_provider_pb2 import (
-    ProvisionRequest,
-    ProvisionResponse,
+    GenericRequest,
     QueryNotificationRequest,
-    QueryNotificationResponse,
     QueryRequest,
-    QueryResponse,
     QueryResultRequest,
-    QueryResultResponse,
-    ReleaseRequest,
-    ReleaseResponse,
     ReservationRequestCriteria,
-    ReserveAbortRequest,
-    ReserveAbortResponse,
-    ReserveCommitRequest,
-    ReserveCommitResponse,
     ReserveRequest,
     ReserveResponse,
-    TerminateRequest,
-    TerminateResponse,
 )
-from supa.grpc_nsi.connection_requester_pb2 import QueryConfirmedRequest, QueryNotificationConfirmedRequest, \
-    QueryResultConfirmedRequest
+from supa.grpc_nsi.connection_requester_pb2 import (
+    QueryConfirmedRequest,
+    QueryNotificationConfirmedRequest,
+    QueryResultConfirmedRequest,
+)
 from supa.grpc_nsi.policy_pb2 import PathTrace
 from supa.grpc_nsi.services_pb2 import Directionality, PointToPointService
 from supa.job.lifecycle import TerminateJob
@@ -63,7 +54,8 @@ from supa.job.query import (
     QueryResultJob,
     QuerySummaryJob,
     create_query_confirmed_request,
-    create_query_notification_confirmed_request, create_query_result_confirmed_request,
+    create_query_notification_confirmed_request,
+    create_query_result_confirmed_request,
 )
 from supa.job.reserve import ReserveAbortJob, ReserveCommitJob, ReserveJob, ReserveTimeoutJob
 from supa.job.shared import Job, NsiException
@@ -234,8 +226,8 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         return reserve_response
 
     def ReserveCommit(
-        self, pb_reserve_commit_request: ReserveCommitRequest, context: ServicerContext
-    ) -> ReserveCommitResponse:
+        self, pb_reserve_commit_request: GenericRequest, context: ServicerContext
+    ) -> GenericAcknowledgment:
         """Commit reservation.
 
         Check if the connection ID exists and if the reservation state machine transition is
@@ -261,7 +253,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             )
             if reservation is None:
                 log.info("Connection ID does not exist")
-                reserve_commit_response = ReserveCommitResponse(
+                reserve_commit_response = GenericAcknowledgment(
                     header=to_response_header(pb_reserve_commit_request.header),
                     service_exception=to_service_exception(
                         NsiException(
@@ -273,7 +265,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             elif reservation.reservation_timeout:
                 # we use this column because the reserve state machine is actually missing a state
                 log.info("Cannot commit a timed out reservation")
-                reserve_commit_response = ReserveCommitResponse(
+                reserve_commit_response = GenericAcknowledgment(
                     header=to_response_header(pb_reserve_commit_request.header),
                     service_exception=to_service_exception(
                         NsiException(
@@ -290,7 +282,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                     rsm.reserve_commit_request()
                 except TransitionNotAllowed as tna:
                     log.info("Not scheduling ReserveCommitJob", reason=str(tna))
-                    reserve_commit_response = ReserveCommitResponse(
+                    reserve_commit_response = GenericAcknowledgment(
                         header=to_response_header(pb_reserve_commit_request.header),
                         service_exception=to_service_exception(
                             NsiException(
@@ -306,7 +298,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                     )
                 else:
                     reservation.correlation_id = UUID(pb_reserve_commit_request.header.correlation_id)
-                    reserve_commit_response = ReserveCommitResponse(
+                    reserve_commit_response = GenericAcknowledgment(
                         header=to_response_header(pb_reserve_commit_request.header)
                     )
 
@@ -320,9 +312,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         log.debug("Sending response.", response_message=reserve_commit_response)
         return reserve_commit_response
 
-    def ReserveAbort(
-        self, pb_reserve_abort_request: ReserveAbortRequest, context: ServicerContext
-    ) -> ReserveAbortResponse:
+    def ReserveAbort(self, pb_reserve_abort_request: GenericRequest, context: ServicerContext) -> GenericAcknowledgment:
         """Abort reservation.
 
         Check if the connection ID exists and if the reservation state machine transition is
@@ -348,7 +338,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             )
             if reservation is None:
                 log.info("Connection ID does not exist")
-                reserve_abort_response = ReserveAbortResponse(
+                reserve_abort_response = GenericAcknowledgment(
                     header=to_response_header(pb_reserve_abort_request.header),
                     service_exception=to_service_exception(
                         NsiException(
@@ -363,7 +353,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                     rsm.reserve_abort_request()
                 except TransitionNotAllowed as tna:
                     log.info("Not scheduling ReserveAbortJob", reason=str(tna))
-                    reserve_abort_response = ReserveAbortResponse(
+                    reserve_abort_response = GenericAcknowledgment(
                         header=to_response_header(pb_reserve_abort_request.header),
                         service_exception=to_service_exception(
                             NsiException(
@@ -379,7 +369,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                     )
                 else:
                     reservation.correlation_id = UUID(pb_reserve_abort_request.header.correlation_id)
-                    reserve_abort_response = ReserveAbortResponse(
+                    reserve_abort_response = GenericAcknowledgment(
                         header=to_response_header(pb_reserve_abort_request.header)
                     )
 
@@ -391,7 +381,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         log.debug("Sending response.", response_message=reserve_abort_response)
         return reserve_abort_response
 
-    def Provision(self, pb_provision_request: ProvisionRequest, context: ServicerContext) -> ProvisionResponse:
+    def Provision(self, pb_provision_request: GenericRequest, context: ServicerContext) -> GenericAcknowledgment:
         """Provision reservation.
 
         Check if the connection ID exists, if the provision state machine exists (as an indication
@@ -418,7 +408,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             )
             if reservation is None:
                 log.info("Connection ID does not exist")
-                provision_response = ProvisionResponse(
+                provision_response = GenericAcknowledgment(
                     header=to_response_header(pb_provision_request.header),
                     service_exception=to_service_exception(
                         NsiException(
@@ -429,7 +419,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                 )
             elif not reservation.provision_state:
                 log.info("First version of reservation not committed yet")
-                provision_response = ProvisionResponse(
+                provision_response = GenericAcknowledgment(
                     header=to_response_header(pb_provision_request.header),
                     service_exception=to_service_exception(
                         NsiException(
@@ -449,7 +439,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                     current_time=current_time.isoformat(),
                     end_time=reservation.end_time.isoformat(),
                 )
-                provision_response = ProvisionResponse(
+                provision_response = GenericAcknowledgment(
                     header=to_response_header(pb_provision_request.header),
                     service_exception=to_service_exception(
                         NsiException(
@@ -468,7 +458,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                     rsm.provision_request()
                 except TransitionNotAllowed as tna:
                     log.info("Not scheduling ProvisionJob", reason=str(tna))
-                    provision_response = ProvisionResponse(
+                    provision_response = GenericAcknowledgment(
                         header=to_response_header(pb_provision_request.header),
                         service_exception=to_service_exception(
                             NsiException(
@@ -484,7 +474,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                     )
                 else:
                     reservation.correlation_id = UUID(pb_provision_request.header.correlation_id)
-                    provision_response = ProvisionResponse(header=to_response_header(pb_provision_request.header))
+                    provision_response = GenericAcknowledgment(header=to_response_header(pb_provision_request.header))
 
         if not provision_response.service_exception.connection_id:
             from supa import scheduler
@@ -494,7 +484,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         log.debug("Sending response.", response_message=provision_response)
         return provision_response
 
-    def Release(self, pb_release_request: ReleaseRequest, context: ServicerContext) -> ReleaseResponse:
+    def Release(self, pb_release_request: GenericRequest, context: ServicerContext) -> GenericAcknowledgment:
         """Release reservation.
 
         Check if the connection ID exists, if the provision state machine exists (as an indication
@@ -521,7 +511,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             )
             if reservation is None:
                 log.info("Connection ID does not exist")
-                release_response = ReleaseResponse(
+                release_response = GenericAcknowledgment(
                     header=to_response_header(pb_release_request.header),
                     service_exception=to_service_exception(
                         NsiException(
@@ -532,7 +522,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                 )
             elif not reservation.provision_state:
                 log.info("First version of reservation not committed yet")
-                release_response = ReleaseResponse(
+                release_response = GenericAcknowledgment(
                     header=to_response_header(pb_release_request.header),
                     service_exception=to_service_exception(
                         NsiException(
@@ -552,7 +542,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                     current_time=current_time.isoformat(),
                     end_time=reservation.end_time.isoformat(),
                 )
-                release_response = ReleaseResponse(
+                release_response = GenericAcknowledgment(
                     header=to_response_header(pb_release_request.header),
                     service_exception=to_service_exception(
                         NsiException(
@@ -571,7 +561,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                     rsm.release_request()
                 except TransitionNotAllowed as tna:
                     log.info("Not scheduling ReleaseJob", reason=str(tna))
-                    release_response = ReleaseResponse(
+                    release_response = GenericAcknowledgment(
                         header=to_response_header(pb_release_request.header),
                         service_exception=to_service_exception(
                             NsiException(
@@ -587,7 +577,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                     )
                 else:
                     reservation.correlation_id = UUID(pb_release_request.header.correlation_id)
-                    release_response = ReleaseResponse(header=to_response_header(pb_release_request.header))
+                    release_response = GenericAcknowledgment(header=to_response_header(pb_release_request.header))
 
         if not release_response.service_exception.connection_id:
             from supa import scheduler
@@ -597,7 +587,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         log.debug("Sending response.", response_message=release_response)
         return release_response
 
-    def Terminate(self, pb_terminate_request: TerminateRequest, context: ServicerContext) -> TerminateResponse:
+    def Terminate(self, pb_terminate_request: GenericRequest, context: ServicerContext) -> GenericAcknowledgment:
         """Terminate reservation.
 
         Check if the connection ID exists and if the lifecycle state machine transition is
@@ -623,7 +613,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             )
             if reservation is None:
                 log.info("Connection ID does not exist")
-                terminate_response = TerminateResponse(
+                terminate_response = GenericAcknowledgment(
                     header=to_response_header(pb_terminate_request.header),
                     service_exception=to_service_exception(
                         NsiException(
@@ -638,7 +628,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                     lsm.terminate_request()
                 except TransitionNotAllowed as tna:
                     log.info("Not scheduling TerminateJob", reason=str(tna))
-                    terminate_response = TerminateResponse(
+                    terminate_response = GenericAcknowledgment(
                         header=to_response_header(pb_terminate_request.header),
                         service_exception=to_service_exception(
                             NsiException(
@@ -654,7 +644,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                     )
                 else:
                     reservation.correlation_id = UUID(pb_terminate_request.header.correlation_id)
-                    terminate_response = TerminateResponse(header=to_response_header(pb_terminate_request.header))
+                    terminate_response = GenericAcknowledgment(header=to_response_header(pb_terminate_request.header))
 
         if not terminate_response.service_exception.connection_id:
             from supa import scheduler
@@ -664,7 +654,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         log.debug("Sending response.", response_message=terminate_response)
         return terminate_response
 
-    def QuerySummary(self, pb_query_request: QueryRequest, context: ServicerContext) -> QueryResponse:
+    def QuerySummary(self, pb_query_request: QueryRequest, context: ServicerContext) -> GenericAcknowledgment:
         """Query reservation(s) summary.
 
         Start an :class:`~supa.job.reserve.QuerySummaryJob` to gather and return
@@ -693,7 +683,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             trigger=job.trigger(),
             id="=".join(["QuerySummaryJob", str(UUID(pb_query_request.header.correlation_id))]),
         )
-        query_response = QueryResponse(header=to_response_header(pb_query_request.header))
+        query_response = GenericAcknowledgment(header=to_response_header(pb_query_request.header))
         log.debug("Sending response.", response_message=query_response)
         return query_response
 
@@ -719,7 +709,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         log.debug("Sending response.", response_message=request)
         return request
 
-    def QueryRecursive(self, pb_query_request: QueryRequest, context: ServicerContext) -> QueryResponse:
+    def QueryRecursive(self, pb_query_request: QueryRequest, context: ServicerContext) -> GenericAcknowledgment:
         """Query recursive reservation(s) summary.
 
         Start an :class:`~supa.job.reserve.QueryRecursiveJob` to gather and return
@@ -748,13 +738,13 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             trigger=job.trigger(),
             id="=".join(["QueryRecursiveJob", str(UUID(pb_query_request.header.correlation_id))]),
         )
-        query_response = QueryResponse(header=to_response_header(pb_query_request.header))
+        query_response = GenericAcknowledgment(header=to_response_header(pb_query_request.header))
         log.debug("Sending response.", response_message=query_response)
         return query_response
 
     def QueryNotification(
         self, pb_query_notification_request: QueryNotificationRequest, context: ServicerContext
-    ) -> QueryNotificationResponse:
+    ) -> GenericAcknowledgment:
         """Query notification(s).
 
         Start an :class:`~supa.job.reserve.QueryNotificationJob` to gather and return
@@ -783,7 +773,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             trigger=job.trigger(),
             id="=".join(["QueryNotificationJob", str(UUID(pb_query_notification_request.header.correlation_id))]),
         )
-        response = QueryNotificationResponse(header=to_response_header(pb_query_notification_request.header))
+        response = GenericAcknowledgment(header=to_response_header(pb_query_notification_request.header))
         log.debug("Sending response.", response_message=response)
         return response
 
@@ -811,7 +801,9 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         log.debug("Sending response.", response_message=request)
         return request
 
-    def QueryResult(self, pb_query_result_request: QueryResultRequest, context: ServicerContext) -> QueryResultResponse:
+    def QueryResult(
+        self, pb_query_result_request: QueryResultRequest, context: ServicerContext
+    ) -> GenericAcknowledgment:
         """Query result(s).
 
         Start an :class:`~supa.job.reserve.QueryResultJob` to gather and return
@@ -840,7 +832,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             trigger=job.trigger(),
             id="=".join(["QueryResultJob", str(UUID(pb_query_result_request.header.correlation_id))]),
         )
-        response = QueryResultResponse(header=to_response_header(pb_query_result_request.header))
+        response = GenericAcknowledgment(header=to_response_header(pb_query_result_request.header))
         log.debug("Sending response.", response_message=response)
         return response
 
@@ -867,4 +859,3 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         request = create_query_result_confirmed_request(pb_query_result_request)
         log.debug("Sending response.", response_message=request)
         return request
-

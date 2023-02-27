@@ -25,17 +25,13 @@ from supa.grpc_nsi.connection_requester_pb2 import (
     DataPlaneStateChangeRequest,
     ErrorEventRequest,
     ErrorRequest,
+    GenericConfirmedRequest,
+    GenericFailedRequest,
     MessageDeliveryTimeoutRequest,
-    ProvisionConfirmedRequest,
-    ReleaseConfirmedRequest,
-    ReserveAbortConfirmedRequest,
-    ReserveCommitConfirmedRequest,
-    ReserveCommitFailedRequest,
     ReserveConfirmedRequest,
-    ReserveFailedRequest,
     ReserveTimeoutRequest,
-    TerminateConfirmedRequest,
 )
+from supa.util.type import NotificationType, ResultType
 
 
 class Job(metaclass=ABCMeta):
@@ -188,6 +184,7 @@ class NsiException(Exception):
 
 def register_notification(
     request: ErrorEventRequest | ReserveTimeoutRequest | DataPlaneStateChangeRequest | MessageDeliveryTimeoutRequest,
+    notification_type: NotificationType,
 ) -> None:
     """Register notification against connection_id in the database and add notification_id to notification."""
     from supa.db.session import db_session
@@ -209,22 +206,15 @@ def register_notification(
             Notification(
                 connection_id=UUID(request.notification.connection_id),
                 notification_id=notification_id,
-                notification_type=request.__class__.__name__,
+                notification_type=notification_type.value,
                 notification_data=request.SerializeToString(),
             )
         )
 
 
 def register_result(
-    request: ReserveConfirmedRequest
-    | ReserveFailedRequest
-    | ReserveCommitConfirmedRequest
-    | ReserveCommitFailedRequest
-    | ReserveAbortConfirmedRequest
-    | ProvisionConfirmedRequest
-    | ReleaseConfirmedRequest
-    | TerminateConfirmedRequest
-    | ErrorRequest,
+    request: ReserveConfirmedRequest | GenericConfirmedRequest | GenericFailedRequest | ErrorRequest,
+    result_type: ResultType,
 ) -> None:
     """Register result against connection_id in the database."""
     from supa.db.session import db_session
@@ -249,7 +239,7 @@ def register_result(
                 connection_id=UUID(connection_id),
                 correlation_id=UUID(request.header.correlation_id),
                 result_id=result_id,
-                result_type=request.__class__.__name__,
+                result_type=result_type.value,
                 result_data=request.SerializeToString(),
             )
         )

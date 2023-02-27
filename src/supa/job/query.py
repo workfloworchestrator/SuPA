@@ -29,25 +29,21 @@ from supa.grpc_nsi.connection_requester_pb2 import (
     DataPlaneStateChangeRequest,
     ErrorEventRequest,
     ErrorRequest,
+    GenericConfirmedRequest,
+    GenericFailedRequest,
     MessageDeliveryTimeoutRequest,
-    ProvisionConfirmedRequest,
     QueryConfirmedRequest,
     QueryNotificationConfirmedRequest,
     QueryResult,
     QueryResultConfirmedRequest,
-    ReleaseConfirmedRequest,
-    ReserveAbortConfirmedRequest,
-    ReserveCommitConfirmedRequest,
-    ReserveCommitFailedRequest,
     ReserveConfirmedRequest,
-    ReserveFailedRequest,
     ReserveTimeoutRequest,
     ResultResponse,
-    TerminateConfirmedRequest,
 )
 from supa.job.shared import Job
 from supa.util.converter import to_connection_states, to_criteria
 from supa.util.timestamp import as_utc_timestamp
+from supa.util.type import NotificationType, ResultType
 
 logger = structlog.get_logger(__name__)
 
@@ -151,15 +147,15 @@ def create_query_notification_confirmed_request(
         header.CopyFrom(pb_query_notification_request.header)
         request = QueryNotificationConfirmedRequest(header=header)
         for notification in notifications:
-            if notification.notification_type == "ReserveTimeoutRequest":
+            if notification.notification_type == NotificationType.ReserveTimeout.value:
                 request.reserve_timeout.append(ReserveTimeoutRequest().FromString(notification.notification_data))
-            elif notification.notification_type == "ErrorEventRequest":
+            elif notification.notification_type == NotificationType.ErrorEvent.value:
                 request.error_event.append(ErrorEventRequest().FromString(notification.notification_data))
-            elif notification.notification_type == "MessageDeliveryTimeoutRequest":
+            elif notification.notification_type == NotificationType.MessageDeliveryTimeout.value:
                 request.message_delivery_timeout.append(
                     MessageDeliveryTimeoutRequest().FromString(notification.notification_data)
                 )
-            elif notification.notification_type == "DataPlaneStateChangeRequest":
+            elif notification.notification_type == NotificationType.DataPlaneStateChange.value:
                 request.data_plane_state_change.append(
                     DataPlaneStateChangeRequest().FromString(notification.notification_data)
                 )
@@ -201,23 +197,23 @@ def create_query_result_confirmed_request(
             rr.result_id = result.result_id
             rr.correlation_id = result.correlation_id.urn
             rr.time_stamp.FromDatetime(result.timestamp)
-            if result.result_type == "ReserveConfirmedRequest":
+            if result.result_type == ResultType.ReserveConfirmed.value:
                 rr.reserve_confirmed.CopyFrom(ReserveConfirmedRequest().FromString(result.result_data))
-            elif result.result_type == "ReserveFailedRequest":
-                rr.reserve_failed.CopyFrom(ReserveFailedRequest().FromString(result.result_data))
-            elif result.result_type == "ReserveCommitConfirmedRequest":
-                rr.reserve_commit_confirmed.CopyFrom(ReserveCommitConfirmedRequest().FromString(result.result_data))
-            elif result.result_type == "ReserveCommitFailedRequest":
-                rr.reserve_commit_failed.CopyFrom(ReserveCommitFailedRequest().FromString(result.result_data))
-            elif result.result_type == "ReserveAbortConfirmedRequest":
-                rr.reserve_abort_confirmed.CopyFrom(ReserveAbortConfirmedRequest().FromString(result.result_data))
-            elif result.result_type == "ProvisionConfirmedRequest":
-                rr.provision_confirmed.CopyFrom(ProvisionConfirmedRequest().FromString(result.result_data))
-            elif result.result_type == "ReleaseConfirmedRequest":
-                rr.release_confirmed.CopyFrom(ReleaseConfirmedRequest().FromString(result.result_data))
-            elif result.result_type == "TerminateConfirmedRequest":
-                rr.terminate_confirmed.CopyFrom(TerminateConfirmedRequest().FromString(result.result_data))
-            elif result.result_type == "ErrorRequest":
+            elif result.result_type == ResultType.ReserveFailed.value:
+                rr.reserve_failed.CopyFrom(GenericFailedRequest().FromString(result.result_data))
+            elif result.result_type == ResultType.ReserveCommitConfirmed.value:
+                rr.reserve_commit_confirmed.CopyFrom(GenericConfirmedRequest().FromString(result.result_data))
+            elif result.result_type == ResultType.ReserveCommitFailed.value:
+                rr.reserve_commit_failed.CopyFrom(GenericFailedRequest().FromString(result.result_data))
+            elif result.result_type == ResultType.ReserveAbortConfirmed.value:
+                rr.reserve_abort_confirmed.CopyFrom(GenericConfirmedRequest().FromString(result.result_data))
+            elif result.result_type == ResultType.ProvisionConfirmed.value:
+                rr.provision_confirmed.CopyFrom(GenericConfirmedRequest().FromString(result.result_data))
+            elif result.result_type == ResultType.ReleaseConfirmed.value:
+                rr.release_confirmed.CopyFrom(GenericConfirmedRequest().FromString(result.result_data))
+            elif result.result_type == ResultType.TerminateConfirmed.value:
+                rr.terminate_confirmed.CopyFrom(GenericConfirmedRequest().FromString(result.result_data))
+            elif result.result_type == ResultType.Error.value:
                 rr.error.CopyFrom(ErrorRequest().FromString(result.result_data))
             else:
                 logger.error("unknown result type: %s" % result.result_type)

@@ -25,10 +25,11 @@ from supa.connection import requester
 from supa.connection.error import GenericInternalError, Variable
 from supa.connection.fsm import DataPlaneStateMachine, LifecycleStateMachine
 from supa.db.model import Connection, Reservation, connection_to_dict
-from supa.grpc_nsi.connection_requester_pb2 import ErrorRequest, TerminateConfirmedRequest
+from supa.grpc_nsi.connection_requester_pb2 import ErrorRequest, GenericConfirmedRequest
 from supa.job.dataplane import AutoEndJob, AutoStartJob, DeactivateJob
 from supa.job.shared import Job, NsiException, register_result
-from supa.util.converter import to_error_request, to_header
+from supa.util.converter import to_error_request, to_generic_confirmed_request, to_header
+from supa.util.type import ResultType
 
 logger = structlog.get_logger(__name__)
 
@@ -48,14 +49,6 @@ class TerminateJob(Job):
         self.log = logger.bind(job=self.__class__.__name__, connection_id=str(connection_id))
         self.connection_id = connection_id
 
-    def _to_terminate_confirmed_request(self, reservation: Reservation) -> TerminateConfirmedRequest:
-        pb_tc_req = TerminateConfirmedRequest()
-
-        pb_tc_req.header.CopyFrom(to_header(reservation, add_path_segment=True))  # Yes, add our segment!
-        pb_tc_req.connection_id = str(reservation.connection_id)
-
-        return pb_tc_req
-
     def __call__(self) -> None:
         """Terminate reservation request.
 
@@ -68,7 +61,7 @@ class TerminateJob(Job):
         from supa.db.session import db_session
         from supa.nrm.backend import backend
 
-        request: Union[TerminateConfirmedRequest, ErrorRequest]
+        request: Union[GenericConfirmedRequest, ErrorRequest]
         with db_session() as session:
             reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
             connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one_or_none()
@@ -120,22 +113,22 @@ class TerminateJob(Job):
                         if previous_data_plane_state == DataPlaneStateMachine.AutoEnd.value:
                             self.log.info("Cancel auto end")
                             scheduler.remove_job(job_id=AutoEndJob(self.connection_id).job_id)
-                request = self._to_terminate_confirmed_request(reservation)
+                request = to_generic_confirmed_request(reservation)
                 lsm.terminate_confirmed()
 
         stub = requester.get_stub()
-        if type(request) == TerminateConfirmedRequest:
+        if type(request) == GenericConfirmedRequest:
             if (
                 previous_data_plane_state == DataPlaneStateMachine.AutoEnd.value
                 or previous_data_plane_state == DataPlaneStateMachine.Activated.value
             ):
                 self.log.info("Schedule deactivate", job="DeactivateJob")
                 scheduler.add_job(job := DeactivateJob(self.connection_id), trigger=job.trigger(), id=job.job_id)
-            register_result(request)
+            register_result(request, ResultType.TerminateConfirmed)
             self.log.debug("Sending message", method="TerminateConfirmed", request_message=request)
             stub.TerminateConfirmed(request)
         else:
-            register_result(request)
+            register_result(request, ResultType.Error)
             self.log.debug("Sending message", method="Error", request_message=request)
             stub.Error(request)
 
