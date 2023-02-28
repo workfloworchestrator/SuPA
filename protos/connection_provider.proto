@@ -90,76 +90,47 @@ message ReserveResponse {
   common.ServiceException service_exception = 3; // MUST be translated to ServiceException by PolyNSI
 }
 
-message ReserveCommitRequest {
+message GenericRequest {
   common.Header header = 1;
   string connection_id = 2; // URI
 }
 
-message ReserveCommitResponse {
-  common.Header header = 1;
-  common.ServiceException service_exception = 2;  // MUST be translated to ServiceException by PolyNSI
-}
-
-message ReserveAbortRequest {
-  common.Header header = 1;
-  string connection_id = 2; // URI
-}
-
-message ReserveAbortResponse {
-  common.Header header = 1;
-  common.ServiceException service_exception = 2; // MUST be translated to ServiceException by PolyNSI
-}
-
-message ProvisionRequest {
-  common.Header header = 1;
-  string connection_id = 2; // URI
-}
-
-message ProvisionResponse {
-  common.Header header = 1;
-  common.ServiceException service_exception = 2; // MUST be translated to ServiceException by PolyNSI
-}
-
-message ReleaseRequest {
-  common.Header header = 1;
-  string connection_id = 2; // URI
-}
-
-message ReleaseResponse {
-  common.Header header = 1;
-  common.ServiceException service_exception = 2; // MUST be translated to ServiceException by PolyNSI
-}
-
-message TerminateRequest {
-  common.Header header = 1;
-  string connection_id = 2; // URI
-}
-
-message TerminateResponse {
-  common.Header header = 1;
-  common.ServiceException service_exception = 2; // MUST be translated to ServiceException by PolyNSI
-}
-
-message QuerySummaryRequest {
+message QueryRequest {
   common.Header header = 1;
   repeated string connection_id = 2;
   repeated string global_reservation_id = 3;
   google.protobuf.Timestamp if_modified_since = 4;
 }
 
-message QuerySummaryResponse {
+message QueryNotificationRequest {
   common.Header header = 1;
-  common.ServiceException service_exception = 2; // MUST be translated to ServiceException by PolyNSI
+  string connection_id = 2;
+  int64 start_notification_id = 3;
+  int64 end_notification_id = 4;
+}
+
+message QueryResultRequest {
+  common.Header header = 1;
+  string connection_id = 2;
+  int64 start_result_id = 3;
+  int64 end_result_id = 4;
 }
 
 service ConnectionProvider {
   rpc Reserve(ReserveRequest) returns (ReserveResponse);
-  rpc ReserveCommit(ReserveCommitRequest) returns (ReserveCommitResponse);
-  rpc ReserveAbort(ReserveAbortRequest) returns (ReserveAbortResponse);
-  rpc Provision(ProvisionRequest) returns (ProvisionResponse);
-  rpc Release(ReleaseRequest) returns (ReleaseResponse);
-  rpc Terminate(TerminateRequest) returns (TerminateResponse);
-  rpc QuerySummary(QuerySummaryRequest) returns (QuerySummaryResponse);
-  // QuerySummarySync returns a QuerySummaryConfirmedRequest bypassing the associated Response messages
-  rpc QuerySummarySync(QuerySummaryRequest) returns (requester.QuerySummaryConfirmedRequest);
+  rpc ReserveCommit(GenericRequest) returns (common.GenericAcknowledgment);
+  rpc ReserveAbort(GenericRequest) returns (common.GenericAcknowledgment);
+  rpc Provision(GenericRequest) returns (common.GenericAcknowledgment);
+  rpc Release(GenericRequest) returns (common.GenericAcknowledgment);
+  rpc Terminate(GenericRequest) returns (common.GenericAcknowledgment);
+  rpc QuerySummary(QueryRequest) returns (common.GenericAcknowledgment);
+  // QuerySummarySync returns a QueryConfirmedRequest bypassing the usual Response message
+  rpc QuerySummarySync(QueryRequest) returns (requester.QueryConfirmedRequest);
+  rpc QueryRecursive(QueryRequest) returns (common.GenericAcknowledgment);
+  rpc QueryNotification(QueryNotificationRequest) returns (common.GenericAcknowledgment);
+  // QueryNotificationSync returns a QueryNotificationConfirmedRequest bypassing the usual Response message
+  rpc QueryNotificationSync(QueryNotificationRequest) returns (requester.QueryNotificationConfirmedRequest);
+  rpc QueryResult(QueryResultRequest) returns (common.GenericAcknowledgment);
+  // QueryResultSync returns a QueryResultConfirmedRequest bypassing the usual Response message
+  rpc QueryResultSync(QueryResultRequest) returns (requester.QueryResultConfirmedRequest);
 }
