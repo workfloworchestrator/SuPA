@@ -86,7 +86,8 @@ def create_query_confirmed_request(
         header = Header()
         header.CopyFrom(pb_query_request.header)
         request = QueryConfirmedRequest(header=header)
-        request.last_modified.FromDatetime(last_modified)
+        if last_modified:  # equals None if there are no reservations yet
+            request.last_modified.FromDatetime(last_modified)
         for reservation in reservations:
             query_result = QueryResult()
             query_result.connection_id = str(reservation.connection_id)
