@@ -287,19 +287,17 @@ class Reservation(Base):
 
     notification = relationship(
         "Notification",
-        uselist=False,
         back_populates="reservation",
         cascade="all, delete-orphan",
         passive_deletes=True,
-    )  # one-to-one
+    )
 
     result = relationship(
         "Result",
-        uselist=False,
         back_populates="reservation",
         cascade="all, delete-orphan",
         passive_deletes=True,
-    )  # one-to-one
+    )
 
     __table_args__ = (CheckConstraint(start_time < end_time),)
 
