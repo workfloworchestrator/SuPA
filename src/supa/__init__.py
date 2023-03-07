@@ -31,7 +31,9 @@ See also :func:`resolve_env_file`
 """
 import errno
 import functools
+import importlib
 import logging.config
+import platform
 import random
 import sys
 from enum import Enum
@@ -428,6 +430,15 @@ def init_app(with_scheduler: bool = True) -> None:
         with_scheduler: if True, initialize and start scheduler. If False, don't.
 
     """
+    logger.info(
+        "Starting SuPA %s using Python %s (%s) on %s"
+        % (
+            importlib.metadata.version("SuPA"),
+            platform.python_version(),
+            platform.python_implementation(),
+            platform.node(),
+        )
+    )
     random.seed()
 
     # Initialize the database
