@@ -208,7 +208,8 @@ class Settings(BaseSettings):
     topology_name: str = "example.domain topology"
 
     @property
-    def nsa_exposed_url(self):
+    def nsa_exposed_url(self) -> str:
+        """Return URL that NSA is exposed on constructed from nsa_scheme, nsa_host and nsa_port."""
         return f"{self.nsa_scheme}://{self.nsa_host}:{self.nsa_port}"
 
     class Config:  # noqa: D106
