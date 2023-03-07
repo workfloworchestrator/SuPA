@@ -62,8 +62,8 @@ def _init_cherrypy() -> Any:
         }
     )
     cherrypy._cplogging.LogManager.access_log_format = '{h} {l} {u} "{r}" {s} {b} "{f}" "{a}"'
-    tree.mount(DiscoveryEndpoint(), "/discovery")
-    tree.mount(TopologyEndpoint(), "/topology")
+    tree.mount(DiscoveryEndpoint(), settings.nsa_discovery_path)
+    tree.mount(TopologyEndpoint(), settings.nsa_topology_path)
     tree.mount(
         HealthcheckEndpoint(),
         "/healthcheck",

@@ -231,14 +231,19 @@ def cli() -> None:
     help="URL scheme of the exposed service.",
 )
 @click.option(
-    "--nsa-provider-url",
-    default=settings.nsa_provider_url,
-    help="URL of the NSI provider endpoint.",
+    "--nsa-provider-path",
+    default=settings.nsa_provider_path,
+    help="Path of the NSI provider endpoint.",
 )
 @click.option(
-    "--nsa-topology-url",
-    default=settings.nsa_topology_url,
-    help="URL of the NSI topology endpoint.",
+    "--nsa-topology-path",
+    default=settings.nsa_topology_path,
+    help="Path of the NSI topology endpoint.",
+)
+@click.option(
+    "--nsa-discovery-path",
+    default=settings.nsa_discovery_path,
+    help="Path of the NSI discovery endpoint.",
 )
 @click.option(
     "--nsa-owner-timestamp",
@@ -295,8 +300,9 @@ def serve(
     nsa_port: str,
     nsa_name: str,
     nsa_scheme: str,
-    nsa_provider_url: str,
-    nsa_topology_url: str,
+    nsa_provider_path: str,
+    nsa_topology_path: str,
+    nsa_discovery_path: str,
     nsa_owner_timestamp: str,
     nsa_owner_firstname: str,
     nsa_owner_lastname: str,
@@ -324,8 +330,9 @@ def serve(
     settings.nsa_port = nsa_port
     settings.nsa_name = nsa_name
     settings.nsa_scheme = nsa_scheme
-    settings.nsa_provider_url = nsa_provider_url
-    settings.nsa_topology_url = nsa_topology_url
+    settings.nsa_provider_path = nsa_provider_path
+    settings.nsa_topology_path = nsa_topology_path
+    settings.nsa_discovery_path = nsa_discovery_path
     settings.nsa_owner_timestamp = nsa_owner_timestamp
     settings.nsa_owner_firstname = nsa_owner_firstname
     settings.nsa_owner_lastname = nsa_owner_lastname
