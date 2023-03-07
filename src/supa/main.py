@@ -221,20 +221,14 @@ def cli() -> None:
     help="Port where SuPA is exposed on.",
 )
 @click.option(
-    "--nsa-secure",
-    default=settings.nsa_secure,
-    is_flag=True,
-    help="Is SuPA exposed securely (HTTPS) or not.",
-)
-@click.option(
     "--nsa-name",
     default=settings.nsa_name,
     help="Descriptive name for this uPA.",
 )
 @click.option(
-    "--nsa-exposed-url",
-    default=settings.nsa_exposed_url,
-    help="Base URL where the service is exposed on.",
+    "--nsa-scheme",
+    default=settings.nsa_scheme,
+    help="URL scheme of the exposed service.",
 )
 @click.option(
     "--nsa-provider-url",
@@ -299,9 +293,8 @@ def serve(
     backend: str,
     nsa_host: str,
     nsa_port: str,
-    nsa_secure: bool,
     nsa_name: str,
-    nsa_exposed_url: str,
+    nsa_scheme: str,
     nsa_provider_url: str,
     nsa_topology_url: str,
     nsa_owner_timestamp: str,
@@ -329,9 +322,8 @@ def serve(
     settings.backend = backend
     settings.nsa_host = nsa_host
     settings.nsa_port = nsa_port
-    settings.nsa_secure = nsa_secure
     settings.nsa_name = nsa_name
-    settings.nsa_exposed_url = nsa_exposed_url
+    settings.nsa_scheme = nsa_scheme
     settings.nsa_provider_url = nsa_provider_url
     settings.nsa_topology_url = nsa_topology_url
     settings.nsa_owner_timestamp = nsa_owner_timestamp

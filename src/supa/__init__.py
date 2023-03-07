@@ -194,11 +194,10 @@ class Settings(BaseSettings):
     backend: str = ""
 
     nsa_start_time = current_timestamp()
+    nsa_scheme: str = "http"
     nsa_host: str = "localhost"
     nsa_port: str = "8080"
-    nsa_secure: bool = False
     nsa_name: str = "example.domain uPA"
-    nsa_exposed_url: str = "http://exposed.host.example.domain"
     nsa_provider_url: str = "/provider"
     nsa_topology_url: str = "/topology"
     nsa_owner_timestamp: str = "19700101T000000Z"
@@ -207,6 +206,10 @@ class Settings(BaseSettings):
     nsa_latitude: str = "-0.374350"
     nsa_longitude: str = "-159.996719"
     topology_name: str = "example.domain topology"
+
+    @property
+    def nsa_exposed_url(self):
+        return f"{self.nsa_scheme}://{self.nsa_host}:{self.nsa_port}"
 
     class Config:  # noqa: D106
         case_sensitive = True
