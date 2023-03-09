@@ -9,53 +9,39 @@ option java_multiple_files = true;
 option java_package = "org.ogf.nsi.grpc.connection.requester";
 import "services.proto";
 
-message ChildSummary {
+message ChildResult {
   int32 order = 1;
   string connection_id = 2;
   string provider_nsa = 3;
   string service_type = 4;
 }
 
-message QuerySummaryResultCriteria {
+message QueryResultCriteria {
   int32 version = 1;
   common.Schedule schedule = 2;
   string service_type = 3;
-  repeated ChildSummary child = 4;
+  repeated ChildResult child = 4;
   oneof service_specific_messages {
     services.PointToPointService ptps = 5;
   }
 }
 
-/*
-  QuerySummaryResult uses ReservationConfirmCriteria instead of the above QuerySummaryResultCriteria
-  message that also has room for children, this because SuPA is an uPA and therefor will never have
-  child reservations.
- */
-message QuerySummaryResult {
+message QueryResult {
   string connection_id = 1;
   string global_reservation_id = 2;
   string description = 3;
-  repeated QuerySummaryResultCriteria criteria = 4;
+  repeated QueryResultCriteria criteria = 4;
   string requester_nsa = 5;
   common.ConnectionStates connection_states = 6;
   int64 notification_id = 7;
   int64 result_id = 8;
 }
 
-/*
-  SOAP's version of ReserveFailed is an alias of GenericFailedType. Unfortunately protobuf does not
-  allows aliases for messages that are structurally the same. Hence we define each of the *Failed messages
-  explicitely.
- */
-message ReserveFailedRequest {
+message GenericFailedRequest {
   common.Header header = 1;
   string connection_id = 2;
   common.ConnectionStates connection_states = 3;
   common.ServiceException service_exception = 4;
-}
-
-message ReserveFailedResponse {
-  common.Header header = 1;
 }
 
 message ReservationConfirmCriteria {
@@ -75,73 +61,14 @@ message ReserveConfirmedRequest {
   ReservationConfirmCriteria criteria = 5;
 }
 
-message ReserveConfirmedResponse {
-  common.Header header = 1;
-}
-
-message ReserveCommitConfirmedRequest {
+message GenericConfirmedRequest {
   common.Header header = 1;
   string connection_id = 2; // URI
-}
-
-message ReserveCommitConfirmedResponse {
-  common.Header header = 1;
-}
-
-message ReserveCommitFailedRequest {
-  common.Header header = 1;
-  string connection_id = 2; // URI
-  common.ConnectionStates connection_states = 3;
-  common.ServiceException service_exception = 4;
-}
-
-message ReserveCommitFailedResponse {
-  common.Header header = 1;
-}
-
-message ReserveAbortConfirmedRequest {
-  common.Header header = 1;
-  string connection_id = 2; // URI
-}
-
-message ReserveAbortConfirmedResponse {
-  common.Header header = 1;
-}
-
-message ProvisionConfirmedRequest {
-  common.Header header = 1;
-  string connection_id = 2; // URI
-}
-
-message ProvisionConfirmedResponse {
-  common.Header header = 1;
-}
-
-message ReleaseConfirmedRequest {
-  common.Header header = 1;
-  string connection_id = 2; // URI
-}
-
-message ReleaseConfirmedResponse {
-  common.Header header = 1;
-}
-
-message TerminateConfirmedRequest {
-  common.Header header = 1;
-  string connection_id = 2; // URI
-}
-
-message TerminateConfirmedResponse {
-  common.Header header = 1;
 }
 
 message ErrorRequest {
   common.Header header = 1;
   common.ServiceException service_exception = 2;
-}
-
-message ErrorResponse {
-  common.Header header = 1;
 }
 
 message ErrorEventRequest {
@@ -154,18 +81,10 @@ message ErrorEventRequest {
   common.ServiceException service_exception = 7;
 }
 
-message ErrorEventResponse {
-  common.Header header = 1;
-}
-
 message DataPlaneStateChangeRequest {
   common.Header header = 1;
   common.Notification notification = 2;
   common.DataPlaneStatus data_plane_status = 3;
-}
-
-message DataPlaneStateChangeResponse {
-  common.Header header = 1;
 }
 
 message ReserveTimeoutRequest {
@@ -176,32 +95,68 @@ message ReserveTimeoutRequest {
   string originating_nsa = 5;
 }
 
-message ReserveTimeoutResponse {
+message MessageDeliveryTimeoutRequest {
   common.Header header = 1;
+  common.Notification notification = 2;
+  string correlation_id = 3;
 }
 
-message QuerySummaryConfirmedRequest {
+message QueryConfirmedRequest {
   common.Header header = 1;
-  repeated QuerySummaryResult reservation = 2;
+  repeated QueryResult reservation = 2;
   google.protobuf.Timestamp last_modified = 3;
 }
 
-message QuerySummaryConfirmedResponse {
+message QueryNotificationConfirmedRequest {
+  common.Header header = 1;
+  repeated ErrorEventRequest error_event = 2;
+  repeated ReserveTimeoutRequest reserve_timeout = 3;
+  repeated DataPlaneStateChangeRequest data_plane_state_change = 4;
+  repeated MessageDeliveryTimeoutRequest message_delivery_timeout = 5;
+}
+
+message ResultResponse {
+  int64 result_id = 1;
+  string correlation_id = 2;
+  google.protobuf.Timestamp time_stamp = 3;
+  oneof type {
+    ReserveConfirmedRequest reserve_confirmed = 4;
+    GenericFailedRequest reserve_failed = 5;
+    GenericConfirmedRequest reserve_commit_confirmed = 6;
+    GenericFailedRequest reserve_commit_failed = 7;
+    GenericConfirmedRequest reserve_abort_confirmed = 8;
+    GenericConfirmedRequest provision_confirmed = 9;
+    GenericConfirmedRequest release_confirmed = 10;
+    GenericConfirmedRequest terminate_confirmed = 11;
+    ErrorRequest error = 12;
+  }
+}
+
+message QueryResultConfirmedRequest {
+  common.Header header = 1;
+  repeated ResultResponse result = 2;
+}
+
+message QueryResultConfirmedResponse {
   common.Header header = 1;
 }
 
 service ConnectionRequester {
-  rpc ReserveFailed(ReserveFailedRequest) returns (ReserveFailedResponse);
-  rpc ReserveConfirmed(ReserveConfirmedRequest) returns (ReserveConfirmedResponse);
-  rpc ReserveCommitConfirmed(ReserveCommitConfirmedRequest) returns (ReserveCommitConfirmedResponse);
-  rpc ReserveCommitFailed(ReserveCommitFailedRequest) returns (ReserveCommitFailedResponse);
-  rpc ReserveAbortConfirmed(ReserveAbortConfirmedRequest) returns (ReserveAbortConfirmedResponse);
-  rpc ProvisionConfirmed(ProvisionConfirmedRequest) returns (ProvisionConfirmedResponse);
-  rpc ReleaseConfirmed(ReleaseConfirmedRequest) returns (ReleaseConfirmedResponse);
-  rpc TerminateConfirmed(TerminateConfirmedRequest) returns (TerminateConfirmedResponse);
-  rpc Error(ErrorRequest) returns (ErrorResponse);
-  rpc ErrorEvent(ErrorEventRequest) returns (ErrorEventResponse);
-  rpc DataPlaneStateChange(DataPlaneStateChangeRequest) returns (DataPlaneStateChangeResponse);
-  rpc ReserveTimeout(ReserveTimeoutRequest) returns (ReserveTimeoutResponse);
-  rpc QuerySummaryConfirmed(QuerySummaryConfirmedRequest) returns (QuerySummaryConfirmedResponse);
+  rpc ReserveFailed(GenericFailedRequest) returns (common.GenericAcknowledgment);
+  rpc ReserveConfirmed(ReserveConfirmedRequest) returns (common.GenericAcknowledgment);
+  rpc ReserveCommitConfirmed(GenericConfirmedRequest) returns (common.GenericAcknowledgment);
+  rpc ReserveCommitFailed(GenericFailedRequest) returns (common.GenericAcknowledgment);
+  rpc ReserveAbortConfirmed(GenericConfirmedRequest) returns (common.GenericAcknowledgment);
+  rpc ProvisionConfirmed(GenericConfirmedRequest) returns (common.GenericAcknowledgment);
+  rpc ReleaseConfirmed(GenericConfirmedRequest) returns (common.GenericAcknowledgment);
+  rpc TerminateConfirmed(GenericConfirmedRequest) returns (common.GenericAcknowledgment);
+  rpc Error(ErrorRequest) returns (common.GenericAcknowledgment);
+  rpc ErrorEvent(ErrorEventRequest) returns (common.GenericAcknowledgment);
+  rpc DataPlaneStateChange(DataPlaneStateChangeRequest) returns (common.GenericAcknowledgment);
+  rpc ReserveTimeout(ReserveTimeoutRequest) returns (common.GenericAcknowledgment);
+  rpc MessageDeliveryTimeout(MessageDeliveryTimeoutRequest) returns (common.GenericAcknowledgment);
+  rpc QuerySummaryConfirmed(QueryConfirmedRequest) returns (common.GenericAcknowledgment);
+  rpc QueryRecursiveConfirmed(QueryConfirmedRequest) returns (common.GenericAcknowledgment);
+  rpc QueryNotificationConfirmed(QueryNotificationConfirmedRequest) returns (common.GenericAcknowledgment);
+  rpc QueryResultConfirmed(QueryResultConfirmedRequest) returns (QueryResultConfirmedResponse);
 }

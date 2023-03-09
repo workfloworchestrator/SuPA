@@ -25,11 +25,12 @@ from supa.connection import requester
 from supa.connection.error import GenericConnectionError, GenericInternalError, InvalidTransition, Variable
 from supa.connection.fsm import DataPlaneStateMachine, LifecycleStateMachine, ProvisionStateMachine
 from supa.db.model import Connection, Reservation, connection_to_dict
-from supa.grpc_nsi.connection_requester_pb2 import ErrorRequest, ProvisionConfirmedRequest, ReleaseConfirmedRequest
+from supa.grpc_nsi.connection_requester_pb2 import ErrorRequest, GenericConfirmedRequest
 from supa.job.dataplane import ActivateJob, AutoEndJob, AutoStartJob, DeactivateJob
-from supa.job.shared import Job, NsiException
-from supa.util.converter import to_error_request, to_header
+from supa.job.shared import Job, NsiException, register_result
+from supa.util.converter import to_error_request, to_generic_confirmed_request, to_header
 from supa.util.timestamp import current_timestamp
+from supa.util.type import ResultType
 
 logger = structlog.get_logger(__name__)
 
@@ -49,14 +50,6 @@ class ProvisionJob(Job):
         self.log = logger.bind(job=self.__class__.__name__, connection_id=str(connection_id))
         self.connection_id = connection_id
 
-    def _to_provision_confirmed_request(self, reservation: Reservation) -> ProvisionConfirmedRequest:
-        pb_pc_req = ProvisionConfirmedRequest()
-
-        pb_pc_req.header.CopyFrom(to_header(reservation, add_path_segment=True))  # Yes, add our segment!
-        pb_pc_req.connection_id = str(reservation.connection_id)
-
-        return pb_pc_req
-
     def __call__(self) -> None:
         """Provision reservation request.
 
@@ -70,7 +63,7 @@ class ProvisionJob(Job):
         from supa.db.session import db_session
         from supa.nrm.backend import backend
 
-        request: Union[ProvisionConfirmedRequest, ErrorRequest]
+        request: Union[GenericConfirmedRequest, ErrorRequest]
         with db_session() as session:
             reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
             connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
@@ -136,7 +129,7 @@ class ProvisionJob(Job):
                         )
                     else:
                         start_time = reservation.start_time
-                        request = self._to_provision_confirmed_request(reservation)
+                        request = to_generic_confirmed_request(reservation)
                         psm.provision_confirmed()
                 else:
                     try:
@@ -155,12 +148,12 @@ class ProvisionJob(Job):
                             self.connection_id,
                         )
                     else:
-                        request = self._to_provision_confirmed_request(reservation)
+                        request = to_generic_confirmed_request(reservation)
                         psm.provision_confirmed()
                 new_data_plane_state = reservation.data_plane_state
 
         stub = requester.get_stub()
-        if type(request) == ProvisionConfirmedRequest:
+        if type(request) == GenericConfirmedRequest:
             from supa import scheduler
 
             job: Job  # help mypy understand that both AutoStartJob and ActivateJob are Job's
@@ -170,9 +163,11 @@ class ProvisionJob(Job):
             elif new_data_plane_state == DataPlaneStateMachine.Activating.value:
                 self.log.info("Schedule activate", job="ActivateJob")
                 scheduler.add_job(job := ActivateJob(self.connection_id), trigger=job.trigger(), id=job.job_id)
+            register_result(request, ResultType.ProvisionConfirmed)
             self.log.debug("Sending message", method="ProvisionConfirmed", request_message=request)
             stub.ProvisionConfirmed(request)
         else:
+            register_result(request, ResultType.Error)
             self.log.debug("Sending message", method="Error", request_message=request)
             stub.Error(request)
 
@@ -225,14 +220,6 @@ class ReleaseJob(Job):
         self.log = logger.bind(job=self.__class__.__name__, connection_id=str(connection_id))
         self.connection_id = connection_id
 
-    def _to_release_confirmed_request(self, reservation: Reservation) -> ReleaseConfirmedRequest:
-        pb_rc_req = ReleaseConfirmedRequest()
-
-        pb_rc_req.header.CopyFrom(to_header(reservation, add_path_segment=True))  # Yes, add our segment!
-        pb_rc_req.connection_id = str(reservation.connection_id)
-
-        return pb_rc_req
-
     def __call__(self) -> None:
         """Release reservation request.
 
@@ -245,7 +232,7 @@ class ReleaseJob(Job):
         from supa.db.session import db_session
         from supa.nrm.backend import backend
 
-        request: Union[ReleaseConfirmedRequest, ErrorRequest]
+        request: Union[GenericConfirmedRequest, ErrorRequest]
         with db_session() as session:
             reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
             connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
@@ -311,11 +298,11 @@ class ReleaseJob(Job):
                             ),
                             self.connection_id,
                         )
-                    request = self._to_release_confirmed_request(reservation)
+                    request = to_generic_confirmed_request(reservation)
                     psm.release_confirmed()
 
         stub = requester.get_stub()
-        if type(request) == ReleaseConfirmedRequest:
+        if type(request) == GenericConfirmedRequest:
             from supa import scheduler
 
             if previous_data_plane_state == DataPlaneStateMachine.AutoStart.value:
@@ -327,9 +314,11 @@ class ReleaseJob(Job):
                     scheduler.remove_job(job_id=AutoEndJob(self.connection_id).job_id)
                 self.log.info("Schedule deactivate", job="DeactivateJob")
                 scheduler.add_job(job := DeactivateJob(self.connection_id), trigger=job.trigger(), id=job.job_id)
+            register_result(request, ResultType.ReleaseConfirmed)
             self.log.debug("Sending message", method="ReleaseConfirmed", request_message=request)
             stub.ReleaseConfirmed(request)
         else:
+            register_result(request, ResultType.Error)
             self.log.debug("Sending message", method="Error", request_message=request)
             stub.Error(request)
 

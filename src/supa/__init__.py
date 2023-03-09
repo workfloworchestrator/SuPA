@@ -31,7 +31,9 @@ See also :func:`resolve_env_file`
 """
 import errno
 import functools
+import importlib
 import logging.config
+import platform
 import random
 import sys
 from enum import Enum
@@ -194,19 +196,24 @@ class Settings(BaseSettings):
     backend: str = ""
 
     nsa_start_time = current_timestamp()
+    nsa_scheme: str = "http"
     nsa_host: str = "localhost"
     nsa_port: str = "8080"
-    nsa_secure: bool = False
     nsa_name: str = "example.domain uPA"
-    nsa_exposed_url: str = "http://exposed.host.example.domain"
-    nsa_provider_url: str = "/provider"
-    nsa_topology_url: str = "/topology"
+    nsa_provider_path: str = "/provider"
+    nsa_topology_path: str = "/topology"
+    nsa_discovery_path: str = "/discovery"
     nsa_owner_timestamp: str = "19700101T000000Z"
     nsa_owner_firstname: str = "Firstname"
     nsa_owner_lastname: str = "Lastname"
     nsa_latitude: str = "-0.374350"
     nsa_longitude: str = "-159.996719"
     topology_name: str = "example.domain topology"
+
+    @property
+    def nsa_exposed_url(self) -> str:
+        """Return URL that NSA is exposed on constructed from nsa_scheme, nsa_host and nsa_port."""
+        return f"{self.nsa_scheme}://{self.nsa_host}:{self.nsa_port}"
 
     class Config:  # noqa: D106
         case_sensitive = True
@@ -423,6 +430,15 @@ def init_app(with_scheduler: bool = True) -> None:
         with_scheduler: if True, initialize and start scheduler. If False, don't.
 
     """
+    logger.info(
+        "Starting SuPA %s using Python %s (%s) on %s"
+        % (
+            importlib.metadata.version("SuPA"),
+            platform.python_version(),
+            platform.python_implementation(),
+            platform.node(),
+        )
+    )
     random.seed()
 
     # Initialize the database

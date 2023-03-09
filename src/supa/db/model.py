@@ -92,6 +92,7 @@ from supa.connection.fsm import (
 )
 from supa.util import nsi
 from supa.util.timestamp import NO_END_DATE, current_timestamp
+from supa.util.type import NotificationType, ResultType
 
 
 class Uuid(TypeDecorator):
@@ -286,11 +287,17 @@ class Reservation(Base):
 
     notification = relationship(
         "Notification",
-        uselist=False,
         back_populates="reservation",
         cascade="all, delete-orphan",
         passive_deletes=True,
-    )  # one-to-one
+    )
+
+    result = relationship(
+        "Result",
+        back_populates="reservation",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
     __table_args__ = (CheckConstraint(start_time < end_time),)
 
@@ -517,11 +524,37 @@ class Notification(Base):
     __tablename__ = "notifications"
 
     connection_id = Column(Uuid, ForeignKey(Reservation.connection_id, ondelete="CASCADE"), primary_key=True)
+    timestamp = Column(UtcTimestamp, nullable=False, default=current_timestamp)
     notification_id = Column(Integer, nullable=False, primary_key=True)
-    notification_type = Column(Text, nullable=False)
+    notification_type = Column(Enum(*[n_type.value for n_type in NotificationType]), nullable=False)
     notification_data = Column(Text, nullable=False)
 
     reservation = relationship(
         Reservation,
         back_populates="notification",
+    )  # one-to-one (cascades defined in parent)
+
+
+class Result(Base):
+    """DB mapping for registering results against a connection ID.
+
+    Store the async result to a provider request serialized to string together
+    with a linearly increasing identifier that can be used for ordering results in
+    the context of the connection ID. Results of requests from a RA to a PA
+    are stored so they can be retrieved later in case only synchronous communication
+    is possible between the RA and PA.
+    """
+
+    __tablename__ = "results"
+
+    connection_id = Column(Uuid, ForeignKey(Reservation.connection_id, ondelete="CASCADE"), primary_key=True)
+    timestamp = Column(UtcTimestamp, nullable=False, default=current_timestamp)
+    correlation_id = Column(Uuid, nullable=False, comment="urn:uid", unique=True)
+    result_id = Column(Integer, nullable=False, primary_key=True)
+    result_type = Column(Enum(*[r_type.value for r_type in ResultType]), nullable=False)
+    result_data = Column(Text, nullable=False)
+
+    reservation = relationship(
+        Reservation,
+        back_populates="result",
     )  # one-to-one (cascades defined in parent)

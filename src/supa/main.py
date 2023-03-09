@@ -209,7 +209,7 @@ def cli() -> None:
     help="Use SuPA CLI to manually administrate topology.",
 )
 @click.option("--reserve-timeout", default=settings.reserve_timeout, type=int, help="Reserve timeout in seconds.")
-@click.option("--backend", default=settings.backend, type=str, help="Name of NRM backend module.")
+@click.option("--backend", default=settings.backend, type=str, help="Name of backend module.")
 @click.option(
     "--nsa-host",
     default=settings.nsa_host,
@@ -221,30 +221,29 @@ def cli() -> None:
     help="Port where SuPA is exposed on.",
 )
 @click.option(
-    "--nsa-secure",
-    default=settings.nsa_secure,
-    is_flag=True,
-    help="Is SuPA exposed securely (HTTPS) or not.",
-)
-@click.option(
     "--nsa-name",
     default=settings.nsa_name,
     help="Descriptive name for this uPA.",
 )
 @click.option(
-    "--nsa-exposed-url",
-    default=settings.nsa_exposed_url,
-    help="Base URL where the service is exposed on.",
+    "--nsa-scheme",
+    default=settings.nsa_scheme,
+    help="URL scheme of the exposed service.",
 )
 @click.option(
-    "--nsa-provider-url",
-    default=settings.nsa_provider_url,
-    help="URL of the NSI provider endpoint.",
+    "--nsa-provider-path",
+    default=settings.nsa_provider_path,
+    help="Path of the NSI provider endpoint.",
 )
 @click.option(
-    "--nsa-topology-url",
-    default=settings.nsa_topology_url,
-    help="URL of the NSI topology endpoint.",
+    "--nsa-topology-path",
+    default=settings.nsa_topology_path,
+    help="Path of the NSI topology endpoint.",
+)
+@click.option(
+    "--nsa-discovery-path",
+    default=settings.nsa_discovery_path,
+    help="Path of the NSI discovery endpoint.",
 )
 @click.option(
     "--nsa-owner-timestamp",
@@ -280,7 +279,7 @@ def cli() -> None:
     "--topology-freshness",
     default=settings.topology_freshness,
     type=int,
-    help="Number of seconds before fetching topology from NRM again.",
+    help="Number of seconds before fetching topology from backend again.",
 )
 @common_options  # type: ignore
 def serve(
@@ -299,11 +298,11 @@ def serve(
     backend: str,
     nsa_host: str,
     nsa_port: str,
-    nsa_secure: bool,
     nsa_name: str,
-    nsa_exposed_url: str,
-    nsa_provider_url: str,
-    nsa_topology_url: str,
+    nsa_scheme: str,
+    nsa_provider_path: str,
+    nsa_topology_path: str,
+    nsa_discovery_path: str,
     nsa_owner_timestamp: str,
     nsa_owner_firstname: str,
     nsa_owner_lastname: str,
@@ -329,11 +328,11 @@ def serve(
     settings.backend = backend
     settings.nsa_host = nsa_host
     settings.nsa_port = nsa_port
-    settings.nsa_secure = nsa_secure
     settings.nsa_name = nsa_name
-    settings.nsa_exposed_url = nsa_exposed_url
-    settings.nsa_provider_url = nsa_provider_url
-    settings.nsa_topology_url = nsa_topology_url
+    settings.nsa_scheme = nsa_scheme
+    settings.nsa_provider_path = nsa_provider_path
+    settings.nsa_topology_path = nsa_topology_path
+    settings.nsa_discovery_path = nsa_discovery_path
     settings.nsa_owner_timestamp = nsa_owner_timestamp
     settings.nsa_owner_firstname = nsa_owner_firstname
     settings.nsa_owner_lastname = nsa_owner_lastname
@@ -383,14 +382,20 @@ def serve(
     logger.info("Goodbye!")
 
 
-@cli.command(context_settings=CONTEXT_SETTINGS)
-@click.option("--stp-id", required=True, type=str, help="Uniq id of the STP.")
-@click.option("--port-id", required=True, type=str, help="Id of the port from the NRM.")
-@click.option("--vlans", required=True, type=str, help="Available VLANs on the port.")
+@cli.group(context_settings=CONTEXT_SETTINGS, help="STP subcommands.")
+def stp() -> None:
+    """Group all STP subcommands."""
+    pass
+
+
+@stp.command(context_settings=CONTEXT_SETTINGS)
+@click.option("--stp-id", required=True, type=str, help="Uniq ID of the STP.")
+@click.option("--port-id", required=True, type=str, help="ID of the corresponding port.")
+@click.option("--vlans", required=True, type=str, help="VLANs part of this STP.")
 @click.option("--description", type=str, help="STP description.")
-@click.option("--is-alias-in", type=str, help="Inbound STP id from connected topology.")
-@click.option("--is-alias-out", type=str, help="Outbound STP id to connected topology.")
-@click.option("--bandwidth", required=True, type=int, help="In Mbps.")
+@click.option("--is-alias-in", type=str, help="Inbound STP ID from connected topology.")
+@click.option("--is-alias-out", type=str, help="Outbound STP ID to connected topology.")
+@click.option("--bandwidth", required=True, type=int, help="Available bandwidth for this STP in Mbps.")
 @click.option("--enabled/--disabled", default=True)
 @common_options  # type: ignore
 def add(
@@ -403,7 +408,7 @@ def add(
     bandwidth: int,
     enabled: bool,
 ) -> None:
-    """Add Orchestrator port to SuPA."""
+    """Add STP to topology."""
     init_app(with_scheduler=False)
 
     # Safe to import, now that `init_app()` has been called
@@ -428,10 +433,10 @@ def add(
         click.echo(f"cannot add STP: {error}", err=True)
 
 
-@cli.command(name="list", context_settings=CONTEXT_SETTINGS)
+@stp.command(name="list", context_settings=CONTEXT_SETTINGS)
 @click.option("--only", type=click.Choice(("enabled", "disabled")), help="Limit list of ports [default: list all]")
 @common_options  # type: ignore
-def list_cmd(only: Optional[str]) -> None:
+def stp_list(only: Optional[str]) -> None:
     """List STP's known to this uPA."""
     init_app(with_scheduler=False)
     from supa.db.model import Topology
@@ -471,11 +476,11 @@ def list_cmd(only: Optional[str]) -> None:
         )
 
 
-@cli.command(context_settings=CONTEXT_SETTINGS)
+@stp.command(context_settings=CONTEXT_SETTINGS)
 @click.option("--stp-id", required=True, type=str, help="STP id to be deleted from topology.")
 @common_options  # type: ignore
 def delete(stp_id: Optional[UUID]) -> None:
-    """Delete STP from topology if not in use (or previously used).
+    """Delete STP from topology (if not in use or previously used).
 
     A STP can only be deleted if it was never used in a reservation.
     Once used  a STP cannot be deleted again.
@@ -515,33 +520,39 @@ def _set_enable(stp_id: str, enabled: bool) -> None:
         click.echo("STP could not be found.", err=True)
 
 
-@cli.command(context_settings=CONTEXT_SETTINGS)
+@stp.command(context_settings=CONTEXT_SETTINGS)
 @click.option("--stp-id", required=True, type=str, help="STP id to be enabled.")
 def enable(stp_id: str) -> None:
-    """Enable a specific STP.
+    """Expose STP in topology.
 
     Enabling a STP makes it available for reservation requests.
     """
     _set_enable(stp_id, enabled=True)
 
 
-@cli.command(context_settings=CONTEXT_SETTINGS)
+@stp.command(context_settings=CONTEXT_SETTINGS)
 @click.option("--stp-id", required=True, type=str, help="STP id to be disabled.")
 def disable(stp_id: str) -> None:
-    """Disable a specific STP.
+    """Do not expose STP in topology.
 
     Disabling a STP makes it unavailable for reservation requests.
     """
     _set_enable(stp_id, enabled=False)
 
 
-@cli.command(context_settings=CONTEXT_SETTINGS)
+@cli.group(context_settings=CONTEXT_SETTINGS, help="Reservations subcommands.")
+def reservation() -> None:
+    """Group all reservation subcommands."""
+    pass
+
+
+@reservation.command(name="list", context_settings=CONTEXT_SETTINGS)
 @click.option("--only", type=click.Choice(("current", "past")), help="Limit list of reservations [default: list all]")
 @click.option(
     "--order-by", type=click.Choice(("start_time", "end_time")), default="start_time", help="Order reservations"
 )
 @common_options  # type: ignore
-def reservations(only: Optional[str], order_by: str) -> None:
+def reservation_list(only: Optional[str], order_by: str) -> None:
     """List reservations."""
     init_app(with_scheduler=False)
     from supa.db.model import Reservation
@@ -592,14 +603,20 @@ def reservations(only: Optional[str], order_by: str) -> None:
     )
 
 
-@cli.command(context_settings=CONTEXT_SETTINGS)
+@cli.group(context_settings=CONTEXT_SETTINGS, help="Connection subcommands.")
+def connection() -> None:
+    """Group all connection subcommands."""
+    pass
+
+
+@connection.command(name="list", context_settings=CONTEXT_SETTINGS)
 @click.option("--only", type=click.Choice(("current", "past")), help="Limit list of connections [default: list all]")
 @click.option(
     "--order-by", type=click.Choice(("start_time", "end_time")), default="start_time", help="Order connections"
 )
 @common_options  # type: ignore
-def connections(only: Optional[str], order_by: str) -> None:
-    """List NRM connections."""
+def connection_list(only: Optional[str], order_by: str) -> None:
+    """List connections."""
     init_app(with_scheduler=False)
     from supa.db.model import Connection, Reservation
     from supa.db.session import db_session

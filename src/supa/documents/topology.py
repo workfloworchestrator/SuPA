@@ -242,7 +242,7 @@ class TopologyEndpoint(object):
                     port_group.set("id", f"{network_id}:{stp.stp_id}:{suffix}")
             relation_switching_sd = SubElement(relation_sw, QName(nsmap["ns5"], "serviceDefinition"))
             relation_switching_sd.set("id", f"{network_id}:sd:EVTS.A-GOLE")
-            # inbound and outbound LabelGroup's
+            # inbound and outbound PortGroup's
             for relation_type, suffix in (
                 ("http://schemas.ogf.org/nml/2013/05/base#hasInboundPort", "in"),
                 ("http://schemas.ogf.org/nml/2013/05/base#hasOutboundPort", "out"),
@@ -253,9 +253,21 @@ class TopologyEndpoint(object):
                     relation_port_group = SubElement(relation, QName(nsmap["ns3"], "PortGroup"))
                     relation_port_group.set("encoding", "http://schemas.ogf.org/nml/2012/10/ethernet")
                     relation_port_group.set("id", f"{network_id}:{stp.stp_id}:{suffix}")
+                    # LabelGroup
                     relation_port_group_label_group = SubElement(relation_port_group, QName(nsmap["ns3"], "LabelGroup"))
                     relation_port_group_label_group.set("labeltype", "http://schemas.ogf.org/nml/2012/10/ethernet#vlan")
                     relation_port_group_label_group.text = stp.vlans
+                    # isAlias
+                    if stp.is_alias_in and stp.is_alias_out:
+                        relation_port_group_relation = SubElement(relation_port_group, QName(nsmap["ns3"], "Relation"))
+                        relation_port_group_relation.set("type", "http://schemas.ogf.org/nml/2013/05/base#isAlias")
+                        relation_port_group_relation_port_group = SubElement(
+                            relation_port_group_relation, QName(nsmap["ns3"], "PortGroup")
+                        )
+                        relation_port_group_relation_port_group.set(
+                            "id", stp.is_alias_in if suffix == "in" else stp.is_alias_out
+                        )
+                    # capacity extension
                     relation_port_group_capacity = SubElement(relation_port_group, QName(nsmap["ns4"], "capacity"))
                     relation_port_group_capacity.text = str(stp.bandwidth * 1000000)
                     relation_port_group_granularity = SubElement(

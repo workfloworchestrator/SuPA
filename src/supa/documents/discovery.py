@@ -119,7 +119,7 @@ class DiscoveryEndpoint(object):
         software_version.text = f"SuPA {importlib.metadata.version('SuPA')}"
         start_time.text = settings.nsa_start_time.isoformat(timespec="seconds")
         # A unique identifier for the object
-        vcard_uid_uri.text = f"{settings.nsa_exposed_url}{settings.nsa_provider_url}#adminContact"
+        vcard_uid_uri.text = f"{settings.nsa_exposed_url}{settings.nsa_provider_path}#adminContact"
         # The identifier of the product that created the vCard object
         vcard_prodid_text.text = f"SuPA-{settings.nsa_host}"
         # The revision datetime of the vCard object yyyymmddTHHMMSSZ
@@ -132,8 +132,8 @@ class DiscoveryEndpoint(object):
         nsa_longitude.text = settings.nsa_longitude
         network_id.text = f"urn:ogf:network:{settings.domain}:{settings.topology}"
         topology_type.text = "application/vnd.ogf.nsi.topology.v2+xml"
-        topology_href.text = f"{settings.nsa_exposed_url}{settings.nsa_topology_url}"
+        topology_href.text = f"{settings.nsa_exposed_url}{settings.nsa_topology_path}"
         provider_type.text = "application/vnd.ogf.nsi.cs.v2.provider+soap"
-        provider_href.text = f"{settings.nsa_exposed_url}{settings.nsa_provider_url}"
+        provider_href.text = f"{settings.nsa_exposed_url}{settings.nsa_provider_path}"
 
         return tostring(nsa, encoding="iso-8859-1", pretty_print=True)  # .decode('iso-8859-1')

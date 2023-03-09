@@ -13,15 +13,7 @@ from supa import const
 from supa.connection.provider.server import ConnectionProviderService
 from supa.db.model import Reservation
 from supa.grpc_nsi.connection_common_pb2 import Header, Schedule
-from supa.grpc_nsi.connection_provider_pb2 import (
-    ProvisionRequest,
-    ReleaseRequest,
-    ReservationRequestCriteria,
-    ReserveAbortRequest,
-    ReserveCommitRequest,
-    ReserveRequest,
-    TerminateRequest,
-)
+from supa.grpc_nsi.connection_provider_pb2 import GenericRequest, ReservationRequestCriteria, ReserveRequest
 from supa.grpc_nsi.services_pb2 import PointToPointService
 from supa.util.timestamp import EPOCH
 
@@ -106,45 +98,45 @@ def pb_reserve_request_end_time_in_past(pb_reserve_request: ReserveRequest) -> R
 
 
 @pytest.fixture()
-def pb_reserve_commit_request(pb_header: Header, connection_id: Column) -> ReserveCommitRequest:
+def pb_reserve_commit_request(pb_header: Header, connection_id: Column) -> GenericRequest:
     """Create protobuf reserve commit request for connection_id."""
-    pb_request = ReserveCommitRequest()
+    pb_request = GenericRequest()
     pb_request.header.CopyFrom(pb_header)
     pb_request.connection_id = str(connection_id)
     return pb_request
 
 
 @pytest.fixture()
-def pb_reserve_abort_request(pb_header: Header, connection_id: Column) -> ReserveAbortRequest:
+def pb_reserve_abort_request(pb_header: Header, connection_id: Column) -> GenericRequest:
     """Create protobuf reserve abort request for connection_id."""
-    pb_request = ReserveAbortRequest()
+    pb_request = GenericRequest()
     pb_request.header.CopyFrom(pb_header)
     pb_request.connection_id = str(connection_id)
     return pb_request
 
 
 @pytest.fixture()
-def pb_provision_request(pb_header: Header, connection_id: Column) -> ProvisionRequest:
+def pb_provision_request(pb_header: Header, connection_id: Column) -> GenericRequest:
     """Create protobuf provision request for connection_id."""
-    pb_request = ProvisionRequest()
+    pb_request = GenericRequest()
     pb_request.header.CopyFrom(pb_header)
     pb_request.connection_id = str(connection_id)
     return pb_request
 
 
 @pytest.fixture()
-def pb_release_request(pb_header: Header, connection_id: Column) -> ReleaseRequest:
+def pb_release_request(pb_header: Header, connection_id: Column) -> GenericRequest:
     """Create protobuf release request for connection_id."""
-    pb_request = ReleaseRequest()
+    pb_request = GenericRequest()
     pb_request.header.CopyFrom(pb_header)
     pb_request.connection_id = str(connection_id)
     return pb_request
 
 
 @pytest.fixture()
-def pb_terminate_request(pb_header: Header, connection_id: Column) -> TerminateRequest:
+def pb_terminate_request(pb_header: Header, connection_id: Column) -> GenericRequest:
     """Create protobuf terminate request for connection_id."""
-    pb_request = TerminateRequest()
+    pb_request = GenericRequest()
     pb_request.header.CopyFrom(pb_header)
     pb_request.connection_id = str(connection_id)
     return pb_request
@@ -192,7 +184,7 @@ def test_reserve_request_end_time_in_past(pb_reserve_request_end_time_in_past: R
     assert "End time lies in the past" in caplog.text
 
 
-def test_reserve_commit(pb_reserve_commit_request: ReserveCommitRequest, reserve_held: None, caplog: Any) -> None:
+def test_reserve_commit(pb_reserve_commit_request: GenericRequest, reserve_held: None, caplog: Any) -> None:
     """Test the connection provider ReserveCommit happy path."""
     service = ConnectionProviderService()
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
@@ -204,7 +196,7 @@ def test_reserve_commit(pb_reserve_commit_request: ReserveCommitRequest, reserve
     assert "Schedule reserve commit" in caplog.text
 
 
-def test_reserve_commit_random_connection_id(pb_reserve_commit_request: ReserveCommitRequest, caplog: Any) -> None:
+def test_reserve_commit_random_connection_id(pb_reserve_commit_request: GenericRequest, caplog: Any) -> None:
     """Test the connection provider ReserveCommit returns service exception for random connection id."""
     service = ConnectionProviderService()
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
@@ -223,7 +215,7 @@ def test_reserve_commit_random_connection_id(pb_reserve_commit_request: ReserveC
 
 
 def test_reserve_commit_invalid_transition(
-    pb_reserve_commit_request: ReserveCommitRequest, reserve_committing: None, caplog: Any
+    pb_reserve_commit_request: GenericRequest, reserve_committing: None, caplog: Any
 ) -> None:
     """Test the connection provider ReserveCommit returns service exception when in invalid state for request."""
     service = ConnectionProviderService()
@@ -243,7 +235,7 @@ def test_reserve_commit_invalid_transition(
 
 
 def test_reserve_commit_timed_out(
-    pb_reserve_commit_request: ReserveCommitRequest, reserve_held: None, flag_reservation_timeout: None, caplog: Any
+    pb_reserve_commit_request: GenericRequest, reserve_held: None, flag_reservation_timeout: None, caplog: Any
 ) -> None:
     """Test connection provider ReserveCommit returns service exception when reservation was flagged as timed out."""
     service = ConnectionProviderService()
@@ -260,7 +252,7 @@ def test_reserve_commit_timed_out(
     assert "Cannot commit a timed out reservation" in caplog.text
 
 
-def test_reserve_abort(pb_reserve_abort_request: ReserveAbortRequest, reserve_held: None, caplog: Any) -> None:
+def test_reserve_abort(pb_reserve_abort_request: GenericRequest, reserve_held: None, caplog: Any) -> None:
     """Test the connection provider ReserveAbort happy path."""
     service = ConnectionProviderService()
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
@@ -271,7 +263,7 @@ def test_reserve_abort(pb_reserve_abort_request: ReserveAbortRequest, reserve_he
     assert "Schedule reserve abort" in caplog.text
 
 
-def test_reserve_abort_random_connection_id(pb_reserve_abort_request: ReserveAbortRequest, caplog: Any) -> None:
+def test_reserve_abort_random_connection_id(pb_reserve_abort_request: GenericRequest, caplog: Any) -> None:
     """Test the connection provider ReserveAbort returns service exception for random connection id."""
     service = ConnectionProviderService()
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
@@ -290,7 +282,7 @@ def test_reserve_abort_random_connection_id(pb_reserve_abort_request: ReserveAbo
 
 
 def test_reserve_abort_invalid_transition(
-    pb_reserve_abort_request: ReserveAbortRequest, reserve_aborting: None, caplog: Any
+    pb_reserve_abort_request: GenericRequest, reserve_aborting: None, caplog: Any
 ) -> None:
     """Test the connection provider ReserveAbort returns service exception when in invalid state for request."""
     service = ConnectionProviderService()
@@ -309,7 +301,7 @@ def test_reserve_abort_invalid_transition(
     assert "Not scheduling ReserveAbortJob" in caplog.text
 
 
-def test_provision(pb_provision_request: ProvisionRequest, released: None, caplog: Any) -> None:
+def test_provision(pb_provision_request: GenericRequest, released: None, caplog: Any) -> None:
     """Test the connection provider Provision happy path."""
     service = ConnectionProviderService()
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
@@ -320,7 +312,7 @@ def test_provision(pb_provision_request: ProvisionRequest, released: None, caplo
     assert "Schedule provision" in caplog.text
 
 
-def test_provision_random_connection_id(pb_provision_request: ProvisionRequest, caplog: Any) -> None:
+def test_provision_random_connection_id(pb_provision_request: GenericRequest, caplog: Any) -> None:
     """Test the connection provider Provision returns service exception for random connection id."""
     service = ConnectionProviderService()
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
@@ -339,7 +331,7 @@ def test_provision_random_connection_id(pb_provision_request: ProvisionRequest, 
     assert "Connection ID does not exist" in caplog.text
 
 
-def test_provision_invalid_transition(pb_provision_request: ProvisionRequest, provisioned: None, caplog: Any) -> None:
+def test_provision_invalid_transition(pb_provision_request: GenericRequest, provisioned: None, caplog: Any) -> None:
     """Test the connection provider Provision returns service exception when in invalid state for request."""
     service = ConnectionProviderService()
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
@@ -358,7 +350,7 @@ def test_provision_invalid_transition(pb_provision_request: ProvisionRequest, pr
     assert "Not scheduling ProvisionJob" in caplog.text
 
 
-def test_provision_not_committed(pb_provision_request: ProvisionRequest, reserve_held: None, caplog: Any) -> None:
+def test_provision_not_committed(pb_provision_request: GenericRequest, reserve_held: None, caplog: Any) -> None:
     """Test the connection provider Provision returns service exception when reservation not committed yet."""
     service = ConnectionProviderService()
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
@@ -377,7 +369,7 @@ def test_provision_not_committed(pb_provision_request: ProvisionRequest, reserve
 
 
 def test_provision_passed_end_time(
-    pb_provision_request: ProvisionRequest, connection_id: Column, released: None, caplog: Any
+    pb_provision_request: GenericRequest, connection_id: Column, released: None, caplog: Any
 ) -> None:
     """Test the connection provider Provision returns service exception when reservation is passed end time."""
     from supa.db.session import db_session
@@ -400,7 +392,7 @@ def test_provision_passed_end_time(
     assert "Cannot provision a reservation that is passed end time" in caplog.text
 
 
-def test_release(pb_release_request: ReleaseRequest, provisioned: None, caplog: Any) -> None:
+def test_release(pb_release_request: GenericRequest, provisioned: None, caplog: Any) -> None:
     """Test the connection provider Release happy path."""
     service = ConnectionProviderService()
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
@@ -411,7 +403,7 @@ def test_release(pb_release_request: ReleaseRequest, provisioned: None, caplog: 
     assert "Schedule release" in caplog.text
 
 
-def test_release_random_connection_id(pb_release_request: ReleaseRequest, caplog: Any) -> None:
+def test_release_random_connection_id(pb_release_request: GenericRequest, caplog: Any) -> None:
     """Test the connection provider Release returns service exception for random connection id."""
     service = ConnectionProviderService()
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
@@ -429,7 +421,7 @@ def test_release_random_connection_id(pb_release_request: ReleaseRequest, caplog
     assert "Connection ID does not exist" in caplog.text
 
 
-def test_release_invalid_transition(pb_release_request: ReleaseRequest, released: None, caplog: Any) -> None:
+def test_release_invalid_transition(pb_release_request: GenericRequest, released: None, caplog: Any) -> None:
     """Test the connection provider release returns service exception when in invalid state for request."""
     service = ConnectionProviderService()
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
@@ -447,7 +439,7 @@ def test_release_invalid_transition(pb_release_request: ReleaseRequest, released
     assert "Not scheduling ReleaseJob" in caplog.text
 
 
-def test_release_not_committed(pb_release_request: ReleaseRequest, reserve_held: None, caplog: Any) -> None:
+def test_release_not_committed(pb_release_request: GenericRequest, reserve_held: None, caplog: Any) -> None:
     """Test the connection provider Release returns service exception when reservation not committed yet."""
     service = ConnectionProviderService()
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
@@ -466,7 +458,7 @@ def test_release_not_committed(pb_release_request: ReleaseRequest, reserve_held:
 
 
 def test_release_passed_end_time(
-    pb_release_request: ReleaseRequest, connection_id: Column, provisioned: None, caplog: Any
+    pb_release_request: GenericRequest, connection_id: Column, provisioned: None, caplog: Any
 ) -> None:
     """Test the connection provider Release returns service exception when reservation is passed end time."""
     from supa.db.session import db_session
@@ -489,7 +481,7 @@ def test_release_passed_end_time(
     assert "Cannot release a reservation that is passed end time" in caplog.text
 
 
-def test_terminate(pb_terminate_request: TerminateRequest, provisioned: None, caplog: Any) -> None:
+def test_terminate(pb_terminate_request: GenericRequest, provisioned: None, caplog: Any) -> None:
     """Test the connection provider Terminate happy path."""
     service = ConnectionProviderService()
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
@@ -500,7 +492,7 @@ def test_terminate(pb_terminate_request: TerminateRequest, provisioned: None, ca
     assert "Schedule terminate" in caplog.text
 
 
-def test_terminate_random_connection_id(pb_terminate_request: TerminateRequest, caplog: Any) -> None:
+def test_terminate_random_connection_id(pb_terminate_request: GenericRequest, caplog: Any) -> None:
     """Test the connection provider Release returns service exception for random connection id."""
     service = ConnectionProviderService()
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
@@ -518,7 +510,7 @@ def test_terminate_random_connection_id(pb_terminate_request: TerminateRequest, 
     assert "Connection ID does not exist" in caplog.text
 
 
-def test_terminate_invalid_transition(pb_terminate_request: TerminateRequest, terminated: None, caplog: Any) -> None:
+def test_terminate_invalid_transition(pb_terminate_request: GenericRequest, terminated: None, caplog: Any) -> None:
     """Test the connection provider Release returns service exception for random connection id."""
     service = ConnectionProviderService()
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)

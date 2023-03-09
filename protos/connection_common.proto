@@ -103,3 +103,8 @@ message ConnectionStates {
   LifecycleState lifecycle_state = 3;
   DataPlaneStatus data_plane_status = 4;
 }
+
+message GenericAcknowledgment {
+  common.Header header = 1;
+  common.ServiceException service_exception = 2;
+}
