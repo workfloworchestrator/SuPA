@@ -36,8 +36,8 @@ we hope to increase the adoption of the NSI protocol.
    :caption: Contents:
 
    installation
-   documentation
-   running
+   configuration
+   backend
    development
    changelog
 
