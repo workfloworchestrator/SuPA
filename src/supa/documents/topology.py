@@ -12,7 +12,7 @@
 #  limitations under the License.
 """Generate a NSI topology document.
 
-Example topology document:
+Example topology document::
 
     <?xml version='1.0' encoding='iso-8859-1'?>
     <ns3:Topology xmlns:ns3="http://schemas.ogf.org/nml/2013/05/base#"
