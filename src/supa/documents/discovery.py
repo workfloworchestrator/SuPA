@@ -12,7 +12,7 @@
 #  limitations under the License.
 """Generate a NSI discovery document.
 
-Example discovery document:
+Example discovery document::
 
     <?xml version='1.0' encoding='iso-8859-1'?>
     <nsa:nsa xmlns:nsa="http://schemas.ogf.org/nsi/2014/02/discovery/nsa"

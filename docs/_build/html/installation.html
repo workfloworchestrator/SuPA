@@ -1,337 +1,256 @@
-
-
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8">
-  
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Installation &mdash; SuPA  documentation</title>
-  
-
-  
-  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
-  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
-
-  
-  
-  
-  
-
-  
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
   <!--[if lt IE 9]>
     <script src="_static/js/html5shiv.min.js"></script>
   <![endif]-->
   
-    
-      <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
-        <script src="_static/jquery.js"></script>
-        <script src="_static/underscore.js"></script>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
         <script src="_static/doctools.js"></script>
-        <script src="_static/language_data.js"></script>
-    
-    <script type="text/javascript" src="_static/js/theme.js"></script>
-
-    
+        <script src="_static/sphinx_highlight.js"></script>
+    <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Documentation" href="documentation.html" />
-    <link rel="prev" title="SURFnet 8 ultimate Provider Agent (SuPA)" href="index.html" /> 
+    <link rel="next" title="Configuration" href="configuration.html" />
+    <link rel="prev" title="SURF ultimate Provider Agent (SuPA)" href="index.html" /> 
 </head>
 
-<body class="wy-body-for-nav">
-
-   
+<body class="wy-body-for-nav"> 
   <div class="wy-grid-for-nav">
-    
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-          
 
           
-            <a href="index.html" class="icon icon-home" alt="Documentation Home"> SuPA
           
-
-          
+          <a href="index.html" class="icon icon-home">
+            SuPA
           </a>
-
-          
-            
-            
-          
-
-          
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
 </div>
-
-          
-        </div>
-
-        
-        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
-          
-            
-            
-              
-            
-            
-              <p class="caption"><span class="caption-text">Contents:</span></p>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul class="current">
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Installation</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#tips">Tips</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#github">GitHub</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#supa">SuPA</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#polynsi">PolyNSI</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="documentation.html">Documentation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="running.html">Running</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#docker-compose">Docker compose</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#helm-chart">Helm chart</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id1">SuPA</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id2">PolyNSI</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#nsi-node-helm-super-chart">nsi-node Helm super chart</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="configuration.html">Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="backend.html">Backend</a></li>
 <li class="toctree-l1"><a class="reference internal" href="development.html">Development</a></li>
 <li class="toctree-l1"><a class="reference internal" href="changelog.html">Changelog</a></li>
 </ul>
-<p class="caption"><span class="caption-text">API Reference</span></p>
+<p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="api.html">API</a></li>
 </ul>
 
-            
-          
         </div>
-        
       </div>
     </nav>
 
-    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
-
-      
-      <nav class="wy-nav-top" aria-label="top navigation">
-        
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
           <a href="index.html">SuPA</a>
-        
       </nav>
 
-
       <div class="wy-nav-content">
-        
         <div class="rst-content">
-        
-          
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-<div role="navigation" aria-label="breadcrumbs navigation">
-
+          <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-    
-      <li><a href="index.html" class="icon icon-home"></a> &raquo;</li>
-        
-      <li>Installation</li>
-    
-    
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Installation</li>
       <li class="wy-breadcrumbs-aside">
-        
-            
             <a href="_sources/installation.rst.txt" rel="nofollow"> View page source</a>
-          
-        
       </li>
-    
   </ul>
-
-  
   <hr/>
 </div>
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
-            
-  <div class="section" id="installation">
-<h1>Installation<a class="headerlink" href="#installation" title="Permalink to this headline">¶</a></h1>
-<p>As we don’t have an internal Python package repository,
-we need to check out the source code repository:</p>
-<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">%</span> git clone git@git.ia.surfsara.nl:automation/projects/supa.git
+             
+  <section id="installation">
+<h1>Installation<a class="headerlink" href="#installation" title="Permalink to this heading"></a></h1>
+<p>The installation instructions assume that SuPA is installed together with PolyNSI.
+Both applications are available as source code on GitHub,
+or as prebuilt container through the GitHub Container Registry.
+The PolyNSI repository also contains prebuilt JARs.
+There are several methods to install and run the application:</p>
+<ul class="simple">
+<li><p>GitHub clone</p></li>
+<li><p>Docker compose</p></li>
+<li><p>Helm chart</p></li>
+<li><p>nsi-node Helm super chart</p></li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>SuPA was developed using Python 3.8.
+Compatibility with other Python versions is untested.</p>
+<p>PolyNSI was developed using Java 11 and Maven 3.8.5.
+Compatibility with other Java and Maven versions is untested.
+It is assumed that a suitable versions of Java and Maven are already installed.</p>
+</div>
+<section id="github">
+<h2>GitHub<a class="headerlink" href="#github" title="Permalink to this heading"></a></h2>
+<section id="supa">
+<h3>SuPA<a class="headerlink" href="#supa" title="Permalink to this heading"></a></h3>
+<p><span class="target" id="clone-the-supa-source-code-repository-from-github">Clone the SuPA source code repository from GitHub</span>,
+and checkout the desired branch or version,
+for example version 0.2.0:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">git clone https://github.com/workfloworchestrator/supa.git</span>
+<span class="go">cd supa</span>
+<span class="go">git checkout 0.2.0</span>
 </pre></div>
 </div>
-<p>SuPA is developed using Python 3.8.
-Hence we need a Python 3.8 virtual environment:</p>
-<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">%</span> <span class="nb">cd</span> supa
-<span class="gp">%</span> python3.8 -m venv venv
-<span class="gp">%</span> <span class="nb">source</span> venv/bin/activate
+<p>There are multiple ways to add an virtual Python environment, and you can choose
+whatever suits you best. This example uses the standard <code class="docutils literal notranslate"><span class="pre">venv</span></code> module and assumes
+that Python version 3.8 is already installed using your local package manager:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">python3.8 -m venv venv</span>
+<span class="go">source venv/bin/activate</span>
 </pre></div>
 </div>
 <p>The virtual environment created by the <code class="docutils literal notranslate"><span class="pre">venv</span></code> module does not always contain the most recent version of <code class="docutils literal notranslate"><span class="pre">pip</span></code>.
 As we are using some newer Python packaging standards (<a class="reference external" href="https://www.python.org/dev/peps/pep-0518/">PEP-518</a>)
-it is probably a good idea have <code class="docutils literal notranslate"><span class="pre">pip</span></code> updated to its most recent version:</p>
-<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">%</span> pip install -U pip wheel
+it is probably a good idea to have <code class="docutils literal notranslate"><span class="pre">pip</span></code> updated to its most recent version:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">pip install --upgrade pip wheel</span>
 </pre></div>
 </div>
 <p>We are including <code class="docutils literal notranslate"><span class="pre">wheel</span></code> as we will be building or using pre-built C++ extensions.</p>
-<p>Depending on whether we want to install SuPA for deployment or development,
-we either execute:</p>
-<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">%</span> pip install .
+<p>Now install all dependencies needed by SuPA:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">pip install .</span>
 </pre></div>
 </div>
-<p>or:</p>
-<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">%</span> pip install -e <span class="s1">&#39;.[dev]&#39;</span>
+<p>And start the application:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">supa serve</span>
 </pre></div>
 </div>
-<p>If the latter fails during the installation of the <code class="docutils literal notranslate"><span class="pre">grpcio-tools</span></code> package,
-complaining about <em>No suitable threading library available</em>,
-we can educate that package about the wonders of other operating systems than the big three
-by means of prepending the <code class="docutils literal notranslate"><span class="pre">pip</span></code> command with <code class="docutils literal notranslate"><span class="pre">CFLAGS=&quot;-DHAVE_PTHREAD=1&quot;</span></code>.
-At least, that is what makes it work on FreeBSD 12.1:</p>
-<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">%</span> <span class="nv">CFLAGS</span><span class="o">=</span><span class="s2">&quot;-DHAVE_PTHREAD=1&quot;</span> pip install -e <span class="s1">&#39;.[dev]&#39;</span>
+</section>
+<section id="polynsi">
+<h3>PolyNSI<a class="headerlink" href="#polynsi" title="Permalink to this heading"></a></h3>
+<p><span class="target" id="clone-the-polynsi-source-code-repository-from-github">Clone the PolyNSI source code repository from GitHub</span>,
+and checkout the desired branch or version,
+for example version 0.2.0:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">git clone https://github.com/workfloworchestrator/polynsi.git</span>
+<span class="go">cd PolyNSI</span>
+<span class="go">git checkout 0.2.0</span>
 </pre></div>
 </div>
-<p>The <code class="docutils literal notranslate"><span class="pre">dev</span></code> installation,
-by virtue of the <code class="docutils literal notranslate"><span class="pre">-e</span></code> option,
-installs SuPA in editable mode.
-Meaning that changes to its code will be directly active/available in the virtual environment it is installed in.
-It will also install the <code class="docutils literal notranslate"><span class="pre">pre-commit</span></code> package,
-but that still needs to activated by means of:</p>
-<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">%</span> pre-commit install
+<p>And start the application:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">mvn spring-boot:run</span>
 </pre></div>
 </div>
-<p>Another installation option is <code class="docutils literal notranslate"><span class="pre">doc</span></code>.
-This can be combined with the <code class="docutils literal notranslate"><span class="pre">dev</span></code> installation option as follows:</p>
-<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">%</span> pip install -e <span class="s1">&#39;.[dev,doc]&#39;</span>
+</section>
+</section>
+<section id="docker-compose">
+<h2>Docker compose<a class="headerlink" href="#docker-compose" title="Permalink to this heading"></a></h2>
+<p><a class="reference internal" href="#clone-the-supa-source-code-repository-from-github">Clone the SuPA source code repository from GitHub</a>.
+The <cite>docker</cite> folder contains the following:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">docker</span>
+<span class="go">├── application.properties</span>
+<span class="go">├── docker-compose.yml</span>
+<span class="go">├── polynsi-keystore.jks</span>
+<span class="go">├── polynsi-truststore.jks</span>
+<span class="go">└── supa.env</span>
 </pre></div>
 </div>
-<p>It installs the Sphinx documentation package
-that allows the documentation in the <code class="docutils literal notranslate"><span class="pre">docs</span></code> directory to be build,
-generating nicely formatted HTML output:</p>
-<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">%</span> <span class="nb">cd</span> docs
-<span class="gp">%</span> make html
-<span class="gp">%</span> open _build/html/index.html
+<p>The <cite>supa.env</cite> is used to override parts of the SuPA default configuration.
+PolyNSI is configured to use the supplied <cite>polynsi-keystore.jks</cite> and <cite>polynsi-truststore.jks</cite>
+by setting the approriate options in <cite>application.properties</cite>.
+The <cite>docker-compose.yml</cite> has three services defined,
+one to create an empty folder <cite>db</cite> in the current folder
+that will be used to store the SQLite database file used by SuPA,
+a seconds service to start PolyNSI,
+and last be not least a third service to start SuPA itself.
+By default the latest prebuilt SuPA and PolyNSI containers from the GitHub container registry will be used.</p>
+<p>To start SuPA and PolyNSI just execute the following commands:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">cd docker</span>
+<span class="go">docker compose up</span>
 </pre></div>
 </div>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>The <code class="docutils literal notranslate"><span class="pre">Makefile</span></code> uses GNU Make syntax,
-hence on FreeBSD one should use <code class="docutils literal notranslate"><span class="pre">gmake</span></code>.
-Although, you might need to do a <code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">pkg</span> <span class="pre">install</span> <span class="pre">gmake</span></code> first to get it installed.
-The <code class="docutils literal notranslate"><span class="pre">open</span></code> command is MacOS specific;
-on FreeBSD and Linux this should be <code class="docutils literal notranslate"><span class="pre">xdg-open</span></code></p>
-</div>
-<p>Documentation can also be build by Setuptools.
-From the root of the repository execute:</p>
-<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">%</span> python setup.py build_sphinx
+</section>
+<section id="helm-chart">
+<h2>Helm chart<a class="headerlink" href="#helm-chart" title="Permalink to this heading"></a></h2>
+<p>Both SuPA and PolyNSI have <a class="reference external" href="https://helm.sh/">Helm</a> charts
+to easily deploy to Kubernetes.
+Please refer to the supplied <code class="docutils literal notranslate"><span class="pre">values.yaml</span></code> files for Helm configuration details.</p>
+<section id="id1">
+<h3>SuPA<a class="headerlink" href="#id1" title="Permalink to this heading"></a></h3>
+<p><a class="reference internal" href="#clone-the-supa-source-code-repository-from-github">Clone the SuPA source code repository from GitHub</a>.
+The <cite>chart</cite> folder contains contains a Helm chart to deploy SuPA to a Kubernetes cluster:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">kubectl create namespace nsi</span>
+<span class="go">helm upgrade --namespace nsi --install supa chart</span>
 </pre></div>
 </div>
-<p>When using Setuptools to build the Sphinx based documentation,
-the resulting artifacts end up in <code class="docutils literal notranslate"><span class="pre">build/sphinx/html</span></code>
-instead of <code class="docutils literal notranslate"><span class="pre">docs/_build/html</span></code>.</p>
-<div class="section" id="tips">
-<h2>Tips<a class="headerlink" href="#tips" title="Permalink to this headline">¶</a></h2>
-<p>Pre-built packages for <code class="docutils literal notranslate"><span class="pre">grpcio</span></code> and <code class="docutils literal notranslate"><span class="pre">grpcio-tools</span></code> might not be available for all platforms.
-Meaning that these packages will be built when <code class="docutils literal notranslate"><span class="pre">pip</span></code> installs SuPA.
-As these packages use a lot of C++ code,
-building them can take a long time.</p>
-<p>With a recent enough versions of <code class="docutils literal notranslate"><span class="pre">pip</span></code> and <code class="docutils literal notranslate"><span class="pre">wheel</span></code> installed,
-<code class="docutils literal notranslate"><span class="pre">pip</span></code> caches the packages it builds.
-Hence on subsequent installs in new or recreated virtual environments
-it can skip the building part
-and install the previously built packages from the cache.
-To see <code class="docutils literal notranslate"><span class="pre">pip</span></code>’s cache run:</p>
-<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">%</span> pip cache list
+</section>
+<section id="id2">
+<h3>PolyNSI<a class="headerlink" href="#id2" title="Permalink to this heading"></a></h3>
+<p><a class="reference internal" href="#clone-the-polynsi-source-code-repository-from-github">Clone the PolyNSI source code repository from GitHub</a>.
+The <cite>chart</cite> folder contains contains a Helm chart to deploy PolyNSI to a Kubernetes cluster:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">helm upgrade --namespace nsi --install polynsi chart</span>
 </pre></div>
 </div>
-<p>However on OS or Python updates,
-eg from FreeBSD 12.1-p5 to 12.1-p6,
-or from Python 3.7 to 3.8,
-<code class="docutils literal notranslate"><span class="pre">pip</span></code> will rebuild the packages
-as their names include the OS name and version down to the patch level and the version of Python used.
-Eg. <code class="docutils literal notranslate"><span class="pre">grpcio-1.29.0-cp37-cp37m-freebsd_12_1_RELEASE_p5_amd64.whl</span></code> will not picked for an installation of FreeBSD 12.1-p6
-or when used with Python 3.8.</p>
-<p>To speed up builds under these circumstances,
-consider always using <a class="reference external" href="https://ccache.dev/">ccache</a>.
-With <code class="docutils literal notranslate"><span class="pre">ccache</span></code> installed,
-<em>always</em> execute the installation of SuPA by <code class="docutils literal notranslate"><span class="pre">pip</span></code> with:</p>
-<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">%</span> <span class="nv">CC</span><span class="o">=</span><span class="s2">&quot;ccache cc&quot;</span> pip install -e <span class="s1">&#39;.[dev]&#39;</span>
-</pre></div>
-</div>
-<p>if your primary C/C++ compiler is LLVM, or:</p>
-<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">%</span> <span class="nv">CC</span><span class="o">=</span><span class="s2">&quot;ccache gcc&quot;</span> pip install -e <span class="s1">&#39;.[dev]&#39;</span>
-</pre></div>
-</div>
-<p>if your primary C/C++ compiler is GCC</p>
-<p>To see the <code class="docutils literal notranslate"><span class="pre">ccache</span></code>’s cache, run:</p>
-<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">%</span> ccache -s
-</pre></div>
-</div>
-</div>
-</div>
+</section>
+</section>
+<section id="nsi-node-helm-super-chart">
+<h2>nsi-node Helm super chart<a class="headerlink" href="#nsi-node-helm-super-chart" title="Permalink to this heading"></a></h2>
+<p>Both SuPA and PolyNSI can also be deployed by the nsi-node super chart,
+that can also be used to deploy other pieces of the NSI stack for a more complete deployment.
+Please refer to the documentation in the <a class="reference external" href="https://github.com/BandwidthOnDemand/nsi-node">nsi-node</a> GitHub repository.</p>
+</section>
+</section>
 
 
            </div>
-           
           </div>
-          <footer>
-  
-    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
-      
-        <a href="documentation.html" class="btn btn-neutral float-right" title="Documentation" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
-      
-      
-        <a href="index.html" class="btn btn-neutral float-left" title="SURFnet 8 ultimate Provider Agent (SuPA)" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
-      
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="SURF ultimate Provider Agent (SuPA)" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="configuration.html" class="btn btn-neutral float-right" title="Configuration" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
-  
 
   <hr/>
 
   <div role="contentinfo">
-    <p>
-        
-        &copy; Copyright 2020, SURF
-
-    </p>
+    <p>&#169; Copyright 2020, SURF.</p>
   </div>
-    
-    
-    
-    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a
-    
-    <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a>
-    
-    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
 
 </footer>
-
         </div>
       </div>
-
     </section>
-
   </div>
-  
-
-  <script type="text/javascript">
+  <script>
       jQuery(function () {
           SphinxRtdTheme.Navigation.enable(true);
       });
-  </script>
-
-  
-  
-    
-   
+  </script> 
 
 </body>
 </html>

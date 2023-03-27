@@ -46,9 +46,33 @@ supa.job.shared
    :special-members: __call__
 
 supa.job.reserve
----------------
+----------------
 
 .. automodule:: supa.job.reserve
+   :members:
+
+supa.job.provision
+------------------
+
+.. automodule:: supa.job.provision
+   :members:
+
+supa.job.lifecycle
+------------------
+
+.. automodule:: supa.job.lifecycle
+   :members:
+
+supa.job.query
+---------------
+
+.. automodule:: supa.job.query
+   :members:
+
+supa.job.dataplane
+------------------
+
+.. automodule:: supa.job.dataplane
    :members:
 
 supa.connection.fsm
@@ -61,6 +85,12 @@ supa.connection.error
 ---------------------
 
 .. automodule:: supa.connection.error
+   :members:
+
+supa.connection.requester
+-------------------------
+
+.. automodule:: supa.connection.requester
    :members:
 
 supa.connection.provider.server
@@ -110,4 +140,54 @@ supa.util.functional
 --------------------
 
 .. automodule:: supa.util.functional
+   :members:
+
+supa.util.find
+--------------
+
+.. automodule:: supa.util.find
+   :members:
+
+supa.util.type
+--------------
+
+.. automodule:: supa.util.type
+   :members:
+
+.. _supa.nrm.backend:
+
+supa.nrm.backend
+--------------
+
+.. automodule:: supa.nrm.backend
+   :members:
+
+supa.nrm.backends.example
+--------------
+
+.. automodule:: supa.nrm.backends.example
+   :members:
+
+supa.nrm.backends.surf
+--------------
+
+.. automodule:: supa.nrm.backends.surf
+   :members:
+
+supa.documents.discovery
+--------------
+
+.. automodule:: supa.documents.discovery
+   :members:
+
+supa.documents.topology
+--------------
+
+.. automodule:: supa.documents.topology
+   :members:
+
+supa.documents.healthcheck
+--------------
+
+.. automodule:: supa.documents.healthcheck
    :members:

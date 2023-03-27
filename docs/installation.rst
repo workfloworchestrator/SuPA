@@ -4,120 +4,137 @@
 Installation
 ============
 
-As we don't have an internal Python package repository,
-we need to check out the source code repository::
+The installation instructions assume that SuPA is installed together with PolyNSI.
+Both applications are available as source code on GitHub,
+or as prebuilt container through the GitHub Container Registry.
+The PolyNSI repository also contains prebuilt JARs.
+There are several methods to install and run the application:
 
-    % git clone git@git.ia.surfsara.nl:automation/projects/supa.git
+- GitHub clone
+- Docker compose
+- Helm chart
+- nsi-node Helm super chart
 
-SuPA is developed using Python 3.8.
-Hence we need a Python 3.8 virtual environment::
-
-    % cd supa
-    % python3.8 -m venv venv
-    % source venv/bin/activate
-
-The virtual environment created by the ``venv`` module does not always contain the most recent version of ``pip``.
-As we are using some newer Python packaging standards (`PEP-518 <https://www.python.org/dev/peps/pep-0518/>`_)
-it is probably a good idea have ``pip`` updated to its most recent version::
-
-    % pip install -U pip wheel
-
-We are including ``wheel`` as we will be building or using pre-built C++ extensions.
-
-Depending on whether we want to install SuPA for deployment or development,
-we either execute::
-
-    % pip install .
-
-or::
-
-    % pip install -e '.[dev]'
-
-If the latter fails during the installation of the ``grpcio-tools`` package,
-complaining about *No suitable threading library available*,
-we can educate that package about the wonders of other operating systems than the big three
-by means of prepending the ``pip`` command with ``CFLAGS="-DHAVE_PTHREAD=1"``.
-At least, that is what makes it work on FreeBSD 12.1::
-
-    % CFLAGS="-DHAVE_PTHREAD=1" pip install -e '.[dev]'
-
-The ``dev`` installation,
-by virtue of the ``-e`` option,
-installs SuPA in editable mode.
-Meaning that changes to its code will be directly active/available in the virtual environment it is installed in.
-It will also install the ``pre-commit`` package,
-but that still needs to activated by means of::
-
-    % pre-commit install
-
-Another installation option is ``doc``.
-This can be combined with the ``dev`` installation option as follows::
-
-    % pip install -e '.[dev,doc]'
-
-It installs the Sphinx documentation package
-that allows the documentation in the ``docs`` directory to be build,
-generating nicely formatted HTML output::
-
-    % cd docs
-    % make html
-    % open _build/html/index.html
 
 .. note::
 
-    The ``Makefile`` uses GNU Make syntax,
-    hence on FreeBSD one should use ``gmake``.
-    Although, you might need to do a ``sudo pkg install gmake`` first to get it installed.
-    The ``open`` command is MacOS specific;
-    on FreeBSD and Linux this should be ``xdg-open``
+    SuPA was developed using Python 3.8.
+    Compatibility with other Python versions is untested.
 
-Documentation can also be build by Setuptools.
-From the root of the repository execute::
+    PolyNSI was developed using Java 11 and Maven 3.8.5.
+    Compatibility with other Java and Maven versions is untested.
+    It is assumed that a suitable versions of Java and Maven are already installed.
 
-    % python setup.py build_sphinx
+GitHub
+++++++
 
-When using Setuptools to build the Sphinx based documentation,
-the resulting artifacts end up in ``build/sphinx/html``
-instead of ``docs/_build/html``.
+SuPA
+----
 
-Tips
-++++
+_`Clone the SuPA source code repository from GitHub`,
+and checkout the desired branch or version,
+for example version 0.2.0::
 
-Pre-built packages for ``grpcio`` and ``grpcio-tools`` might not be available for all platforms.
-Meaning that these packages will be built when ``pip`` installs SuPA.
-As these packages use a lot of C++ code,
-building them can take a long time.
+    git clone https://github.com/workfloworchestrator/supa.git
+    cd supa
+    git checkout 0.2.0
 
-With a recent enough versions of ``pip`` and ``wheel`` installed,
-``pip`` caches the packages it builds.
-Hence on subsequent installs in new or recreated virtual environments
-it can skip the building part
-and install the previously built packages from the cache.
-To see ``pip``'s cache run::
+There are multiple ways to add an virtual Python environment, and you can choose
+whatever suits you best. This example uses the standard ``venv`` module and assumes
+that Python version 3.8 is already installed using your local package manager::
 
-    % pip cache list
+    python3.8 -m venv venv
+    source venv/bin/activate
 
-However on OS or Python updates,
-eg from FreeBSD 12.1-p5 to 12.1-p6,
-or from Python 3.7 to 3.8,
-``pip`` will rebuild the packages
-as their names include the OS name and version down to the patch level and the version of Python used.
-Eg. ``grpcio-1.29.0-cp37-cp37m-freebsd_12_1_RELEASE_p5_amd64.whl`` will not picked for an installation of FreeBSD 12.1-p6
-or when used with Python 3.8.
+The virtual environment created by the ``venv`` module does not always contain the most recent version of ``pip``.
+As we are using some newer Python packaging standards (`PEP-518 <https://www.python.org/dev/peps/pep-0518/>`_)
+it is probably a good idea to have ``pip`` updated to its most recent version::
 
-To speed up builds under these circumstances,
-consider always using `ccache <https://ccache.dev/>`_.
-With ``ccache`` installed,
-*always* execute the installation of SuPA by ``pip`` with::
+    pip install --upgrade pip wheel
 
-    % CC="ccache cc" pip install -e '.[dev]'
+We are including ``wheel`` as we will be building or using pre-built C++ extensions.
 
-if your primary C/C++ compiler is LLVM, or::
+Now install all dependencies needed by SuPA::
 
-    % CC="ccache gcc" pip install -e '.[dev]'
+    pip install .
 
-if your primary C/C++ compiler is GCC
+And start the application::
 
-To see the ``ccache``'s cache, run::
+    supa serve
 
-    % ccache -s
+PolyNSI
+-------
+
+_`Clone the PolyNSI source code repository from GitHub`,
+and checkout the desired branch or version,
+for example version 0.2.0::
+
+    git clone https://github.com/workfloworchestrator/polynsi.git
+    cd PolyNSI
+    git checkout 0.2.0
+
+And start the application::
+
+    mvn spring-boot:run
+
+Docker compose
+++++++++++++++
+
+`Clone the SuPA source code repository from GitHub`_.
+The `docker` folder contains the following:
+
+::
+
+    docker
+    ├── application.properties
+    ├── docker-compose.yml
+    ├── polynsi-keystore.jks
+    ├── polynsi-truststore.jks
+    └── supa.env
+
+The `supa.env` is used to override parts of the SuPA default configuration.
+PolyNSI is configured to use the supplied `polynsi-keystore.jks` and `polynsi-truststore.jks`
+by setting the approriate options in `application.properties`.
+The `docker-compose.yml` has three services defined,
+one to create an empty folder `db` in the current folder
+that will be used to store the SQLite database file used by SuPA,
+a seconds service to start PolyNSI,
+and last be not least a third service to start SuPA itself.
+By default the latest prebuilt SuPA and PolyNSI containers from the GitHub container registry will be used.
+
+To start SuPA and PolyNSI just execute the following commands::
+
+    cd docker
+    docker compose up
+
+Helm chart
+++++++++++
+
+Both SuPA and PolyNSI have `Helm <https://helm.sh/>`_ charts
+to easily deploy to Kubernetes.
+Please refer to the supplied ``values.yaml`` files for Helm configuration details.
+
+SuPA
+----
+
+`Clone the SuPA source code repository from GitHub`_.
+The `chart` folder contains contains a Helm chart to deploy SuPA to a Kubernetes cluster::
+
+    kubectl create namespace nsi
+    helm upgrade --namespace nsi --install supa chart
+
+PolyNSI
+-------
+
+`Clone the PolyNSI source code repository from GitHub`_.
+The `chart` folder contains contains a Helm chart to deploy PolyNSI to a Kubernetes cluster::
+
+    helm upgrade --namespace nsi --install polynsi chart
+
+
+nsi-node Helm super chart
++++++++++++++++++++++++++
+
+Both SuPA and PolyNSI can also be deployed by the nsi-node super chart,
+that can also be used to deploy other pieces of the NSI stack for a more complete deployment.
+Please refer to the documentation in the `nsi-node <https://github.com/BandwidthOnDemand/nsi-node>`_ GitHub repository.

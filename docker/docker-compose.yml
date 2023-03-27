@@ -1,0 +1,53 @@
+---
+version: "3.9"
+
+services:
+  #
+  # SuPA
+  #
+  supa:
+    image: "ghcr.io/workfloworchestrator/supa:latest"
+    configs:
+      - source: supa.env
+        target: /usr/local/etc/supa/supa.env
+    volumes:
+      - .:/usr/local/var
+    ports:
+      - "4321:4321"
+    depends_on:
+      create-database-folder:
+        condition: service_completed_successfully
+      polynsi:
+        condition: service_started
+  #
+  # PolyNSI
+  #
+  polynsi:
+    #image: "ghcr.io/workfloworchestrator/polynsi:latest"
+    image: polynsi:test
+    ports:
+      - "8443:8443"
+    configs:
+      - source: application.properties
+        target: /usr/local/polynsi/application.properties
+      - source: polynsi-keystore.jks
+        target: /usr/local/polynsi/polynsi-keystore.jks
+      - source: polynsi-truststore.jks
+        target: /usr/local/polynsi/polynsi-truststore.jks
+  #
+  # create SuPA database folder
+  #
+  create-database-folder:
+    image: 'busybox:latest'
+    command: ["sh", "-c", "test -d /usr/local/var/db || mkdir /usr/local/var/db"]
+    volumes:
+      - .:/usr/local/var
+configs:
+  supa.env:
+    file: ./supa.env
+  application.properties:
+    file: ./application.properties
+  polynsi-keystore.jks:
+    file: ./polynsi-keystore.jks
+  polynsi-truststore.jks:
+    file: ./polynsi-truststore.jks
