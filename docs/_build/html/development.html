@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Development &mdash; SuPA  documentation</title>
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/doctools.js"></script>
+        <script src="_static/sphinx_highlight.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Changelog" href="changelog.html" />
+    <link rel="prev" title="&lt;no title&gt;" href="documentation.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            SuPA
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="configuration.html">Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="backend.html">Backend</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Development</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#install-development-environment">Install development environment</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#tips">Tips</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#some-rules">Some rules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#importing-new-protobuf-grpc-definitions">Importing new protobuf/gRPC definitions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#pycharm">PyCharm</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#documentation">Documentation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#semantic-line-breaks">Semantic Line Breaks</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#api-documentation">API Documentation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#build-while-editting">Build while Editting</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="changelog.html">Changelog</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="api.html">API</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">SuPA</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Development</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/development.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="development">
+<h1>Development<a class="headerlink" href="#development" title="Permalink to this heading"></a></h1>
+<section id="install-development-environment">
+<h2>Install development environment<a class="headerlink" href="#install-development-environment" title="Permalink to this heading"></a></h2>
+<p>Install development environment:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">pip install -e &#39;.[dev]&#39;</span>
+</pre></div>
+</div>
+<p>If the latter fails during the installation of the <code class="docutils literal notranslate"><span class="pre">grpcio-tools</span></code> package,
+complaining about <em>No suitable threading library available</em>,
+we can educate that package about the wonders of other operating systems than the big three
+by means of prepending the <code class="docutils literal notranslate"><span class="pre">pip</span></code> command with <code class="docutils literal notranslate"><span class="pre">CFLAGS=&quot;-DHAVE_PTHREAD=1&quot;</span></code>.
+At least, that is what makes it work on FreeBSD 12.1:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">% </span><span class="nv">CFLAGS</span><span class="o">=</span><span class="s2">&quot;-DHAVE_PTHREAD=1&quot;</span><span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s1">&#39;.[dev]&#39;</span>
+</pre></div>
+</div>
+<p>The <code class="docutils literal notranslate"><span class="pre">dev</span></code> installation,
+by virtue of the <code class="docutils literal notranslate"><span class="pre">-e</span></code> option,
+installs SuPA in editable mode.
+Meaning that changes to its code will be directly active/available in the virtual environment it is installed in.
+It will also install the <code class="docutils literal notranslate"><span class="pre">pre-commit</span></code> package,
+but that still needs to activated by means of:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">% </span>pre-commit<span class="w"> </span>install
+</pre></div>
+</div>
+<p>Another installation option is <code class="docutils literal notranslate"><span class="pre">doc</span></code>.
+This can be combined with the <code class="docutils literal notranslate"><span class="pre">dev</span></code> installation option as follows:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">% </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s1">&#39;.[dev,doc]&#39;</span>
+</pre></div>
+</div>
+<p>It installs the Sphinx documentation package
+that allows the documentation in the <code class="docutils literal notranslate"><span class="pre">docs</span></code> directory to be build,
+generating nicely formatted HTML output:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">% </span><span class="nb">cd</span><span class="w"> </span>docs
+<span class="gp">% </span>make<span class="w"> </span>html
+<span class="gp">% </span>open<span class="w"> </span>_build/html/index.html
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">Makefile</span></code> uses GNU Make syntax,
+hence on FreeBSD one should use <code class="docutils literal notranslate"><span class="pre">gmake</span></code>.
+Although, you might need to do a <code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">pkg</span> <span class="pre">install</span> <span class="pre">gmake</span></code> first to get it installed.
+The <code class="docutils literal notranslate"><span class="pre">open</span></code> command is MacOS specific;
+on FreeBSD and Linux this should be <code class="docutils literal notranslate"><span class="pre">xdg-open</span></code></p>
+</div>
+<p>Documentation can also be build by Setuptools.
+From the root of the repository execute:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">% </span>python<span class="w"> </span>setup.py<span class="w"> </span>build_sphinx
+</pre></div>
+</div>
+<p>When using Setuptools to build the Sphinx based documentation,
+the resulting artifacts end up in <code class="docutils literal notranslate"><span class="pre">build/sphinx/html</span></code>
+instead of <code class="docutils literal notranslate"><span class="pre">docs/_build/html</span></code>.</p>
+<section id="tips">
+<h3>Tips<a class="headerlink" href="#tips" title="Permalink to this heading"></a></h3>
+<p>Pre-built packages for <code class="docutils literal notranslate"><span class="pre">grpcio</span></code> and <code class="docutils literal notranslate"><span class="pre">grpcio-tools</span></code> might not be available for all platforms.
+Meaning that these packages will be built when <code class="docutils literal notranslate"><span class="pre">pip</span></code> installs SuPA.
+As these packages use a lot of C++ code,
+building them can take a long time.</p>
+<p>With a recent enough versions of <code class="docutils literal notranslate"><span class="pre">pip</span></code> and <code class="docutils literal notranslate"><span class="pre">wheel</span></code> installed,
+<code class="docutils literal notranslate"><span class="pre">pip</span></code> caches the packages it builds.
+Hence on subsequent installs in new or recreated virtual environments
+it can skip the building part
+and install the previously built packages from the cache.
+To see <code class="docutils literal notranslate"><span class="pre">pip</span></code>’s cache run:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">% </span>pip<span class="w"> </span>cache<span class="w"> </span>list
+</pre></div>
+</div>
+<p>However on OS or Python updates,
+eg from FreeBSD 12.1-p5 to 12.1-p6,
+or from Python 3.7 to 3.8,
+<code class="docutils literal notranslate"><span class="pre">pip</span></code> will rebuild the packages
+as their names include the OS name and version down to the patch level and the version of Python used.
+Eg. <code class="docutils literal notranslate"><span class="pre">grpcio-1.29.0-cp37-cp37m-freebsd_12_1_RELEASE_p5_amd64.whl</span></code> will not picked for an installation of FreeBSD 12.1-p6
+or when used with Python 3.8.</p>
+<p>To speed up builds under these circumstances,
+consider always using <a class="reference external" href="https://ccache.dev/">ccache</a>.
+With <code class="docutils literal notranslate"><span class="pre">ccache</span></code> installed,
+<em>always</em> execute the installation of SuPA by <code class="docutils literal notranslate"><span class="pre">pip</span></code> with:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">% </span><span class="nv">CC</span><span class="o">=</span><span class="s2">&quot;ccache cc&quot;</span><span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s1">&#39;.[dev]&#39;</span>
+</pre></div>
+</div>
+<p>if your primary C/C++ compiler is LLVM, or:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">% </span><span class="nv">CC</span><span class="o">=</span><span class="s2">&quot;ccache gcc&quot;</span><span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s1">&#39;.[dev]&#39;</span>
+</pre></div>
+</div>
+<p>if your primary C/C++ compiler is GCC</p>
+<p>To see the <code class="docutils literal notranslate"><span class="pre">ccache</span></code>’s cache, run:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">% </span>ccache<span class="w"> </span>-s
+</pre></div>
+</div>
+</section>
+</section>
+<section id="some-rules">
+<h2>Some rules<a class="headerlink" href="#some-rules" title="Permalink to this heading"></a></h2>
+<ul class="simple">
+<li><p>Use type annotations for all non-generated code</p></li>
+<li><p>All public functions should have <a class="reference external" href="https://www.sphinx-doc.org/en/master/usage/extensions/example_google.html">Google Style Docstrings</a></p></li>
+<li><dl class="simple">
+<dt>Regularly run:</dt><dd><ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">mypy</span> <span class="pre">src/supa</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">flake8</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">pytest</span> <span class="pre">-n</span> <span class="pre">auto</span> <span class="pre">--cov</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">pytest</span> <span class="pre">--doctest-module</span> <span class="pre">src</span></code></p></li>
+</ul>
+</dd>
+</dl>
+</li>
+<li><p>Each MR should probably result in a version bump (<code class="docutils literal notranslate"><span class="pre">VERSION.txt</span></code>)
+and an update to <code class="docutils literal notranslate"><span class="pre">CHANGES.rst</span></code></p></li>
+</ul>
+</section>
+<section id="importing-new-protobuf-grpc-definitions">
+<h2>Importing new protobuf/gRPC definitions<a class="headerlink" href="#importing-new-protobuf-grpc-definitions" title="Permalink to this heading"></a></h2>
+<p>When new NSI protobuf/gRPC definitions are imported into the <code class="docutils literal notranslate"><span class="pre">protos</span></code> directory
+one should (re)generated the corresponding Python code for it:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">% </span>python<span class="w"> </span>setup.py<span class="w"> </span>clean<span class="w"> </span>gen_code
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Cleaning the previously generated code is a good thing thing.
+We want to ensure that we don’t accidentally depend on no longer used protobuf/gRPC definitions.
+Hence always run the <code class="docutils literal notranslate"><span class="pre">gen_code</span></code> in conjunction with
+and prepended by the <code class="docutils literal notranslate"><span class="pre">clean</span></code> command.</p>
+</div>
+</section>
+<section id="pycharm">
+<h2>PyCharm<a class="headerlink" href="#pycharm" title="Permalink to this heading"></a></h2>
+<p>Included is a shell script <code class="docutils literal notranslate"><span class="pre">fmt_code.sh</span></code>
+that can easily run <code class="docutils literal notranslate"><span class="pre">black</span></code> and <code class="docutils literal notranslate"><span class="pre">isort</span></code> in succession from within PyCharm.
+There are two options to use this script:</p>
+<ul class="simple">
+<li><p>Run it as an external tool with a keyboard shortcut assigned to it</p></li>
+<li><p>Configure a file watcher to have it run automatically on file save</p></li>
+</ul>
+<p>Configuring it as an external tool is detailed below.
+Configuring as a file watcher should be very similar.</p>
+<p>Go to:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">File</span> <span class="pre">|</span> <span class="pre">Settings</span> <span class="pre">|</span> <span class="pre">Tools</span> <span class="pre">|</span> <span class="pre">External</span> <span class="pre">Tools</span></code></p></li>
+<li><p>Click on the <code class="docutils literal notranslate"><span class="pre">+</span></code> icon</p></li>
+<li><dl class="simple">
+<dt>Fill out the fields:</dt><dd><ul>
+<li><p>Name: <code class="docutils literal notranslate"><span class="pre">Black</span> <span class="pre">+</span> <span class="pre">isort</span></code></p></li>
+<li><p>Program: <code class="docutils literal notranslate"><span class="pre">$ProjectFileDir$/fmt_code.sh</span></code></p></li>
+<li><p>Arguments: <code class="docutils literal notranslate"><span class="pre">$JDKPath$</span> <span class="pre">$FilePath$</span></code></p></li>
+<li><p>Output paths to refresh: <code class="docutils literal notranslate"><span class="pre">$FilePath$</span></code></p></li>
+<li><p>Working directory: <code class="docutils literal notranslate"><span class="pre">$ProjectFileDir$</span></code></p></li>
+<li><p>Untick option <em>Open console for tool output</em></p></li>
+<li><p>Click <code class="docutils literal notranslate"><span class="pre">OK</span></code>  (Edit Tool dialog)</p></li>
+<li><p>Click <code class="docutils literal notranslate"><span class="pre">Apply</span></code> (Settings dialog)</p></li>
+</ul>
+</dd>
+</dl>
+</li>
+<li><p>Still in the Setting dialog, go to <code class="docutils literal notranslate"><span class="pre">Keymap</span></code></p></li>
+<li><p>In search field type: <code class="docutils literal notranslate"><span class="pre">Black</span> <span class="pre">+</span> <span class="pre">isort</span></code></p></li>
+<li><p>Right click on the entry found and select <code class="docutils literal notranslate"><span class="pre">Add</span> <span class="pre">keyboard</span> <span class="pre">shortcut</span></code></p></li>
+<li><p>Press <code class="docutils literal notranslate"><span class="pre">Ctrl</span> <span class="pre">+</span> <span class="pre">Alt</span> <span class="pre">+</span> <span class="pre">L</span></code>  (or whatever you deem convenient)</p></li>
+<li><p>Click <code class="docutils literal notranslate"><span class="pre">OK</span></code> (Keyboard Shortcut dialog)</p></li>
+<li><p>Click <code class="docutils literal notranslate"><span class="pre">OK</span></code> (Settings dialog)</p></li>
+</ul>
+<p>If you regularly reformat the Python module under development using <code class="docutils literal notranslate"><span class="pre">Ctrl</span> <span class="pre">+</span> <span class="pre">Alt</span> <span class="pre">+</span> <span class="pre">L</span></code>,
+the Git pre-commit hook will notcomplain about the layout of your code.</p>
+</section>
+<section id="documentation">
+<h2>Documentation<a class="headerlink" href="#documentation" title="Permalink to this heading"></a></h2>
+<p>SuPA’s documentation is written using <a class="reference external" href="https://www.sphinx-doc.org">Sphinx</a>.
+To generate and read it,
+run:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">% </span>python<span class="w"> </span>setup.py<span class="w"> </span>build_sphinx
+<span class="gp">% </span>open<span class="w"> </span>build/sphinx/html/index.html
+</pre></div>
+</div>
+<p>This assumes you have installed SuPA with the <code class="docutils literal notranslate"><span class="pre">doc</span></code> option.
+See <a class="reference internal" href="installation.html"><span class="doc">Installation</span></a> on how to do that.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The above Setuptools way of generation documentation
+is probably only useful from a packaging point of view.</p>
+</div>
+<p>When working on the documentation
+it is generally more convenient to generated it
+using the Sphinx provided Makefile:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">% </span>make<span class="w"> </span>-C<span class="w"> </span>docs<span class="w"> </span>html
+<span class="gp">% </span>open<span class="w"> </span>docs/_build/html/index.html
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If <code class="docutils literal notranslate"><span class="pre">make</span></code> and/or <code class="docutils literal notranslate"><span class="pre">open</span></code> do not work on your OS,
+try <code class="docutils literal notranslate"><span class="pre">gmake</span></code> and/or <code class="docutils literal notranslate"><span class="pre">xdg-open</span></code> respectively.
+See also the relevant note in <a class="reference internal" href="installation.html"><span class="doc">Installation</span></a>.</p>
+</div>
+<section id="semantic-line-breaks">
+<h3>Semantic Line Breaks<a class="headerlink" href="#semantic-line-breaks" title="Permalink to this heading"></a></h3>
+<p>This documentation is written using <a class="reference external" href="https://sembr.org/">Semantic Line Breaks</a>.
+This allows for better diff generation
+compared to documentation where lines are wrapped purely based on line length.</p>
+</section>
+<section id="api-documentation">
+<h3>API Documentation<a class="headerlink" href="#api-documentation" title="Permalink to this heading"></a></h3>
+<p>Be sure to document all modules,
+classes,
+methods
+and functions
+with appropriate docstrings.
+When done correctly,
+these docstrings can easily be made part of the Sphinx based documention
+by carefully inserting the appropriate
+<a class="reference external" href="https://www.sphinx-doc.org/en/master/usage/extensions/autodoc.html#module-sphinx.ext.autodoc">autodoc</a>
+directives in <a class="reference internal" href="api.html"><span class="doc">API</span></a></p>
+</section>
+<section id="build-while-editting">
+<h3>Build while Editting<a class="headerlink" href="#build-while-editting" title="Permalink to this heading"></a></h3>
+<p>You might have wondered what the line:</p>
+<div class="highlight-rst notranslate"><div class="highlight"><pre><span></span><span class="cp">.. vim:noswapfile:nobackup:nowritebackup:</span>
+</pre></div>
+</div>
+<p>at the top of each reStructuredText file does.
+It turns off Vim’s specific way of writing files,
+so that files are updated inplace.
+This ensures that only one filesystem event per file save is generated.
+That in turn, allows the Python script <code class="docutils literal notranslate"><span class="pre">watchmedo</span></code> to work efficiently.</p>
+<p><code class="docutils literal notranslate"><span class="pre">watchmedo</span></code> is part of the Python package <a class="reference external" href="https://pypi.org/project/watchdog/">watchdog</a>.
+It allows for monitoring of filesystem events
+and executing commands in response to them.
+The following command,
+when executed in the project root directory:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">% </span>watchmedo<span class="w"> </span>shell-command<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--patterns<span class="o">=</span><span class="s2">&quot;*.rst;*.py&quot;</span><span class="w"> </span>--recursive<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--command<span class="o">=</span><span class="s1">&#39;echo &quot;${watch_src_path}&quot;; make -C docs html&#39;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--wait<span class="w"> </span>.
+</pre></div>
+</div>
+<p>watches for changes made to documentation files and source code,
+and rebuilds everything in response.</p>
+<p>Having Vim generate only one filesystem event per file save
+(instead of two)
+is important to prevent kicking of the documention build multiple times.</p>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="documentation.html" class="btn btn-neutral float-left" title="&lt;no title&gt;" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="changelog.html" class="btn btn-neutral float-right" title="Changelog" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2020, SURF.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

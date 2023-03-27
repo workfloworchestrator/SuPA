@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SURF ultimate Provider Agent (SuPA) &mdash; SuPA  documentation</title>
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/doctools.js"></script>
+        <script src="_static/sphinx_highlight.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Installation" href="installation.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="#" class="icon icon-home">
+            SuPA
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="configuration.html">Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="backend.html">Backend</a></li>
+<li class="toctree-l1"><a class="reference internal" href="development.html">Development</a></li>
+<li class="toctree-l1"><a class="reference internal" href="changelog.html">Changelog</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="api.html">API</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="#">SuPA</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="#" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">SURF ultimate Provider Agent (SuPA)</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/index.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="surf-ultimate-provider-agent-supa">
+<h1>SURF ultimate Provider Agent (SuPA)<a class="headerlink" href="#surf-ultimate-provider-agent-supa" title="Permalink to this heading"></a></h1>
+<p>The SURF ultimate Provider Agent (SuPA) implements the <a class="reference external" href="https://www.ogf.org">Connection Service</a> (CS) version 2.1 protocol that:</p>
+<blockquote>
+<div><p>… enables the reservation, creation, management and removal of circuits (connections)
+that transit several networks managed by different providers.</p>
+</div></blockquote>
+<p>The CS protocol is one of several in the Network Service Interface (NSI) protocol suite;
+the CS works together with these NSI services to deliver an integrated <a class="reference external" href="https://ogf.org/documents/GFD.213.pdf">Network Services Framework</a> (NSF).
+One of the active deployments is the <a class="reference external" href="https://www.gna-g.net/join-working-group/autogole-sense/">Automated GOLE</a> which is part of the <a class="reference external" href="https://www.gna-g.net">Global Network Advancement Group</a> (GNA-G),
+a worldwide collaboration of open exchange points and R&amp;E networks to deliver network services end-to-end in a fully automated way.</p>
+<p>This provider agent uses a plugable backend to interface with a local Network Resource Manager (NRM),
+or to talk directly to a network device.</p>
+<p>SuPA is kind of special in that it does not speak NSI’s native ‘language’ SOAP.
+Instead, it relies on an <a class="reference external" href="https://grpc.io/">gRPC</a> version of the NSI protocol
+as implemented by <a class="reference external" href="https://github.com/workfloworchestrator/polynsi/">PolyNSI</a>,
+a SOAP &lt;-&gt; gRPC translating proxy that was developed as a companion for SuPA.</p>
+<p>The idea is that a modern underlying protocol such gRPC
+should make it easier to develop NSI Network Service Agents
+in a wider range of languages than SOAP would have allowed.
+After all, due to its inherent complexity and ambiguity,
+support for SOAP was only every fully implemented for
+.NET, Java and C/C++.
+With the programming language barrier lifted
+we hope to increase the adoption of the NSI protocol.</p>
+<div class="toctree-wrapper compound">
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#github">GitHub</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#docker-compose">Docker compose</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#helm-chart">Helm chart</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#nsi-node-helm-super-chart">nsi-node Helm super chart</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="configuration.html">Configuration</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="configuration.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configuration.html#running">Running</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configuration.html#configuration-file">Configuration File</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configuration.html#environment-variables">Environment Variables</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configuration.html#options">options</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="backend.html">Backend</a></li>
+<li class="toctree-l1"><a class="reference internal" href="development.html">Development</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="development.html#install-development-environment">Install development environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="development.html#some-rules">Some rules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="development.html#importing-new-protobuf-grpc-definitions">Importing new protobuf/gRPC definitions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="development.html#pycharm">PyCharm</a></li>
+<li class="toctree-l2"><a class="reference internal" href="development.html#documentation">Documentation</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="changelog.html">Changelog</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="changelog.html#version-0-2-0">Version 0.2.0</a></li>
+<li class="toctree-l2"><a class="reference internal" href="changelog.html#version-0-1-0">Version 0.1.0</a></li>
+<li class="toctree-l2"><a class="reference internal" href="changelog.html#version-0-0-1">Version 0.0.1</a></li>
+</ul>
+</li>
+</ul>
+</div>
+<div class="toctree-wrapper compound">
+<p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="api.html">API</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-supa">supa</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-supa.const">supa.const</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-supa.main">supa.main</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-supa.db.session">supa.db.session</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-supa.db.model">supa.db.model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-supa.job.shared">supa.job.shared</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-supa.job.reserve">supa.job.reserve</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-supa.job.provision">supa.job.provision</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-supa.job.lifecycle">supa.job.lifecycle</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-supa.job.query">supa.job.query</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-supa.job.dataplane">supa.job.dataplane</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-supa.connection.fsm">supa.connection.fsm</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-supa.connection.error">supa.connection.error</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-supa.connection.requester">supa.connection.requester</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-supa.connection.provider.server">supa.connection.provider.server</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-supa.util.bandwidth">supa.util.bandwidth</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-supa.util.converter">supa.util.converter</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-supa.util.timestamp">supa.util.timestamp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-supa.util.nsi">supa.util.nsi</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#supa-util-vlan">supa.util.vlan</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-supa.util.functional">supa.util.functional</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-supa.util.find">supa.util.find</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-supa.util.type">supa.util.type</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#supa-nrm-backend">supa.nrm.backend</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#supa-nrm-backends-example">supa.nrm.backends.example</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#supa-nrm-backends-surf">supa.nrm.backends.surf</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#supa-documents-discovery">supa.documents.discovery</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#supa-documents-topology">supa.documents.topology</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#supa-documents-healthcheck">supa.documents.healthcheck</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</section>
+<section id="indices-and-tables">
+<h1>Indices and tables<a class="headerlink" href="#indices-and-tables" title="Permalink to this heading"></a></h1>
+<ul class="simple">
+<li><p><a class="reference internal" href="genindex.html"><span class="std std-ref">Index</span></a></p></li>
+<li><p><a class="reference internal" href="py-modindex.html"><span class="std std-ref">Module Index</span></a></p></li>
+<li><p><a class="reference internal" href="search.html"><span class="std std-ref">Search Page</span></a></p></li>
+</ul>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="installation.html" class="btn btn-neutral float-right" title="Installation" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2020, SURF.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
