@@ -433,6 +433,50 @@ def add(
         click.echo(f"cannot add STP: {error}", err=True)
 
 
+@stp.command(context_settings=CONTEXT_SETTINGS)
+@click.option("--stp-id", required=True, type=str, help="Uniq ID of the STP.")
+@click.option("--port-id", type=str, help="ID of the corresponding port.")
+@click.option("--vlans", type=str, help="VLANs part of this STP.")
+@click.option("--description", type=str, help="STP description.")
+@click.option("--is-alias-in", type=str, help="Inbound STP ID from connected topology.")
+@click.option("--is-alias-out", type=str, help="Outbound STP ID to connected topology.")
+@click.option("--bandwidth", type=int, help="Available bandwidth for this STP in Mbps.")
+@common_options  # type: ignore
+def modify(
+    stp_id: str,
+    port_id: str,
+    vlans: str,
+    description: Optional[str],
+    is_alias_in: Optional[str],
+    is_alias_out: Optional[str],
+    bandwidth: int,
+) -> None:
+    """Modify existing STP in topology."""
+    init_app(with_scheduler=False)
+
+    # Safe to import, now that `init_app()` has been called
+    from supa.db.model import Topology
+    from supa.db.session import db_session
+
+    try:
+        with db_session() as session:
+            stp: Topology = session.query(Topology).filter(Topology.stp_id == stp_id).one()
+            if port_id:
+                stp.port_id = port_id
+            if vlans:
+                stp.vlans = vlans
+            if description:
+                stp.description = description
+            if is_alias_in:
+                stp.is_alias_in = is_alias_in
+            if is_alias_out:
+                stp.is_alias_out = is_alias_out
+            if bandwidth:
+                stp.bandwidth = bandwidth
+    except sqlalchemy.orm.exc.NoResultFound:
+        click.echo("STP could not be found.", err=True)
+
+
 @stp.command(name="list", context_settings=CONTEXT_SETTINGS)
 @click.option("--only", type=click.Choice(("enabled", "disabled")), help="Limit list of ports [default: list all]")
 @common_options  # type: ignore
@@ -522,6 +566,7 @@ def _set_enable(stp_id: str, enabled: bool) -> None:
 
 @stp.command(context_settings=CONTEXT_SETTINGS)
 @click.option("--stp-id", required=True, type=str, help="STP id to be enabled.")
+@common_options  # type: ignore
 def enable(stp_id: str) -> None:
     """Expose STP in topology.
 
@@ -532,6 +577,7 @@ def enable(stp_id: str) -> None:
 
 @stp.command(context_settings=CONTEXT_SETTINGS)
 @click.option("--stp-id", required=True, type=str, help="STP id to be disabled.")
+@common_options  # type: ignore
 def disable(stp_id: str) -> None:
     """Do not expose STP in topology.
 
