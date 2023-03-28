@@ -54,6 +54,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#subcommand-serve">Subcommand serve</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#subcommand-stp">Subcommand stp</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#add">add</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#modify">modify</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#delete">delete</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#enable">enable</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#disable">disable</a></li>
@@ -368,6 +369,35 @@ it can only be disabled to prevent it to be exposed in the topology document.</p
 </dd>
 </dl>
 <p>–enabled / –disabled  [default: enabled]</p>
+</div></blockquote>
+</section>
+<section id="modify">
+<h4>modify<a class="headerlink" href="#modify" title="Permalink to this heading"></a></h4>
+<p>The <code class="docutils literal notranslate"><span class="pre">stp</span> <span class="pre">modify</span></code> subcommand accepts the following options:</p>
+<blockquote>
+<div><dl class="option-list">
+<dt><kbd><span class="option">--stp-id <var>TEXT</var></span></kbd></dt>
+<dd><p>Uniq ID of the STP.  [required]</p>
+</dd>
+<dt><kbd><span class="option">--port-id <var>TEXT</var></span></kbd></dt>
+<dd><p>ID of the corresponding port.</p>
+</dd>
+<dt><kbd><span class="option">--vlans <var>TEXT</var></span></kbd></dt>
+<dd><p>VLANs part of this STP.</p>
+</dd>
+<dt><kbd><span class="option">--description <var>TEXT</var></span></kbd></dt>
+<dd><p>STP description.</p>
+</dd>
+<dt><kbd><span class="option">--is-alias-in <var>TEXT</var></span></kbd></dt>
+<dd><p>Inbound STP ID from connected topology.</p>
+</dd>
+<dt><kbd><span class="option">--is-alias-out <var>TEXT</var></span></kbd></dt>
+<dd><p>Outbound STP ID to connected topology.</p>
+</dd>
+<dt><kbd><span class="option">--bandwidth <var>INTEGER</var></span></kbd></dt>
+<dd><p>Available bandwidth for this STP in Mbps.</p>
+</dd>
+</dl>
 </div></blockquote>
 </section>
 <section id="delete">

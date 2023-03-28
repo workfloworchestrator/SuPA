@@ -205,6 +205,19 @@ The ``stp add`` subcommand accepts the following options:
                           [required]
   --enabled / --disabled  [default: enabled]
 
+modify
+``````
+
+The ``stp modify`` subcommand accepts the following options:
+
+  --stp-id TEXT         Uniq ID of the STP.  [required]
+  --port-id TEXT        ID of the corresponding port.
+  --vlans TEXT          VLANs part of this STP.
+  --description TEXT    STP description.
+  --is-alias-in TEXT    Inbound STP ID from connected topology.
+  --is-alias-out TEXT   Outbound STP ID to connected topology.
+  --bandwidth INTEGER   Available bandwidth for this STP in Mbps.
+
 delete
 ``````
 
