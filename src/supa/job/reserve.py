@@ -316,7 +316,7 @@ class ReserveJob(Job):
                         NoServiceplanePathFound,
                         "source and destination STP's are the same",
                         {
-                            Variable.PROVIDER_NSA: settings.get_nsa_id(),
+                            Variable.PROVIDER_NSA: settings.nsa_id,
                             Variable.SOURCE_STP: str(reservation.src_stp()),
                             Variable.DEST_STP: str(reservation.dst_stp()),
                         },
