@@ -24,6 +24,7 @@ from supa.connection.error import (
     InvalidTransition,
     MissingParameter,
     ReservationNonExistent,
+    UnsupportedParameter,
     Variable,
 )
 from supa.connection.fsm import LifecycleStateMachine, ProvisionStateMachine, ReservationStateMachine
@@ -106,7 +107,9 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             global_reservation_id=pb_reserve_request.global_reservation_id,
         )
 
+        #
         # Sanity check on start and end time, in case of problem return ServiceException
+        #
         pb_criteria: ReservationRequestCriteria = pb_reserve_request.criteria
         pb_schedule: Schedule = pb_criteria.schedule
         start_time = as_utc_timestamp(pb_schedule.start_time)
@@ -136,6 +139,25 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             pb_header: Header = pb_reserve_request.header
             pb_ptps: PointToPointService = pb_criteria.ptps
             pb_path_trace: PathTrace = pb_header.path_trace
+
+            #
+            # Verify that we are the targeted providerNSA, in case of mismatch return ServiceException
+            #
+            if pb_header.provider_nsa != settings.nsa_id:
+                error_message = "Unknown provider NSA ID"
+                log.info(error_message, provider_nsa=pb_header.provider_nsa)
+                reserve_response = ReserveResponse(
+                    header=to_response_header(pb_reserve_request.header),
+                    service_exception=to_service_exception(
+                        NsiException(
+                            UnsupportedParameter,
+                            error_message,
+                            {Variable.PROVIDER_NSA: pb_header.provider_nsa},
+                        )
+                    ),
+                )
+                log.debug("Sending response.", response_message=reserve_response)
+                return reserve_response
 
             reservation = model.Reservation(
                 correlation_id=UUID(pb_header.correlation_id),

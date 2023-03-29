@@ -101,7 +101,7 @@ def to_header(reservation: model.Reservation, *, add_path_segment: bool = False)
                     pb_segment.stps.append(stp.stp_id)
             if add_path_segment and cur_path_num == num_paths:
                 pb_segment = Segment()
-                pb_segment.id = settings.get_nsa_id()
+                pb_segment.id = settings.nsa_id
                 pb_segment.connection_id = str(reservation.connection_id)
                 pb_segment.stps.extend([reservation.src_stp(selected=True), reservation.dst_stp(selected=True)])
                 pb_path.append(pb_segment)
@@ -142,7 +142,7 @@ def to_service_exception(nsi_exc: NsiException, connection_id: Optional[UUID] = 
         A ``ServiceException``.
     """
     pb_se = ServiceException()
-    pb_se.nsa_id = settings.get_nsa_id()
+    pb_se.nsa_id = settings.nsa_id
     if connection_id:
         pb_se.connection_id = str(connection_id)
     pb_se.error_id = nsi_exc.nsi_error.error_id

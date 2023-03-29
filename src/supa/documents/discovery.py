@@ -112,7 +112,7 @@ class DiscoveryEndpoint(object):
 
         now = current_timestamp()
 
-        nsa.set("id", settings.get_nsa_id())
+        nsa.set("id", settings.nsa_id)
         nsa.set("version", now.isoformat(timespec="seconds"))
         nsa.set("expires", (now + timedelta(weeks=1)).isoformat(timespec="seconds"))
         nsa_name.text = settings.nsa_name

@@ -218,7 +218,8 @@ class Settings(BaseSettings):
     class Config:  # noqa: D106
         case_sensitive = True
 
-    def get_nsa_id(self) -> str:
+    @property
+    def nsa_id(self) -> str:
         """Construct NSA ID using Settings.domain."""
         return f"urn:ogf:network:{self.domain}:nsa:supa"
 
