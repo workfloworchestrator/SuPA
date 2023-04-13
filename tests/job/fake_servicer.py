@@ -7,7 +7,7 @@ from supa.connection.fsm import (
     ProvisionStateMachine,
     ReservationStateMachine,
 )
-from supa.db.model import Reservation, Topology
+from supa.db.model import Request, Reservation, Topology
 from supa.grpc_nsi.connection_common_pb2 import RESERVE_CHECKING, GenericAcknowledgment
 from supa.grpc_nsi.connection_requester_pb2 import (
     DataPlaneStateChangeRequest,
@@ -194,7 +194,8 @@ class Servicer(ConnectionRequesterServicer):
         with db_session() as session:
             reservation = (
                 session.query(Reservation)
-                .filter(Reservation.correlation_id == UUID(request.header.correlation_id))
+                .join(Request, Request.connection_id == Reservation.connection_id)
+                .filter(Request.correlation_id == UUID(request.header.correlation_id))
                 .one()
             )
             # test_provision_job_already_terminated()
@@ -270,9 +271,11 @@ class Servicer(ConnectionRequesterServicer):
         with db_session() as session:
             reservation = (
                 session.query(Reservation)
-                .filter(Reservation.correlation_id == UUID(request.header.correlation_id))
+                .join(Request, Request.connection_id == Reservation.connection_id)
+                .filter(Request.correlation_id == UUID(request.header.correlation_id))
                 .one()
             )
+
             # test_activate_job_end_date()
             if (
                 reservation.data_plane_state == DataPlaneStateMachine.AutoEnd.value

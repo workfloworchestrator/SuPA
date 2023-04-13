@@ -60,7 +60,7 @@ should help navigating the Python code a lot better.
 """  # noqa: E501 B950
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import (
     Boolean,
@@ -81,7 +81,7 @@ from sqlalchemy.engine import Dialect
 from sqlalchemy.exc import DontWrapMixin
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.ext.orderinglist import ordering_list
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import object_session, relationship
 from sqlalchemy.orm.state import InstanceState
 
 from supa.connection.fsm import (
@@ -92,7 +92,7 @@ from supa.connection.fsm import (
 )
 from supa.util import nsi
 from supa.util.timestamp import NO_END_DATE, current_timestamp
-from supa.util.type import NotificationType, ResultType
+from supa.util.type import NotificationType, RequestType, ResultType
 
 
 class Uuid(TypeDecorator):
@@ -200,11 +200,23 @@ class Reservation(Base):
 
     # header
     protocol_version = Column(Text, nullable=False)
-    correlation_id = Column(Uuid, nullable=False, comment="urn:uid", unique=True)
     requester_nsa = Column(Text, nullable=False)
     provider_nsa = Column(Text, nullable=False)
     reply_to = Column(Text)
     session_security_attributes = Column(Text)
+
+    @property
+    def correlation_id(self) -> uuid.UUID:
+        """Return correlation_id of the latest request for this connection_id."""
+        session = object_session(self)
+        # with object_session(self).no_autoflush as session:
+        result: List[Tuple[uuid.UUID]] = (
+            session.query(Request.correlation_id)
+            .filter(Request.connection_id == self.connection_id)
+            .order_by(Request.timestamp)
+            .all()
+        )
+        return result[-1][0]
 
     # request message (+ connection_id)
     global_reservation_id = Column(Text, nullable=False)
@@ -513,6 +525,21 @@ def connection_to_dict(connection: Connection) -> Dict[str, Any]:
     return {column.name: getattr(connection, column.name) for column in connection.__table__.columns}
 
 
+class Request(Base):
+    """DB mapping for registering async RA to PA request messages.
+
+    Store the async request from a requester agent to this provider agent.
+    """
+
+    __tablename__ = "requests"
+
+    correlation_id = Column(Uuid, nullable=False, comment="urn:uid", primary_key=True)
+    timestamp = Column(UtcTimestamp, nullable=False, default=current_timestamp)
+    connection_id = Column(Uuid, nullable=True)
+    request_type = Column(Enum(*[r_type.value for r_type in RequestType]), nullable=False)
+    request_data = Column(Text, nullable=False)
+
+
 class Notification(Base):
     """DB mapping for registering notifications against a connection ID.
 
@@ -532,7 +559,7 @@ class Notification(Base):
     reservation = relationship(
         Reservation,
         back_populates="notification",
-    )  # one-to-one (cascades defined in parent)
+    )  # (cascades defined in parent)
 
 
 class Result(Base):
@@ -557,4 +584,4 @@ class Result(Base):
     reservation = relationship(
         Reservation,
         back_populates="result",
-    )  # one-to-one (cascades defined in parent)
+    )  # (cascades defined in parent)

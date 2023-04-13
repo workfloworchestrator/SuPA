@@ -17,10 +17,11 @@ from supa.connection.fsm import (
     ProvisionStateMachine,
     ReservationStateMachine,
 )
-from supa.db.model import Connection, Reservation, Topology
+from supa.db.model import Connection, Request, Reservation, Topology
 from supa.grpc_nsi import connection_provider_pb2_grpc
 from supa.job.dataplane import AutoEndJob, AutoStartJob
 from supa.job.reserve import ReserveTimeoutJob
+from supa.util.type import RequestType
 
 
 @pytest.fixture(autouse=True, scope="session")
@@ -61,7 +62,6 @@ def connection_id() -> Column:
 
     with db_session() as session:
         reservation = Reservation(
-            correlation_id=uuid4(),
             protocol_version="application/vnd.ogf.nsi.cs.v2.provider+soap",
             requester_nsa="urn:ogf:network:example.domain:2021:requester",
             provider_nsa="urn:ogf:network:example.domain:2021:provider",
@@ -89,6 +89,13 @@ def connection_id() -> Column:
         session.add(reservation)
         session.flush()  # let db generate connection_id
         connection_id = reservation.connection_id
+        request = Request(
+            connection_id=connection_id,
+            correlation_id=uuid4(),
+            request_type=RequestType.Reserve,  # should add specific request type
+            request_data="should add request message here",
+        )
+        session.add(request)
 
         yield connection_id
 

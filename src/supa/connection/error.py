@@ -93,6 +93,7 @@ class Variable(Enum):
 
     CAPACITY = "capacity", P2P_NS
     CONNECTION_ID = "connectionId", TYPES_NS
+    CORRELATION_ID = "correlationId", HEADERS_NS
     DEST_STP = "destSTP", P2P_NS
     DIRECTIONALITY = "directionality", P2P_NS
     START_TIME = "startTime", TYPES_NS

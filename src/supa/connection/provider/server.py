@@ -11,6 +11,8 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 """Implementation of the gRPC based Connection Provider Service."""
+from __future__ import annotations
+
 from typing import Union
 from uuid import UUID
 
@@ -22,13 +24,13 @@ from supa import settings
 from supa.connection.error import (
     GenericServiceError,
     InvalidTransition,
-    MissingParameter,
     ReservationNonExistent,
     UnsupportedParameter,
     Variable,
 )
 from supa.connection.fsm import LifecycleStateMachine, ProvisionStateMachine, ReservationStateMachine
 from supa.db import model
+from supa.db.model import Request
 from supa.grpc_nsi import connection_provider_pb2_grpc
 from supa.grpc_nsi.connection_common_pb2 import GenericAcknowledgment, Header, Schedule
 from supa.grpc_nsi.connection_provider_pb2 import (
@@ -63,8 +65,117 @@ from supa.job.shared import Job, NsiException
 from supa.util.converter import to_response_header, to_service_exception
 from supa.util.nsi import parse_stp
 from supa.util.timestamp import as_utc_timestamp, current_timestamp, is_specified
+from supa.util.type import RequestType
 
 logger = structlog.get_logger(__name__)
+
+
+def _validate_message_header(header: Header) -> None:
+    """Verify request message header, see NSI CS 2.1 paragraph 6.3.2, raise NsiException on failure."""
+    # Verify presence of requesterNSA field (always set when using PolyNSI)
+    if not header.requester_nsa:
+        extra_info = "missing requester NSA ID"
+        logger.info(extra_info, requester_nsa=header.requester_nsa)
+        raise NsiException(
+            UnsupportedParameter,
+            extra_info,
+            {Variable.REQUESTER_NSA: header.requester_nsa},
+        )
+    # Verify presence of providerNSA field (always set when using PolyNSI)
+    if not header.provider_nsa:
+        extra_info = "missing provider NSA ID"
+        logger.info(extra_info, provider_nsa=header.provider_nsa)
+        raise NsiException(
+            UnsupportedParameter,
+            extra_info,
+            {Variable.PROVIDER_NSA: header.provider_nsa},
+        )
+    # Verify that we are the targeted providerNSA
+    if header.provider_nsa != settings.nsa_id:
+        extra_info = "Unknown provider NSA ID"
+        logger.info(extra_info, provider_nsa=header.provider_nsa)
+        raise NsiException(
+            UnsupportedParameter,
+            extra_info,
+            {Variable.PROVIDER_NSA: header.provider_nsa},
+        )
+    # Verify the uniqueness of supplied correlation_id
+    from supa.db.session import db_session
+
+    with db_session() as session:
+        request: Union[model.Request, None] = (
+            session.query(model.Request)
+            .filter(model.Request.correlation_id == UUID(header.correlation_id))
+            .one_or_none()
+        )
+        unique_correlation_id = not request  # no request with this correlation ID yet
+    if not unique_correlation_id:
+        extra_info = "correlation ID must be unique"
+        logger.info(extra_info, correlation_id=header.correlation_id)
+        raise NsiException(
+            UnsupportedParameter,
+            extra_info,
+            {Variable.CORRELATION_ID: header.correlation_id},
+        )
+
+
+def _validate_schedule(pb_schedule: Schedule) -> None:
+    """Verify reservation schedule, raise NsiException on failure."""
+    start_time = as_utc_timestamp(pb_schedule.start_time)
+    end_time = as_utc_timestamp(pb_schedule.end_time)
+    if pb_schedule.end_time:
+        if end_time <= current_timestamp():
+            err_msg = "End time lies in the past."
+            logger.info(err_msg, end_time=end_time.isoformat())
+            raise NsiException(
+                UnsupportedParameter,
+                err_msg,
+                {Variable.END_TIME: end_time.isoformat()},
+            )
+        if start_time and end_time <= start_time:
+            err_msg = "End time cannot come before start time."
+            logger.info(
+                err_msg,
+                start_time=start_time.isoformat(),
+                end_time=end_time.isoformat(),
+            )
+            raise NsiException(
+                UnsupportedParameter,
+                err_msg,
+                {
+                    Variable.START_TIME: start_time.isoformat(),
+                    Variable.END_TIME: end_time.isoformat(),
+                },
+            )
+
+
+def _register_request(
+    request: ReserveRequest | GenericRequest | QueryRequest | QueryNotificationRequest | QueryResultRequest,
+    request_type: RequestType,
+    connection_id: UUID | None = None,
+) -> None:
+    """Register request against connection_id in the database.
+
+    To avoid race conditions,
+    make sure that the request is registered in the database
+    before adding the corresponding job to the queue,
+    because the correlation_id used in the response message generated in the job
+    is stored in this function.
+    """
+    if not connection_id and type(request) != QueryRequest:
+        connection_id = UUID(request.connection_id)  # type: ignore[arg-type]
+
+    from supa.db.session import db_session
+
+    with db_session() as session:
+        session.add(
+            Request(
+                correlation_id=UUID(request.header.correlation_id),
+                connection_id=connection_id,
+                request_type=request_type.value,
+                request_data=request.SerializeToString(),
+            )
+        )
 
 
 class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderServicer):
@@ -96,7 +207,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         log = logger.bind(method="Reserve")
         log.debug("Received message.", request_message=pb_reserve_request)
         log.info(
-            "new reservation",
+            "reserve request",
             connection_id=pb_reserve_request.connection_id,
             version=pb_reserve_request.criteria.version,
             src_stp=pb_reserve_request.criteria.ptps.source_stp,
@@ -107,60 +218,27 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             global_reservation_id=pb_reserve_request.global_reservation_id,
         )
 
-        #
-        # Sanity check on start and end time, in case of problem return ServiceException
-        #
-        pb_criteria: ReservationRequestCriteria = pb_reserve_request.criteria
-        pb_schedule: Schedule = pb_criteria.schedule
-        start_time = as_utc_timestamp(pb_schedule.start_time)
-        end_time = as_utc_timestamp(pb_schedule.end_time)
-        extra_info = ""
-        if is_specified(end_time):
-            if end_time <= start_time:
-                extra_info = "End time cannot come before start time."
-            elif end_time <= current_timestamp():
-                extra_info = "End time lies in the past."
-        if extra_info:
-            log.info(extra_info, start_time=start_time.isoformat(), end_time=end_time.isoformat())
+        try:
+            _validate_message_header(pb_reserve_request.header)
+            _validate_schedule(pb_reserve_request.criteria.schedule)
+        except NsiException as nsi_exc:
             reserve_response = ReserveResponse(
                 header=to_response_header(pb_reserve_request.header),
-                service_exception=to_service_exception(
-                    NsiException(
-                        MissingParameter,
-                        extra_info,
-                        {Variable.START_TIME: start_time.isoformat(), Variable.END_TIME: end_time.isoformat()},
-                    )
-                ),
+                service_exception=to_service_exception(nsi_exc),
             )
             log.debug("Sending response.", response_message=reserve_response)
             return reserve_response
 
         if not pb_reserve_request.connection_id:  # new reservation
             pb_header: Header = pb_reserve_request.header
-            pb_ptps: PointToPointService = pb_criteria.ptps
             pb_path_trace: PathTrace = pb_header.path_trace
-
-            #
-            # Verify that we are the targeted providerNSA, in case of mismatch return ServiceException
-            #
-            if pb_header.provider_nsa != settings.nsa_id:
-                error_message = "Unknown provider NSA ID"
-                log.info(error_message, provider_nsa=pb_header.provider_nsa)
-                reserve_response = ReserveResponse(
-                    header=to_response_header(pb_reserve_request.header),
-                    service_exception=to_service_exception(
-                        NsiException(
-                            UnsupportedParameter,
-                            error_message,
-                            {Variable.PROVIDER_NSA: pb_header.provider_nsa},
-                        )
-                    ),
-                )
-                log.debug("Sending response.", response_message=reserve_response)
-                return reserve_response
+            pb_criteria: ReservationRequestCriteria = pb_reserve_request.criteria
+            pb_ptps: PointToPointService = pb_criteria.ptps
+            pb_schedule: Schedule = pb_criteria.schedule
+            start_time = as_utc_timestamp(pb_schedule.start_time)
+            end_time = as_utc_timestamp(pb_schedule.end_time)
 
             reservation = model.Reservation(
-                correlation_id=UUID(pb_header.correlation_id),
                 protocol_version=pb_header.protocol_version,
                 requester_nsa=pb_header.requester_nsa,
                 provider_nsa=pb_header.provider_nsa,
@@ -217,7 +295,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             with db_session() as session:
                 session.add(reservation)
                 session.flush()  # Let DB (actually SQLAlchemy) generate the connection_id for us.
-                connection_id = reservation.connection_id  # Can't reference it outside of the session, hence new var.
+                connection_id = reservation.connection_id  # Can't reference it outside the session, hence new var.
 
             log = log.bind(connection_id=str(connection_id))
         else:
@@ -229,6 +307,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         job: Job
 
         log.info("Schedule reserve", job="ReserveJob")
+        _register_request(pb_reserve_request, RequestType.Reserve, connection_id)
         scheduler.add_job(job := ReserveJob(connection_id), trigger=job.trigger(), id=job.job_id)
         reserve_response = ReserveResponse(
             header=to_response_header(pb_reserve_request.header), connection_id=str(connection_id)
@@ -319,7 +398,6 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                         ),
                     )
                 else:
-                    reservation.correlation_id = UUID(pb_reserve_commit_request.header.correlation_id)
                     reserve_commit_response = GenericAcknowledgment(
                         header=to_response_header(pb_reserve_commit_request.header)
                     )
@@ -330,6 +408,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             log.info("Cancel reserve timeout", job="ReserveTimeoutJob")
             scheduler.remove_job(job_id=ReserveTimeoutJob(connection_id).job_id)
             log.info("Schedule reserve commit", job="ReserveCommitJob")
+            _register_request(pb_reserve_commit_request, RequestType.ReserveCommit)
             scheduler.add_job(job := ReserveCommitJob(connection_id), trigger=job.trigger(), id=job.job_id)
         log.debug("Sending response.", response_message=reserve_commit_response)
         return reserve_commit_response
@@ -390,7 +469,6 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                         ),
                     )
                 else:
-                    reservation.correlation_id = UUID(pb_reserve_abort_request.header.correlation_id)
                     reserve_abort_response = GenericAcknowledgment(
                         header=to_response_header(pb_reserve_abort_request.header)
                     )
@@ -399,6 +477,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             from supa import scheduler
 
             log.info("Schedule reserve abort", job="ReserveAbortJob")
+            _register_request(pb_reserve_abort_request, RequestType.ReserveAbort)
             scheduler.add_job(job := ReserveAbortJob(connection_id), trigger=job.trigger(), id=job.job_id)
         log.debug("Sending response.", response_message=reserve_abort_response)
         return reserve_abort_response
@@ -495,13 +574,13 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                         ),
                     )
                 else:
-                    reservation.correlation_id = UUID(pb_provision_request.header.correlation_id)
                     provision_response = GenericAcknowledgment(header=to_response_header(pb_provision_request.header))
 
         if not provision_response.service_exception.connection_id:
             from supa import scheduler
 
             log.info("Schedule provision", job="ProvisionJob")
+            _register_request(pb_provision_request, RequestType.Provision)
             scheduler.add_job(job := ProvisionJob(connection_id), trigger=job.trigger(), id=job.job_id)
         log.debug("Sending response.", response_message=provision_response)
         return provision_response
@@ -598,13 +677,13 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                         ),
                     )
                 else:
-                    reservation.correlation_id = UUID(pb_release_request.header.correlation_id)
                     release_response = GenericAcknowledgment(header=to_response_header(pb_release_request.header))
 
         if not release_response.service_exception.connection_id:
             from supa import scheduler
 
             log.info("Schedule release", job="ReleaseJob")
+            _register_request(pb_release_request, RequestType.Release)
             scheduler.add_job(job := ReleaseJob(connection_id), trigger=job.trigger(), id=job.job_id)
         log.debug("Sending response.", response_message=release_response)
         return release_response
@@ -665,13 +744,13 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                         ),
                     )
                 else:
-                    reservation.correlation_id = UUID(pb_terminate_request.header.correlation_id)
                     terminate_response = GenericAcknowledgment(header=to_response_header(pb_terminate_request.header))
 
         if not terminate_response.service_exception.connection_id:
             from supa import scheduler
 
             log.info("Schedule terminate", job="TerminateJob")
+            _register_request(pb_terminate_request, RequestType.Terminate)
             scheduler.add_job(job := TerminateJob(connection_id), trigger=job.trigger(), id=job.job_id)
         log.debug("Sending response.", response_message=terminate_response)
         return terminate_response
@@ -700,6 +779,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         from supa import scheduler
 
         log.info("Schedule query summary", job="QuerySummaryJob")
+        _register_request(pb_query_request, RequestType.QuerySummary)
         scheduler.add_job(
             job := QuerySummaryJob(pb_query_request=pb_query_request),
             trigger=job.trigger(),
@@ -727,6 +807,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         )
         log.debug("Received message.", request_message=pb_query_request)
         log.info("Query summary sync")
+        _register_request(pb_query_request, RequestType.QuerySummarySync)
         request = create_query_confirmed_request(pb_query_request)
         log.debug("Sending response.", response_message=request)
         return request
@@ -755,6 +836,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         from supa import scheduler
 
         log.info("Schedule query recursive", job="QueryRecursiveJob")
+        _register_request(pb_query_request, RequestType.QueryRecursive)
         scheduler.add_job(
             job := QueryRecursiveJob(pb_query_request=pb_query_request),
             trigger=job.trigger(),
@@ -790,6 +872,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         from supa import scheduler
 
         log.info("Schedule query notification", job="QueryNotificationJob")
+        _register_request(pb_query_notification_request, RequestType.QueryNotification)
         scheduler.add_job(
             job := QueryNotificationJob(pb_query_notification_request=pb_query_notification_request),
             trigger=job.trigger(),
@@ -819,6 +902,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         )
         log.debug("Received message.", request_message=pb_query_notification_request)
         log.info("Query notification sync")
+        _register_request(pb_query_notification_request, RequestType.QueryNotificationSync)
         request = create_query_notification_confirmed_request(pb_query_notification_request)
         log.debug("Sending response.", response_message=request)
         return request
@@ -849,6 +933,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         from supa import scheduler
 
         log.info("Schedule query result", job="QueryResultJob")
+        _register_request(pb_query_result_request, RequestType.QueryResult)
         scheduler.add_job(
             job := QueryResultJob(pb_query_result_request=pb_query_result_request),
             trigger=job.trigger(),
@@ -878,6 +963,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         )
         log.debug("Received message.", request_message=pb_query_result_request)
         log.info("Query result sync")
+        _register_request(pb_query_result_request, RequestType.QueryResultSync)
         request = create_query_result_confirmed_request(pb_query_result_request)
         log.debug("Sending response.", response_message=request)
         return request
