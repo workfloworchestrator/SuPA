@@ -9,7 +9,7 @@ from google.protobuf.json_format import Parse
 from grpc import ServicerContext
 from sqlalchemy import Column
 
-from supa import const, settings
+from supa import const
 from supa.connection.provider.server import ConnectionProviderService
 from supa.db.model import Reservation
 from supa.grpc_nsi.connection_common_pb2 import Header, Schedule
