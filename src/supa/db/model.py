@@ -209,7 +209,6 @@ class Reservation(Base):
     def correlation_id(self) -> uuid.UUID:
         """Return correlation_id of the latest request for this connection_id."""
         session = object_session(self)
-        # with object_session(self).no_autoflush as session:
         result: List[Tuple[uuid.UUID]] = (
             session.query(Request.correlation_id)
             .filter(Request.connection_id == self.connection_id)
