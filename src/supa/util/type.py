@@ -1,4 +1,4 @@
-#  Copyright 2019 SURF.
+#  Copyright 2023 SURF.
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
 #  You may obtain a copy of the License at
@@ -12,6 +12,25 @@
 #  limitations under the License.
 """Handy types to keep things sane."""
 from enum import Enum, unique
+
+
+@unique
+class RequestType(str, Enum):
+    """Capture the set of valid request from RA to PA."""
+
+    Reserve = "Reserve"
+    ReserveCommit = "ReserveCommit"
+    ReserveAbort = "ReserveAbort"
+    Provision = "Provision"
+    Release = "Release"
+    Terminate = "Terminate"
+    QuerySummary = "QuerySummary"
+    QueryRecursive = "QueryRecursive"
+    QuerySummarySync = "QuerySummarySync"
+    QueryNotification = "QueryNotification"
+    QueryNotificationSync = "QueryNotificationSync"
+    QueryResult = "QueryResult"
+    QueryResultSync = "QueryResultSync"
 
 
 @unique

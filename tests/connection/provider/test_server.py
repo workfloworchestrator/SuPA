@@ -9,7 +9,7 @@ from google.protobuf.json_format import Parse
 from grpc import ServicerContext
 from sqlalchemy import Column
 
-from supa import const
+from supa import const, settings
 from supa.connection.provider.server import ConnectionProviderService
 from supa.db.model import Reservation
 from supa.grpc_nsi.connection_common_pb2 import Header, Schedule
@@ -27,7 +27,7 @@ def pb_header() -> Header:
                 "protocol_version": "application/vnd.ogf.nsi.cs.v2.provider+soap",
                 "correlation_id": uuid4().urn,
                 "requester_nsa": "urn:ogf:network:surf.nl:2020:onsaclient",
-                "provider_nsa": "urn:ogf:network:example.domain:2001:supa",
+                "provider_nsa": "urn:ogf:network:example.domain:2001:nsa:supa",
                 "reply_to": "http://127.0.0.1:7080/NSI/services/RequesterService2",
             }
         ),
@@ -167,7 +167,7 @@ def test_reserve_request_end_time_before_start_time(
     assert not reserve_response.header.reply_to
     assert not reserve_response.connection_id
     assert reserve_response.HasField("service_exception")
-    assert reserve_response.service_exception.error_id == "00101"
+    assert reserve_response.service_exception.error_id == "00102"
     assert "End time cannot come before start time" in caplog.text
 
 
@@ -180,7 +180,7 @@ def test_reserve_request_end_time_in_past(pb_reserve_request_end_time_in_past: R
     assert not reserve_response.header.reply_to
     assert not reserve_response.connection_id
     assert reserve_response.HasField("service_exception")
-    assert reserve_response.service_exception.error_id == "00101"
+    assert reserve_response.service_exception.error_id == "00102"
     assert "End time lies in the past" in caplog.text
 
 
