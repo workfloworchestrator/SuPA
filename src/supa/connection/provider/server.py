@@ -30,7 +30,6 @@ from supa.connection.error import (
 )
 from supa.connection.fsm import LifecycleStateMachine, ProvisionStateMachine, ReservationStateMachine
 from supa.db import model
-from supa.db.model import Request
 from supa.grpc_nsi import connection_provider_pb2_grpc
 from supa.grpc_nsi.connection_common_pb2 import GenericAcknowledgment, Header, Schedule
 from supa.grpc_nsi.connection_provider_pb2 import (
@@ -169,7 +168,7 @@ def _register_request(
 
     with db_session() as session:
         session.add(
-            Request(
+            model.Request(
                 correlation_id=UUID(request.header.correlation_id),
                 connection_id=connection_id,
                 request_type=request_type.value,
@@ -248,27 +247,36 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                 else None,
                 global_reservation_id=pb_reserve_request.global_reservation_id,
                 description=pb_reserve_request.description if pb_reserve_request.description else None,
-                version=pb_criteria.version,
             )
+
+            schedule = model.Schedule()
+            schedule.version = pb_criteria.version
             if is_specified(start_time):
-                reservation.start_time = start_time
+                schedule.start_time = start_time
             if is_specified(end_time):
-                reservation.end_time = end_time
-            reservation.bandwidth = pb_ptps.capacity
-            reservation.directionality = Directionality.Name(pb_ptps.directionality)
-            reservation.symmetric = pb_ptps.symmetric_path
+                schedule.end_time = end_time
+            # reservation.schedules.append(schedule)
+
+            # TODO: select service type specific table based on pb_criteria.service_type
+            p2p_criteria = model.P2PCriteria()
+            p2p_criteria.version = pb_criteria.version
+            p2p_criteria.bandwidth = pb_ptps.capacity
+            p2p_criteria.directionality = Directionality.Name(pb_ptps.directionality)
+            p2p_criteria.symmetric = pb_ptps.symmetric_path
 
             src_stp = parse_stp(pb_ptps.source_stp)
-            reservation.src_domain = src_stp.domain
-            reservation.src_topology = src_stp.topology
-            reservation.src_stp_id = src_stp.stp_id
-            reservation.src_vlans = str(src_stp.vlan_ranges)
+            p2p_criteria.src_domain = src_stp.domain
+            p2p_criteria.src_topology = src_stp.topology
+            p2p_criteria.src_stp_id = src_stp.stp_id
+            p2p_criteria.src_vlans = str(src_stp.vlan_ranges)
 
             dst_stp = parse_stp(pb_ptps.dest_stp)
-            reservation.dst_domain = dst_stp.domain
-            reservation.dst_topology = dst_stp.topology
-            reservation.dst_stp_id = dst_stp.stp_id
-            reservation.dst_vlans = str(dst_stp.vlan_ranges)
+            p2p_criteria.dst_domain = dst_stp.domain
+            p2p_criteria.dst_topology = dst_stp.topology
+            p2p_criteria.dst_stp_id = dst_stp.stp_id
+            p2p_criteria.dst_vlans = str(dst_stp.vlan_ranges)
+
+            reservation.p2p_criteria.append(p2p_criteria)
 
             for k, v in pb_ptps.parameters.items():
                 reservation.parameters.append(model.Parameter(key=k, value=v))
@@ -293,6 +301,9 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             from supa.db.session import db_session
 
             with db_session() as session:
+                session.add(schedule)
+                session.flush()  # let DB generate schedule_id
+                reservation.current_schedule = schedule.schedule_id
                 session.add(reservation)
                 session.flush()  # Let DB (actually SQLAlchemy) generate the connection_id for us.
                 connection_id = reservation.connection_id  # Can't reference it outside the session, hence new var.

@@ -71,6 +71,7 @@ from sqlalchemy import (
     ForeignKeyConstraint,
     Index,
     Integer,
+    Table,
     Text,
     TypeDecorator,
     UniqueConstraint,
@@ -186,6 +187,13 @@ class UtcTimestamp(TypeDecorator):
 # Using type ``Any`` because: https://github.com/python/mypy/issues/2477
 Base: Any = declarative_base(cls=ReprBase)
 
+reservation_schedule_association = Table(
+    "reservations_schedules",
+    Base.metadata,
+    Column("connection_id", Uuid, ForeignKey("reservations.connection_id", ondelete="CASCADE"), primary_key=True),
+    Column("schedule_id", Integer, ForeignKey("schedules.schedule_id", ondelete="CASCADE"), primary_key=True),
+)
+
 
 class Reservation(Base):
     """DB mapping for registering NSI reservations."""
@@ -221,37 +229,7 @@ class Reservation(Base):
     global_reservation_id = Column(Text, nullable=False)
     description = Column(Text)
 
-    # reservation request criteria
-    version = Column(Integer, nullable=False)
-
-    # schedule
-    start_time = Column(UtcTimestamp, nullable=False, default=current_timestamp, index=True)
-    end_time = Column(UtcTimestamp, nullable=False, default=NO_END_DATE, index=True)
-
-    # p2p
-    bandwidth = Column(Integer, nullable=False, comment="Mbps")
-    directionality = Column(Enum("BI_DIRECTIONAL", "UNI_DIRECTIONAL"), nullable=False, default="BI_DIRECTIONAL")
-    symmetric = Column(Boolean, nullable=False)
-
-    src_domain = Column(Text, nullable=False)
-    src_topology = Column(Text, nullable=False)
-    src_stp_id = Column(Text, nullable=False, comment="uniq identifier of STP in the topology")
-    src_vlans = Column(Text, nullable=False)
-
-    # `src_vlans` might be a range of VLANs in case the reservation specified an unqualified STP.
-    # In that case it is up to the reservation process to select an available VLAN out of the
-    # supplied range.
-    # This also explain the difference in column types. A range is expressed as a string (eg "1-10").
-    # A single VLAN is always a single number, hence integer.
-    src_selected_vlan = Column(Integer, nullable=True)
-    dst_domain = Column(Text, nullable=False)
-    dst_topology = Column(Text, nullable=False)
-    dst_stp_id = Column(Text, nullable=False, comment="uniq identifier of STP in the topology")
-    dst_vlans = Column(Text, nullable=False)
-
-    # See `src_selected_vlan`
-    dst_selected_vlan = Column(Integer, nullable=True)
-
+    # current_schedule = Column(Integer, ForeignKey(Schedule.schedule_id))
     # internal state keeping
     reservation_state = Column(
         Enum(*[s.value for s in ReservationStateMachine.states]),
@@ -296,6 +274,21 @@ class Reservation(Base):
         passive_deletes=True,
     )  # one-to-one
 
+    schedules = relationship(
+        "Schedule",
+        secondary="reservation_schedule_association",
+        lazy="select",
+        cascade_backrefs=False,
+        passive_deletes=True,
+    )
+
+    p2p_criteria = relationship(
+        "P2PCriteria",
+        back_populates="reservation",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
     notification = relationship(
         "Notification",
         back_populates="reservation",
@@ -310,7 +303,78 @@ class Reservation(Base):
         passive_deletes=True,
     )
 
+
+class Schedule(Base):
+    """DB mapping for versioned schedules."""
+
+    __tablename__ = "schedules"
+
+    schedule_id = Column(Integer, primary_key=True, autoincrement=True)
+    # connection_id = Column(Uuid, ForeignKey(Reservation.connection_id, ondelete="CASCADE"), primary_key=True)
+    connection_id = Column(Uuid, ForeignKey(Reservation.connection_id, ondelete="CASCADE"))
+
+    # reservation request criteria
+    # version = Column(Integer, primary_key=True, nullable=False)
+    version = Column(Integer, nullable=False)
+
+    # schedule
+    start_time = Column(UtcTimestamp, nullable=False, default=current_timestamp, index=True)
+    end_time = Column(UtcTimestamp, nullable=False, default=NO_END_DATE, index=True)
+
+    reservation = relationship(
+        Reservation,
+        back_populates="schedules",
+    )  # (cascades defined in parent)
+
+    reservation = relationship(
+        "Reservation",
+        # secondary=reservation_schedule_association,
+        lazy="select",
+        passive_deletes=True,
+        back_populates="schedules",
+    )
+
     __table_args__ = (CheckConstraint(start_time < end_time),)
+
+
+class P2PCriteria(Base):
+    """DB mapping for versioned P2P criteria."""
+
+    __tablename__ = "p2p_criteria"
+
+    connection_id = Column(Uuid, ForeignKey(Reservation.connection_id, ondelete="CASCADE"), primary_key=True)
+
+    # reservation request criteria
+    version = Column(Integer, primary_key=True, nullable=False)
+
+    # p2p
+    bandwidth = Column(Integer, nullable=False, comment="Mbps")
+    directionality = Column(Enum("BI_DIRECTIONAL", "UNI_DIRECTIONAL"), nullable=False, default="BI_DIRECTIONAL")
+    symmetric = Column(Boolean, nullable=False)
+
+    src_domain = Column(Text, nullable=False)
+    src_topology = Column(Text, nullable=False)
+    src_stp_id = Column(Text, nullable=False, comment="uniq identifier of STP in the topology")
+    src_vlans = Column(Text, nullable=False)
+
+    # `src_vlans` might be a range of VLANs in case the reservation specified an unqualified STP.
+    # In that case it is up to the reservation process to select an available VLAN out of the
+    # supplied range.
+    # This also explain the difference in column types. A range is expressed as a string (eg "1-10").
+    # A single VLAN is always a single number, hence integer.
+    src_selected_vlan = Column(Integer, nullable=True)
+    dst_domain = Column(Text, nullable=False)
+    dst_topology = Column(Text, nullable=False)
+    dst_stp_id = Column(Text, nullable=False, comment="uniq identifier of STP in the topology")
+    dst_vlans = Column(Text, nullable=False)
+
+    # See `src_selected_vlan`
+    dst_selected_vlan = Column(Integer, nullable=True)
+
+    reservation = relationship(
+        Reservation,
+        back_populates="p2p_criteria",
+    )  # (cascades defined in parent)
 
     def src_stp(self, selected: bool = False) -> nsi.Stp:
         """Return :class:`~supa.util.nsi.STP` instance for src data.

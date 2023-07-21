@@ -183,22 +183,23 @@ class ProvisionJob(Job):
         """
         from supa.db.session import db_session
 
-        with db_session() as session:
-            connection_ids: List[UUID] = list(
-                flatten(
-                    session.query(Reservation.connection_id)
-                    .filter(
-                        Reservation.lifecycle_state == LifecycleStateMachine.Created.value,
-                        Reservation.provision_state == ProvisionStateMachine.Provisioning.value,
-                        Reservation.end_time > current_timestamp(),
-                    )
-                    .all()
-                )
-            )
-        for cid in connection_ids:
-            logger.info("Recovering job", job="ProvisionJob", connection_id=str(cid))
-
-        return [ProvisionJob(cid) for cid in connection_ids]
+        # with db_session() as session:
+        #     connection_ids: List[UUID] = list(
+        #         flatten(
+        #             session.query(Reservation.connection_id)
+        #             .filter(
+        #                 Reservation.lifecycle_state == LifecycleStateMachine.Created.value,
+        #                 Reservation.provision_state == ProvisionStateMachine.Provisioning.value,
+        #                 Reservation.end_time > current_timestamp(),
+        #             )
+        #             .all()
+        #         )
+        #     )
+        # for cid in connection_ids:
+        #     logger.info("Recovering job", job="ProvisionJob", connection_id=str(cid))
+        #
+        # return [ProvisionJob(cid) for cid in connection_ids]
+        return []
 
     def trigger(self) -> DateTrigger:
         """Trigger for ProvisionJobs."""
