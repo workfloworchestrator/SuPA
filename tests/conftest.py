@@ -8,7 +8,7 @@ import grpc
 import pytest
 from apscheduler.jobstores.base import JobLookupError
 from sqlalchemy import Column
-from sqlalchemy.orm import aliased, joinedload
+from sqlalchemy.orm import aliased
 
 from supa import init_app, settings
 from supa.connection.fsm import (
@@ -17,7 +17,7 @@ from supa.connection.fsm import (
     ProvisionStateMachine,
     ReservationStateMachine,
 )
-from supa.db.model import Connection, Request, Reservation, Topology, Schedule, P2PCriteria
+from supa.db.model import Connection, P2PCriteria, Request, Reservation, Schedule, Topology
 from supa.grpc_nsi import connection_provider_pb2_grpc
 from supa.job.dataplane import AutoEndJob, AutoStartJob
 from supa.job.reserve import ReserveTimeoutJob
