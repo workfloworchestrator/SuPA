@@ -8,7 +8,7 @@ import grpc
 import pytest
 from apscheduler.jobstores.base import JobLookupError
 from sqlalchemy import Column
-from sqlalchemy.orm import aliased
+from sqlalchemy.orm import aliased, joinedload
 
 from supa import init_app, settings
 from supa.connection.fsm import (
@@ -17,7 +17,7 @@ from supa.connection.fsm import (
     ProvisionStateMachine,
     ReservationStateMachine,
 )
-from supa.db.model import Connection, Request, Reservation, Topology
+from supa.db.model import Connection, Request, Reservation, Topology, Schedule, P2PCriteria
 from supa.grpc_nsi import connection_provider_pb2_grpc
 from supa.job.dataplane import AutoEndJob, AutoStartJob
 from supa.job.reserve import ReserveTimeoutJob
@@ -70,8 +70,13 @@ def connection_id() -> Column:
             global_reservation_id="global reservation id",
             description="reservation 1",
             version=0,
+            lifecycle_state="CREATED",
+        )
+        reservation.schedule = Schedule(
             start_time=datetime.now(timezone.utc) + timedelta(minutes=10),
             end_time=datetime.now(timezone.utc) + timedelta(minutes=20),
+        )
+        reservation.p2p_criteria = P2PCriteria(
             bandwidth=10,
             symmetric=True,
             src_domain="example.domain:2001",
@@ -84,7 +89,6 @@ def connection_id() -> Column:
             dst_stp_id="port2",
             dst_vlans="1783",
             dst_selected_vlan=1783,
-            lifecycle_state="CREATED",
         )
         session.add(reservation)
         session.flush()  # let db generate connection_id
@@ -100,12 +104,12 @@ def connection_id() -> Column:
         yield connection_id
 
         session.delete(session.query(Reservation).filter(Reservation.connection_id == connection_id).one())
-        # connection is deleted through cascade
+        # connection, schedule and p2p_criteria are deleted through cascade
 
 
 @pytest.fixture
 def connection(connection_id: Column) -> None:
-    """Set reserve state machine of reservation identified by connection_id to state ReserveCommitting."""
+    """Add connection record for given connection_id."""
     from supa.db.session import db_session
 
     with db_session() as session:
@@ -115,9 +119,10 @@ def connection(connection_id: Column) -> None:
         src_port_id, dst_port_id = (
             session.query(src_topology.port_id, dst_topology.port_id)
             .filter(
-                Reservation.connection_id == connection_id,
-                Reservation.src_stp_id == src_topology.stp_id,
-                Reservation.dst_stp_id == dst_topology.stp_id,
+                P2PCriteria.connection_id == connection_id,
+                P2PCriteria.version == reservation.version,
+                P2PCriteria.src_stp_id == src_topology.stp_id,
+                P2PCriteria.dst_stp_id == dst_topology.stp_id,
             )
             .one()
         )
@@ -125,9 +130,9 @@ def connection(connection_id: Column) -> None:
             connection_id=connection_id,
             bandwidth=10,
             src_port_id=src_port_id,
-            src_vlan=reservation.src_selected_vlan,
+            src_vlan=reservation.p2p_criteria.src_selected_vlan,
             dst_port_id=dst_port_id,
-            dst_vlan=reservation.dst_selected_vlan,
+            dst_vlan=reservation.p2p_criteria.dst_selected_vlan,
         )
         session.add(connection)
 
@@ -147,7 +152,7 @@ def src_stp_id_equals_dst_stp_id(connection_id: Column) -> None:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        reservation.dst_stp_id = reservation.src_stp_id
+        reservation.p2p_criteria.dst_stp_id = reservation.p2p_criteria.src_stp_id
 
 
 @pytest.fixture
@@ -157,7 +162,7 @@ def unknown_stp_id(connection_id: Column) -> None:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        reservation.dst_stp_id = "unknown_stp"
+        reservation.p2p_criteria.dst_stp_id = "unknown_stp"
 
 
 @pytest.fixture
@@ -167,14 +172,14 @@ def disabled_stp(connection_id: Column) -> Generator:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        port = session.query(Topology).filter(Topology.stp_id == reservation.dst_stp_id).one_or_none()
+        port = session.query(Topology).filter(Topology.stp_id == reservation.p2p_criteria.dst_stp_id).one_or_none()
         port.enabled = False
 
     yield None
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        port = session.query(Topology).filter(Topology.stp_id == reservation.dst_stp_id).one_or_none()
+        port = session.query(Topology).filter(Topology.stp_id == reservation.p2p_criteria.dst_stp_id).one_or_none()
         port.enabled = True
 
 
@@ -185,7 +190,7 @@ def unknown_domain_stp_id(connection_id: Column) -> None:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        reservation.dst_domain = "unknown_domain"
+        reservation.p2p_criteria.dst_domain = "unknown_domain"
 
 
 @pytest.fixture
@@ -195,7 +200,7 @@ def unknown_topology_stp_id(connection_id: Column) -> None:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        reservation.dst_topology = "unknown_topology"
+        reservation.p2p_criteria.dst_topology = "unknown_topology"
 
 
 @pytest.fixture
@@ -205,7 +210,7 @@ def empty_vlans_stp_id(connection_id: Column) -> None:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        reservation.dst_vlans = ""
+        reservation.p2p_criteria.dst_vlans = ""
 
 
 @pytest.fixture
@@ -215,7 +220,7 @@ def to_much_bandwidth(connection_id: Column) -> None:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        reservation.bandwidth = 1000000000
+        reservation.p2p_criteria.bandwidth = 1000000000
 
 
 @pytest.fixture
@@ -225,7 +230,7 @@ def no_matching_vlan(connection_id: Column) -> None:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        reservation.dst_vlans = "3333"
+        reservation.p2p_criteria.dst_vlans = "3333"
 
 
 @pytest.fixture
@@ -235,7 +240,7 @@ def all_vlans_in_use(connection_id: Column) -> Generator:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        port = session.query(Topology).filter(Topology.stp_id == reservation.dst_stp_id).one_or_none()
+        port = session.query(Topology).filter(Topology.stp_id == reservation.p2p_criteria.dst_stp_id).one_or_none()
         original_vlans = port.vlans
         port.vlans = ""
 
@@ -243,7 +248,7 @@ def all_vlans_in_use(connection_id: Column) -> Generator:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        port = session.query(Topology).filter(Topology.stp_id == reservation.dst_stp_id).one_or_none()
+        port = session.query(Topology).filter(Topology.stp_id == reservation.p2p_criteria.dst_stp_id).one_or_none()
         port.vlans = original_vlans
 
 

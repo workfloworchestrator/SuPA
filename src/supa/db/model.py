@@ -71,7 +71,6 @@ from sqlalchemy import (
     ForeignKeyConstraint,
     Index,
     Integer,
-    Table,
     Text,
     TypeDecorator,
     UniqueConstraint,
@@ -80,7 +79,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects import sqlite
 from sqlalchemy.engine import Dialect
 from sqlalchemy.exc import DontWrapMixin
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.ext.declarative import DeclarativeMeta, declarative_base
 from sqlalchemy.ext.orderinglist import ordering_list
 from sqlalchemy.orm import object_session, relationship
 from sqlalchemy.orm.state import InstanceState
@@ -184,15 +183,7 @@ class UtcTimestamp(TypeDecorator):
         return value
 
 
-# Using type ``Any`` because: https://github.com/python/mypy/issues/2477
-Base: Any = declarative_base(cls=ReprBase)
-
-reservation_schedule_association = Table(
-    "reservations_schedules",
-    Base.metadata,
-    Column("connection_id", Uuid, ForeignKey("reservations.connection_id", ondelete="CASCADE"), primary_key=True),
-    Column("schedule_id", Integer, ForeignKey("schedules.schedule_id", ondelete="CASCADE"), primary_key=True),
-)
+Base: DeclarativeMeta = declarative_base(cls=ReprBase)
 
 
 class Reservation(Base):
@@ -205,7 +196,8 @@ class Reservation(Base):
     # attribute comes from.
 
     connection_id = Column(Uuid, primary_key=True, default=uuid.uuid4)
-
+    version = Column(Integer, nullable=False)
+    UniqueConstraint(connection_id, version)  # to allow foreign key references from other tables
     # header
     protocol_version = Column(Text, nullable=False)
     requester_nsa = Column(Text, nullable=False)
@@ -229,7 +221,6 @@ class Reservation(Base):
     global_reservation_id = Column(Text, nullable=False)
     description = Column(Text)
 
-    # current_schedule = Column(Integer, ForeignKey(Schedule.schedule_id))
     # internal state keeping
     reservation_state = Column(
         Enum(*[s.value for s in ReservationStateMachine.states]),
@@ -274,11 +265,11 @@ class Reservation(Base):
         passive_deletes=True,
     )  # one-to-one
 
-    schedules = relationship(
+    schedule = relationship(
         "Schedule",
-        secondary="reservation_schedule_association",
-        lazy="select",
-        cascade_backrefs=False,
+        back_populates="reservation",
+        cascade="all, delete-orphan",
+        uselist=False,
         passive_deletes=True,
     )
 
@@ -286,6 +277,7 @@ class Reservation(Base):
         "P2PCriteria",
         back_populates="reservation",
         cascade="all, delete-orphan",
+        uselist=False,
         passive_deletes=True,
     )
 
@@ -309,32 +301,29 @@ class Schedule(Base):
 
     __tablename__ = "schedules"
 
-    schedule_id = Column(Integer, primary_key=True, autoincrement=True)
-    # connection_id = Column(Uuid, ForeignKey(Reservation.connection_id, ondelete="CASCADE"), primary_key=True)
-    connection_id = Column(Uuid, ForeignKey(Reservation.connection_id, ondelete="CASCADE"))
-
-    # reservation request criteria
-    # version = Column(Integer, primary_key=True, nullable=False)
-    version = Column(Integer, nullable=False)
+    connection_id = Column(Uuid, primary_key=True)
+    version = Column(Integer, primary_key=True)
 
     # schedule
     start_time = Column(UtcTimestamp, nullable=False, default=current_timestamp, index=True)
     end_time = Column(UtcTimestamp, nullable=False, default=NO_END_DATE, index=True)
 
-    reservation = relationship(
-        Reservation,
-        back_populates="schedules",
-    )  # (cascades defined in parent)
-
-    reservation = relationship(
-        "Reservation",
-        # secondary=reservation_schedule_association,
-        lazy="select",
-        passive_deletes=True,
-        back_populates="schedules",
+    __table_args__ = (
+        # composite foreign key on connection_id and version
+        ForeignKeyConstraint(
+            columns=(connection_id, version),
+            refcolumns=(Reservation.connection_id, Reservation.version),
+            ondelete="CASCADE",
+        ),
+        # sanity check on start and end time
+        CheckConstraint(start_time < end_time),
     )
 
-    __table_args__ = (CheckConstraint(start_time < end_time),)
+    reservation = relationship(
+        Reservation,
+        back_populates="schedule",
+        uselist=False,
+    )  # (cascades defined in parent)
 
 
 class P2PCriteria(Base):
@@ -342,12 +331,10 @@ class P2PCriteria(Base):
 
     __tablename__ = "p2p_criteria"
 
-    connection_id = Column(Uuid, ForeignKey(Reservation.connection_id, ondelete="CASCADE"), primary_key=True)
+    connection_id = Column(Uuid, primary_key=True)
+    version = Column(Integer, primary_key=True)
 
-    # reservation request criteria
-    version = Column(Integer, primary_key=True, nullable=False)
-
-    # p2p
+    # p2p criteria
     bandwidth = Column(Integer, nullable=False, comment="Mbps")
     directionality = Column(Enum("BI_DIRECTIONAL", "UNI_DIRECTIONAL"), nullable=False, default="BI_DIRECTIONAL")
     symmetric = Column(Boolean, nullable=False)
@@ -356,7 +343,6 @@ class P2PCriteria(Base):
     src_topology = Column(Text, nullable=False)
     src_stp_id = Column(Text, nullable=False, comment="uniq identifier of STP in the topology")
     src_vlans = Column(Text, nullable=False)
-
     # `src_vlans` might be a range of VLANs in case the reservation specified an unqualified STP.
     # In that case it is up to the reservation process to select an available VLAN out of the
     # supplied range.
@@ -367,13 +353,21 @@ class P2PCriteria(Base):
     dst_topology = Column(Text, nullable=False)
     dst_stp_id = Column(Text, nullable=False, comment="uniq identifier of STP in the topology")
     dst_vlans = Column(Text, nullable=False)
-
     # See `src_selected_vlan`
     dst_selected_vlan = Column(Integer, nullable=True)
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            columns=(connection_id, version),
+            refcolumns=(Reservation.connection_id, Reservation.version),
+            ondelete="CASCADE",
+        ),
+    )
 
     reservation = relationship(
         Reservation,
         back_populates="p2p_criteria",
+        uselist=False,
     )  # (cascades defined in parent)
 
     def src_stp(self, selected: bool = False) -> nsi.Stp:

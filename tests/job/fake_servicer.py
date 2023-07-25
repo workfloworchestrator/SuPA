@@ -52,11 +52,11 @@ class Servicer(ConnectionRequesterServicer):
             reservation = (
                 session.query(Reservation).filter(Reservation.connection_id == UUID(request.connection_id)).one()
             )
-            port = session.query(Topology).filter(Topology.stp_id == reservation.dst_stp_id).one_or_none()
+            port = session.query(Topology).filter(Topology.stp_id == reservation.p2p_criteria.dst_stp_id).one_or_none()
             # By this time the reservation in the database already transitioned to ReserveFailed.
             assert reservation.reservation_state == ReservationStateMachine.ReserveFailed.value
             # test_reserve_job_reserve_failed_src_stp_id_equals_dst_stp_id()
-            if reservation.src_stp_id == reservation.dst_stp_id:
+            if reservation.p2p_criteria.src_stp_id == reservation.p2p_criteria.dst_stp_id:
                 test_hit_count += 1
                 assert request.service_exception.error_id == "00407"
                 assert len(request.service_exception.variables) == 3
@@ -65,7 +65,7 @@ class Servicer(ConnectionRequesterServicer):
                 assert request.service_exception.variables[2].type == "destSTP"
                 assert request.service_exception.variables[1].value == request.service_exception.variables[2].value
             # test_reserve_job_reserve_failed_unknown_stp_id()
-            if reservation.dst_stp_id == "unknown_stp":
+            if reservation.p2p_criteria.dst_stp_id == "unknown_stp":
                 test_hit_count += 1
                 assert request.service_exception.error_id == "00701"
                 assert len(request.service_exception.variables) == 1
@@ -78,28 +78,28 @@ class Servicer(ConnectionRequesterServicer):
                 assert len(request.service_exception.variables) == 1
                 assert request.service_exception.variables[0].type == "destSTP"
             # test_reserve_job_reserve_failed_unknown_domain_stp_id()
-            if reservation.dst_domain == "unknown_domain":
+            if reservation.p2p_criteria.dst_domain == "unknown_domain":
                 test_hit_count += 1
                 assert request.service_exception.error_id == "00701"
                 assert len(request.service_exception.variables) == 1
                 assert request.service_exception.variables[0].type == "destSTP"
                 assert "unknown_domain" in request.service_exception.variables[0].value
             # test_reserve_job_reserve_failed_unknown_topology_stp_id()
-            if reservation.dst_topology == "unknown_topology":
+            if reservation.p2p_criteria.dst_topology == "unknown_topology":
                 test_hit_count += 1
                 assert request.service_exception.error_id == "00701"
                 assert len(request.service_exception.variables) == 1
                 assert request.service_exception.variables[0].type == "destSTP"
                 assert "unknown_topology" in request.service_exception.variables[0].value
             # test_reserve_job_reserve_failed_empty_vlans_stp_id()
-            if reservation.dst_vlans == "":
+            if reservation.p2p_criteria.dst_vlans == "":
                 test_hit_count += 1
                 assert request.service_exception.error_id == "00709"
                 assert len(request.service_exception.variables) == 1
                 assert request.service_exception.variables[0].type == "destSTP"
                 assert request.service_exception.variables[0].value.endswith("vlan=")
             # test_reserve_job_reserve_failed_to_much_bandwidth()
-            if reservation.bandwidth == 1000000000:
+            if reservation.p2p_criteria.bandwidth == 1000000000:
                 test_hit_count += 1
                 assert request.service_exception.error_id == "00705"
                 assert len(request.service_exception.variables) == 2
@@ -108,7 +108,7 @@ class Servicer(ConnectionRequesterServicer):
                 assert request.service_exception.variables[1].type == "sourceSTP"
                 assert "requested: 1 Pbit/s, available: 1 Gbit/s" in request.service_exception.text
             # test_reserve_job_reserve_failed_no_matching_vlan()
-            if reservation.dst_vlans == "3333":
+            if reservation.p2p_criteria.dst_vlans == "3333":
                 test_hit_count += 1
                 assert request.service_exception.error_id == "00704"
                 assert len(request.service_exception.variables) == 1
@@ -279,7 +279,7 @@ class Servicer(ConnectionRequesterServicer):
             # test_activate_job_end_date()
             if (
                 reservation.data_plane_state == DataPlaneStateMachine.AutoEnd.value
-                and reservation.end_time != NO_END_DATE
+                and reservation.schedule.end_time != NO_END_DATE
             ):
                 test_hit_count += 1
                 assert request.data_plane_status.active
@@ -287,7 +287,7 @@ class Servicer(ConnectionRequesterServicer):
             # test_activate_job_no_end_date()
             if (
                 reservation.data_plane_state == DataPlaneStateMachine.Activated.value
-                and reservation.end_time == NO_END_DATE
+                and reservation.schedule.end_time == NO_END_DATE
             ):
                 test_hit_count += 1
                 assert request.data_plane_status.active

@@ -40,8 +40,8 @@ def test_provision_passed_start_time(
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        reservation.start_time = datetime.now(timezone.utc) - timedelta(hours=1)
-        reservation.end_time = datetime.now(timezone.utc) + timedelta(hours=1)
+        reservation.schedule.start_time = datetime.now(timezone.utc) - timedelta(hours=1)
+        reservation.schedule.end_time = datetime.now(timezone.utc) + timedelta(hours=1)
     provision_job = ProvisionJob(connection_id)
     provision_job.__call__()
     assert state_machine.is_provisioned(connection_id)
@@ -67,8 +67,8 @@ def test_provision_cannot_activate(
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        reservation.start_time = datetime.now(timezone.utc) - timedelta(hours=1)
-        reservation.end_time = datetime.now(timezone.utc) + timedelta(hours=1)
+        reservation.schedule.start_time = datetime.now(timezone.utc) - timedelta(hours=1)
+        reservation.schedule.end_time = datetime.now(timezone.utc) + timedelta(hours=1)
     provision_job = ProvisionJob(connection_id)
     provision_job.__call__()
     assert state_machine.is_provisioning(connection_id)

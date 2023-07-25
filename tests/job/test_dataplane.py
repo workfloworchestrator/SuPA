@@ -29,7 +29,7 @@ def test_activate_job_no_end_date(
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        reservation.end_time = NO_END_DATE
+        reservation.schedule.end_time = NO_END_DATE
     activate_job = ActivateJob(connection_id)
     activate_job.__call__()
     assert state_machine.is_activated(connection_id)
@@ -129,7 +129,7 @@ def test_auto_start_job_trigger(connection_id: Column, caplog: Any) -> None:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        assert job_trigger.run_date == reservation.start_time
+        assert job_trigger.run_date == reservation.schedule.start_time
 
 
 def test_auto_end_job(connection_id: Column, auto_end: None, get_stub: None, caplog: Any) -> None:
@@ -167,4 +167,4 @@ def test_auto_end_job_trigger(connection_id: Column, caplog: Any) -> None:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        assert job_trigger.run_date == reservation.end_time
+        assert job_trigger.run_date == reservation.schedule.end_time

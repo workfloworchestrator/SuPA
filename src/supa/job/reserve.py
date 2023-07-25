@@ -16,14 +16,14 @@ from __future__ import annotations
 
 import random
 from datetime import timedelta
-from typing import Dict, List, NamedTuple, Optional, Type, Union
+from typing import Dict, List, NamedTuple, Type, Union
 from uuid import UUID
 
 import structlog
 from apscheduler.triggers.date import DateTrigger
 from more_itertools import flatten
-from sqlalchemy import and_, func, or_, orm, select
-from sqlalchemy.orm import Query, aliased, joinedload
+from sqlalchemy import and_, func, or_, orm
+from sqlalchemy.orm import aliased, joinedload
 from statemachine.exceptions import TransitionNotAllowed
 from structlog.stdlib import BoundLogger
 
@@ -80,9 +80,7 @@ class StpResources(NamedTuple):
     vlans: VlanRanges
 
 
-def _to_reserve_confirmed_request(
-    reservation: Reservation, schudele: Schedule, p2p_criteria: P2PCriteria
-) -> ReserveConfirmedRequest:
+def _to_reserve_confirmed_request(reservation: Reservation) -> ReserveConfirmedRequest:
     """Create a protobuf reserve confirmed request from a Reservation."""
     pb_rc_req = ReserveConfirmedRequest()
     # Confirming the reservation means we have a Path. hence we should add it to the Header.
@@ -90,7 +88,7 @@ def _to_reserve_confirmed_request(
     pb_rc_req.connection_id = str(reservation.connection_id)
     pb_rc_req.global_reservation_id = reservation.global_reservation_id
     # We skip setting the description, cause we have nothing specific to set it to (suggestions?)
-    pb_rc_req.criteria.CopyFrom(to_confirm_criteria(schudele, p2p_criteria))
+    pb_rc_req.criteria.CopyFrom(to_confirm_criteria(reservation))
     return pb_rc_req
 
 
@@ -105,28 +103,6 @@ def _to_reserve_timeout_request(reservation: Reservation) -> ReserveTimeoutReque
     pb_rt_req.originating_nsa = reservation.provider_nsa
 
     return pb_rt_req
-
-
-def reservation_details_query(session: orm.Session, connection_id: Optional[UUID] = None) -> Query:
-    schedule_query = Query(Schedule).group_by(Schedule.connection_id).having(func.max(Schedule.version) >= 0)
-    if connection_id:
-        schedule_query = schedule_query.filter(Schedule.connection_id == connection_id)
-    schedule_subquery = schedule_query.with_session(session).subquery()
-
-    p2p_criteria_query = (
-        Query(P2PCriteria).group_by(P2PCriteria.connection_id).having(func.max(P2PCriteria.version) >= 0)
-    )
-    if connection_id:
-        p2p_criteria_query = p2p_criteria_query.filter(P2PCriteria.connection_id == connection_id)
-    p2p_criteria_subquery = p2p_criteria_query.with_session(session).subquery()
-
-    query = Query(
-        [Reservation, aliased(Schedule, schedule_subquery), aliased(P2PCriteria, p2p_criteria_subquery)]
-    ).with_session(session)
-    if connection_id:
-        query = query.filter(Reservation.connection_id == connection_id)
-
-    return query
 
 
 class ReserveJob(Job):
@@ -177,109 +153,98 @@ class ReserveJob(Job):
             A dict mapping STP (names) to their STP resources.
 
         """
-        # # To calculate the active overlapping reservation we need to perform a self-join.
-        # # One part of the join is for our (current) reservation.
-        # # The other part is for joining the overlapping ones with our (current) reservation.
-        # CurrentReservation = aliased(Reservation, name="cr")
-        # overlap_active = (
-        #     # The other part
-        #     session.query(Reservation)
-        #     .join(
-        #         (
-        #             CurrentReservation,
-        #             # Do they overlap?
-        #             and_(
-        #                 CurrentReservation.p2p_criteria[0].start_time < Schedule.end_time,
-        #                 CurrentReservation.p2p_criteria[0].end_time > Schedule.start_time,
-        #             ),
-        #         )
-        #     )
-        #     .filter(
-        #         # Only select active reservations
-        #         or_(
-        #             and_(
-        #                 Reservation.reservation_state == ReservationStateMachine.ReserveStart.value,
-        #                 Reservation.provision_state.isnot(None),
-        #                 Reservation.lifecycle_state == LifecycleStateMachine.Created.value,
-        #             ),
-        #             Reservation.reservation_state == ReservationStateMachine.ReserveHeld.value,
-        #         )
-        #     )
-        #     # And only those that overlap with our reservation.
-        #     .filter(CurrentReservation.connection_id == self.connection_id)
-        # ).subquery()
-        # OverlappingActiveReservation = aliased(Reservation, overlap_active, name="oar")
-        #
-        # # To map STP's to resources (bandwidth and vlan) in use
-        # # we need to unpivot the two pair of STP columns from the reservations table into separate rows.
-        # # Eg, from:
-        # #
-        # # row 1:  connection_id, ..., src_stp, src_selected_vlan, dst_stp, .dst_selected_vlan ..
-        # #
-        # # to:
-        # #
-        # # row 1: connection_id, stp, vlan  <-- former src_stp, src_selected_vlan
-        # # row 2: connection_id, stp, vlan  <-- former dst_stp, dst_selected_vlan
-        # src_stp = session.query(
-        #     Reservation.connection_id.label("connection_id"),
-        #     Reservation.src_stp_id.label("stp"),
-        #     Reservation.src_selected_vlan.label("vlan"),
-        # )
-        # dst_stp = session.query(
-        #     Reservation.connection_id,
-        #     Reservation.dst_stp_id.label("stp"),
-        #     Reservation.dst_selected_vlan.label("vlan"),
-        # )
-        # stps = src_stp.union(dst_stp).subquery()
-        #
-        # # With the 'hard' work done for us in two subqueries,
-        # # calculating the STP resources (bandwidth, VLANs) in use is now relatively straightforward.
-        # stp_resources_in_use = (
-        #     session.query(
-        #         stps.c.stp,
-        #         func.sum(OverlappingActiveReservation.bandwidth).label("bandwidth"),
-        #         func.group_concat(stps.c.vlan, ",").label("vlans"),  # yes, plural!
-        #     )
-        #     .select_from(OverlappingActiveReservation)
-        #     .join(stps, OverlappingActiveReservation.connection_id == stps.c.connection_id)
-        #     .filter(
-        #         stps.c.stp.in_(
-        #             (
-        #                 OverlappingActiveReservation.src_stp_id,
-        #                 OverlappingActiveReservation.dst_stp_id,
-        #             )
-        #         )
-        #     )
-        #     .group_by(stps.c.stp)
-        #     .all()
-        # )
-        #
-        # return {
-        #     rec.stp: StpResources(bandwidth=rec.bandwidth, vlans=VlanRanges(rec.vlans)) for rec in stp_resources_in_use
-        # }
-        # FIXME
-        return {}
+        # To calculate the active overlapping reservation we need to perform a self-join.
+        # One part of the join is for our (current) reservation.
+        # The other part is for joining the overlapping ones with our (current) reservation.
+        CurrentSchedule = aliased(Schedule, name="cs")
+        overlap_active = (
+            # The other part
+            session.query(Reservation)
+            .join(Schedule)
+            .join(
+                CurrentSchedule,
+                # Do they overlap?
+                and_(CurrentSchedule.start_time < Schedule.end_time, CurrentSchedule.end_time > Schedule.start_time),
+            )
+            .filter(
+                # Only select active reservations
+                or_(
+                    and_(
+                        Reservation.reservation_state == ReservationStateMachine.ReserveStart.value,
+                        Reservation.provision_state.isnot(None),
+                        Reservation.lifecycle_state == LifecycleStateMachine.Created.value,
+                    ),
+                    Reservation.reservation_state == ReservationStateMachine.ReserveHeld.value,
+                )
+            )
+            # And only those that overlap with our reservation.
+            .filter(CurrentSchedule.connection_id == self.connection_id)
+        ).subquery()
+        OverlappingActiveReservation = aliased(Reservation, overlap_active, name="oar")
 
-    def _process_stp(
-        self,
-        target: str,
-        var: Variable,
-        p2p_criteria: P2PCriteria,
-        session: orm.Session,
-    ) -> None:
+        # To map STP's to resources (bandwidth and vlan) in use
+        # we need to unpivot the two pair of STP columns from the reservations table into separate rows.
+        # Eg, from:
+        #
+        # row 1:  connection_id, ..., src_stp, src_selected_vlan, dst_stp, .dst_selected_vlan ..
+        #
+        # to:
+        #
+        # row 1: connection_id, stp, vlan  <-- former src_stp, src_selected_vlan
+        # row 2: connection_id, stp, vlan  <-- former dst_stp, dst_selected_vlan
+        src_stp = session.query(
+            Reservation.connection_id.label("connection_id"),
+            P2PCriteria.src_stp_id.label("stp"),
+            P2PCriteria.src_selected_vlan.label("vlan"),
+        ).join(P2PCriteria)
+        dst_stp = session.query(
+            Reservation.connection_id,
+            P2PCriteria.dst_stp_id.label("stp"),
+            P2PCriteria.dst_selected_vlan.label("vlan"),
+        ).join(P2PCriteria)
+        stps = src_stp.union(dst_stp).subquery()
+
+        # With the 'hard' work done for us in two subqueries,
+        # calculating the STP resources (bandwidth, VLANs) in use is now relatively straightforward.
+        stp_resources_in_use = (
+            session.query(
+                stps.c.stp,
+                func.sum(P2PCriteria.bandwidth).label("bandwidth"),
+                func.group_concat(stps.c.vlan, ",").label("vlans"),  # yes, plural!
+            )
+            .select_from(OverlappingActiveReservation)
+            .join(P2PCriteria)
+            .join(stps, OverlappingActiveReservation.connection_id == stps.c.connection_id)
+            .filter(
+                stps.c.stp.in_(
+                    (
+                        P2PCriteria.src_stp_id,
+                        P2PCriteria.dst_stp_id,
+                    )
+                )
+            )
+            .group_by(stps.c.stp)
+            .all()
+        )
+
+        return {
+            rec.stp: StpResources(bandwidth=rec.bandwidth, vlans=VlanRanges(rec.vlans)) for rec in stp_resources_in_use
+        }
+
+    def _process_stp(self, target: str, var: Variable, reservation: Reservation, session: orm.Session) -> None:
         """Check validity of STP and select available VLAN.
 
         Target can be either "src" or "dst".
         When the STP is valid and a VLAN is available
-        the corresponding {src|dst}_selected_vlan will be set on the p2p_criteria
+        the corresponding {src|dst}_selected_vlan will be set on the reservation.p2p_criteria
         and the associated port will be stored in {src|dst}_port_id on the job instance.
         """
         stp_resources_in_use = self._stp_resources_in_use(session)
-        res_stp = getattr(p2p_criteria, f"{target}_stp_id")
-        nsi_stp = str(getattr(p2p_criteria, f"{target}_stp")())  # <-- mind the func call
-        domain = getattr(p2p_criteria, f"{target}_domain")
-        topology = getattr(p2p_criteria, f"{target}_topology")
-        requested_vlans = VlanRanges(getattr(p2p_criteria, f"{target}_vlans"))
+        res_stp = getattr(reservation.p2p_criteria, f"{target}_stp_id")
+        nsi_stp = str(getattr(reservation.p2p_criteria, f"{target}_stp")())  # <-- mind the func call
+        domain = getattr(reservation.p2p_criteria, f"{target}_domain")
+        topology = getattr(reservation.p2p_criteria, f"{target}_topology")
+        requested_vlans = VlanRanges(getattr(reservation.p2p_criteria, f"{target}_vlans"))
         stp = session.query(Topology).filter(Topology.stp_id == res_stp).one_or_none()
         if (
             stp is None
@@ -296,13 +261,13 @@ class ReserveJob(Job):
         else:
             bandwidth_available = stp.bandwidth
             available_vlans = VlanRanges(stp.vlans)
-        if bandwidth_available < p2p_criteria.bandwidth:
+        if bandwidth_available < reservation.p2p_criteria.bandwidth:
             raise NsiException(
                 CapacityUnavailable,
-                f"requested: {format_bandwidth(p2p_criteria.bandwidth)}, "
+                f"requested: {format_bandwidth(reservation.p2p_criteria.bandwidth)}, "
                 f"available: {format_bandwidth(bandwidth_available)}",
                 {
-                    Variable.CAPACITY: str(p2p_criteria.bandwidth),
+                    Variable.CAPACITY: str(reservation.p2p_criteria.bandwidth),
                     var: nsi_stp,
                 },
             )
@@ -316,7 +281,7 @@ class ReserveJob(Job):
                 {var: nsi_stp},
             )
         selected_vlan = random.choice(list(candidate_vlans))
-        setattr(p2p_criteria, f"{target}_selected_vlan", selected_vlan)
+        setattr(reservation.p2p_criteria, f"{target}_selected_vlan", selected_vlan)
         # remember port id, will be stored as part of Connection below
         setattr(self, f"{target}_port_id", stp.port_id)
 
@@ -334,34 +299,8 @@ class ReserveJob(Job):
 
         request = Union[ReserveConfirmedRequest, GenericFailedRequest]
         with db_session() as session:
-            # schedule_subquery = (
-            #     session.query(Schedule)
-            #     .filter(Schedule.connection_id == self.connection_id)
-            #     .group_by(Schedule.connection_id)
-            #     .having(func.max(Schedule.version) >= 0)
-            #     .subquery()
-            # )
-            # schedule_alias = aliased(Schedule, schedule_subquery)
-            # p2p_criteria_subquery = (
-            #     session.query(P2PCriteria)
-            #     .filter(P2PCriteria.connection_id == self.connection_id)
-            #     .group_by(P2PCriteria.connection_id)
-            #     .having(func.max(P2PCriteria.version) >= 0)
-            #     .subquery()
-            # )
-            # p2p_criteria_alias = aliased(P2PCriteria, p2p_criteria_subquery)
-            # reservation: Reservation
-            # schedule: Schedule
-            # p2p_criteria: P2PCriteria
-            # reservation, schedule, p2p_criteria = (
-            #     session.query(Reservation, schedule_alias, p2p_criteria_alias)
-            #     .join(schedule_subquery)
-            #     .join(p2p_criteria_subquery)
-            reservation: Reservation
-            schedule: Schedule
-            p2p_criteria: P2PCriteria
-            reservation, schedule, p2p_criteria = (
-                reservation_details_query(session, self.connection_id)
+            reservation: Reservation = (
+                session.query(Reservation)
                 .options(
                     joinedload(Reservation.parameters),
                     joinedload(Reservation.path_trace)
@@ -369,13 +308,14 @@ class ReserveJob(Job):
                     .joinedload(Path.segments)
                     .joinedload(Segment.stps),
                 )
-                .one()
+                .get(self.connection_id)
             )
-            assert schedule.version == p2p_criteria.version
+            assert reservation.version == reservation.schedule.version  # assert versions on references are the same
+            assert reservation.version == reservation.p2p_criteria.version  # TODO: refactor into unit test(s)
             rsm = ReservationStateMachine(reservation, state_field="reservation_state")
 
             try:
-                if p2p_criteria.src_stp_id == p2p_criteria.dst_stp_id:
+                if reservation.p2p_criteria.src_stp_id == reservation.p2p_criteria.dst_stp_id:
                     raise NsiException(
                         # Not sure if this is the correct error to use.
                         # As its descriptive text refers to path computation
@@ -386,31 +326,31 @@ class ReserveJob(Job):
                         "source and destination STP's are the same",
                         {
                             Variable.PROVIDER_NSA: settings.nsa_id,
-                            Variable.SOURCE_STP: str(p2p_criteria.src_stp()),
-                            Variable.DEST_STP: str(p2p_criteria.dst_stp()),
+                            Variable.SOURCE_STP: str(reservation.p2p_criteria.src_stp()),
+                            Variable.DEST_STP: str(reservation.p2p_criteria.dst_stp()),
                         },
                     )
                 for target, var in (("src", Variable.SOURCE_STP), ("dst", Variable.DEST_STP)):
                     # Dynamic attribute lookups as we want to use the same code for
                     # both src and dst STP's
-                    self._process_stp(target, var, p2p_criteria, session)
+                    self._process_stp(target, var, reservation, session)
 
                 circuit_id = backend.reserve(
-                    connection_id=p2p_criteria.connection_id,
-                    bandwidth=p2p_criteria.bandwidth,
+                    connection_id=reservation.connection_id,
+                    bandwidth=reservation.p2p_criteria.bandwidth,
                     src_port_id=self.src_port_id,
-                    src_vlan=p2p_criteria.src_selected_vlan,
+                    src_vlan=reservation.p2p_criteria.src_selected_vlan,
                     dst_port_id=self.dst_port_id,
-                    dst_vlan=p2p_criteria.dst_selected_vlan,
+                    dst_vlan=reservation.p2p_criteria.dst_selected_vlan,
                 )
                 session.add(
                     Connection(
-                        connection_id=p2p_criteria.connection_id,
-                        bandwidth=p2p_criteria.bandwidth,
+                        connection_id=reservation.connection_id,
+                        bandwidth=reservation.p2p_criteria.bandwidth,
                         src_port_id=self.src_port_id,
-                        src_vlan=p2p_criteria.src_selected_vlan,
+                        src_vlan=reservation.p2p_criteria.src_selected_vlan,
                         dst_port_id=self.dst_port_id,
-                        dst_vlan=p2p_criteria.dst_selected_vlan,
+                        dst_vlan=reservation.p2p_criteria.dst_selected_vlan,
                         circuit_id=circuit_id,
                     )
                 )
@@ -425,7 +365,7 @@ class ReserveJob(Job):
                 request = to_generic_failed_request(reservation, nsi_exc)  # type: ignore[misc]
                 rsm.reserve_failed()
             else:
-                request = _to_reserve_confirmed_request(reservation, schedule, p2p_criteria)  # type: ignore[misc]
+                request = _to_reserve_confirmed_request(reservation)  # type: ignore[misc]
                 rsm.reserve_confirmed()
 
         stub = requester.get_stub()

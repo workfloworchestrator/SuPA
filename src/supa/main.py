@@ -35,6 +35,7 @@ from click import Context, Option
 from tabulate import tabulate
 
 from supa import current_timestamp, init_app, recover_jobs, settings
+from supa.db.model import P2PCriteria, Schedule
 from supa.documents import webengine
 from supa.grpc_nsi import connection_provider_pb2_grpc
 from supa.util.vlan import VlanRanges
@@ -605,24 +606,25 @@ def reservation_list(only: Optional[str], order_by: str) -> None:
     from supa.db.session import db_session
 
     with db_session() as session:
-        reservations = session.query(Reservation)
+        reservations = session.query(Reservation).join(Schedule).join(P2PCriteria)
         if only == "current":
-            reservations = reservations.filter(Reservation.end_time >= current_timestamp())
+            reservations = reservations.filter(Schedule.end_time >= current_timestamp())
         elif only == "past":
-            reservations = reservations.filter(Reservation.end_time < current_timestamp())
+            reservations = reservations.filter(Schedule.end_time < current_timestamp())
         if order_by == "start_time":
-            reservations = reservations.order_by(Reservation.start_time)
+            reservations = reservations.order_by(Schedule.start_time)
         elif order_by == "end_time":
-            reservations = reservations.order_by(Reservation.end_time)
+            reservations = reservations.order_by(Schedule.end_time)
         reservations = reservations.values(
             Reservation.connection_id,
-            Reservation.start_time,
-            Reservation.end_time,
-            Reservation.src_stp_id,
-            Reservation.src_selected_vlan,
-            Reservation.dst_stp_id,
-            Reservation.dst_selected_vlan,
-            Reservation.bandwidth,
+            Reservation.version,
+            Schedule.start_time,
+            Schedule.end_time,
+            P2PCriteria.src_stp_id,
+            P2PCriteria.src_selected_vlan,
+            P2PCriteria.dst_stp_id,
+            P2PCriteria.dst_selected_vlan,
+            P2PCriteria.bandwidth,
             Reservation.lifecycle_state,
             Reservation.reservation_state,
             Reservation.provision_state,
@@ -633,6 +635,7 @@ def reservation_list(only: Optional[str], order_by: str) -> None:
             reservations,
             headers=(
                 "connection id",
+                "version",
                 "start time",
                 "end time",
                 "src",
@@ -668,21 +671,21 @@ def connection_list(only: Optional[str], order_by: str) -> None:
     from supa.db.session import db_session
 
     with db_session() as session:
-        connections = session.query(Connection).join(Reservation)
+        connections = session.query(Connection).join(Reservation).join(Schedule)
         connections = connections.filter(Connection.circuit_id != None)  # noqa: E711 (needed for NOT NULL clause)
         if only == "current":
-            connections = connections.filter(Reservation.end_time >= current_timestamp())
+            connections = connections.filter(Schedule.end_time >= current_timestamp())
         elif only == "past":
-            connections = connections.filter(Reservation.end_time < current_timestamp())
+            connections = connections.filter(Schedule.end_time < current_timestamp())
         if order_by == "start_time":
-            connections = connections.order_by(Reservation.start_time)
+            connections = connections.order_by(Schedule.start_time)
         elif order_by == "end_time":
-            connections = connections.order_by(Reservation.end_time)
+            connections = connections.order_by(Schedule.end_time)
         connections = connections.values(
             Connection.connection_id,
             Connection.circuit_id,
-            Reservation.start_time,
-            Reservation.end_time,
+            Schedule.start_time,
+            Schedule.end_time,
             Connection.src_port_id,
             Connection.src_vlan,
             Connection.dst_port_id,

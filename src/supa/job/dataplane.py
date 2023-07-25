@@ -23,7 +23,7 @@ from structlog.stdlib import BoundLogger
 from supa.connection import requester
 from supa.connection.error import GenericInternalError, Variable
 from supa.connection.fsm import DataPlaneStateMachine, LifecycleStateMachine
-from supa.db.model import Connection, Reservation, connection_to_dict
+from supa.db.model import Connection, Reservation, Schedule, connection_to_dict
 from supa.grpc_nsi.connection_requester_pb2 import DataPlaneStateChangeRequest, ErrorEventRequest
 from supa.job.shared import Job, NsiException, register_notification
 from supa.util.converter import to_activate_failed_event, to_data_plane_state_change_request, to_deactivate_failed_event
@@ -89,7 +89,7 @@ class ActivateJob(Job):
             else:
                 dpsm.activate_confirmed()
                 request = to_data_plane_state_change_request(reservation)
-                if auto_end_job := ((end_time := reservation.end_time) != NO_END_DATE):
+                if auto_end_job := ((end_time := reservation.schedule.end_time) != NO_END_DATE):
                     dpsm.auto_end_request()
 
         stub = requester.get_stub()
@@ -119,29 +119,29 @@ class ActivateJob(Job):
         """
         from supa.db.session import db_session
 
-        # with db_session() as session:
-        #     connection_ids: List[UUID] = list(
-        #         flatten(
-        #             session.query(Reservation.connection_id)
-        #             .filter(
-        #                 Reservation.lifecycle_state == LifecycleStateMachine.Created.value,
-        #                 Reservation.data_plane_state == DataPlaneStateMachine.Activating.value,
-        #                 Reservation.end_time > current_timestamp(),
-        #             )
-        #             .all()
-        #         )
-        #     )
-        # for cid in connection_ids:
-        #     logger.info("Recovering job", job="ActivateJob", connection_id=str(cid))
-        #
-        # return [ActivateJob(cid) for cid in connection_ids]
-        return []
+        with db_session() as session:
+            connection_ids: List[UUID] = list(
+                flatten(
+                    session.query(Reservation.connection_id)
+                    .join(Schedule)
+                    .filter(
+                        Reservation.lifecycle_state == LifecycleStateMachine.Created.value,
+                        Reservation.data_plane_state == DataPlaneStateMachine.Activating.value,
+                        Schedule.end_time > current_timestamp(),
+                    )
+                    .all()
+                )
+            )
+        for cid in connection_ids:
+            logger.info("Recovering job", job="ActivateJob", connection_id=str(cid))
+
+        return [ActivateJob(cid) for cid in connection_ids]
 
     def trigger(self) -> DateTrigger:
         """Trigger for ActivateJob's.
 
         Returns:
-            DateTrigger set to start_time of reservation.
+            DateTrigger set to run immediately.
         """
         return DateTrigger(run_date=None)  # Run immediately
 
@@ -249,8 +249,7 @@ class DeactivateJob(Job):
         """Trigger for DeactivateJob's.
 
         Returns:
-            DateTrigger set to None if (run immediately) if reservation is released or not active anymore or
-            to end_time otherwise (end_time can be in the past when recovering).
+            DateTrigger set to run immediately.
         """
         return DateTrigger(run_date=None)  # Run immediately
 
@@ -301,23 +300,23 @@ class AutoStartJob(Job):
         """
         from supa.db.session import db_session
 
-        # with db_session() as session:
-        #     connection_ids: List[UUID] = list(
-        #         flatten(
-        #             session.query(Reservation.connection_id)
-        #             .filter(
-        #                 Reservation.lifecycle_state == LifecycleStateMachine.Created.value,
-        #                 Reservation.data_plane_state == DataPlaneStateMachine.AutoStart.value,
-        #                 Reservation.end_time > current_timestamp(),
-        #             )
-        #             .all()
-        #         )
-        #     )
-        # for cid in connection_ids:
-        #     logger.info("Recovering job", job="AutoStartJob", connection_id=str(cid))
-        #
-        # return [AutoStartJob(cid) for cid in connection_ids]
-        return []
+        with db_session() as session:
+            connection_ids: List[UUID] = list(
+                flatten(
+                    session.query(Reservation.connection_id)
+                    .join(Schedule)
+                    .filter(
+                        Reservation.lifecycle_state == LifecycleStateMachine.Created.value,
+                        Reservation.data_plane_state == DataPlaneStateMachine.AutoStart.value,
+                        Schedule.end_time > current_timestamp(),
+                    )
+                    .all()
+                )
+            )
+        for cid in connection_ids:
+            logger.info("Recovering job", job="AutoStartJob", connection_id=str(cid))
+
+        return [AutoStartJob(cid) for cid in connection_ids]
 
     def trigger(self) -> DateTrigger:
         """Trigger for AutoStartJob's.
@@ -329,7 +328,7 @@ class AutoStartJob(Job):
 
         with db_session() as session:
             reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
-            return DateTrigger(run_date=reservation.start_time)
+            return DateTrigger(run_date=reservation.schedule.start_time)
 
 
 class AutoEndJob(Job):
@@ -402,4 +401,4 @@ class AutoEndJob(Job):
             reservation = (
                 session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one_or_none()
             )
-            return DateTrigger(run_date=reservation.end_time)
+            return DateTrigger(run_date=reservation.schedule.end_time)

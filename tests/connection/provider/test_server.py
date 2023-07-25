@@ -376,8 +376,8 @@ def test_provision_passed_end_time(
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        reservation.start_time = datetime.now(timezone.utc) - timedelta(hours=2)
-        reservation.end_time = datetime.now(timezone.utc) - timedelta(hours=1)
+        reservation.schedule.start_time = datetime.now(timezone.utc) - timedelta(hours=2)
+        reservation.schedule.end_time = datetime.now(timezone.utc) - timedelta(hours=1)
     service = ConnectionProviderService()
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
     provision_response = service.Provision(pb_provision_request, mock_context)
@@ -465,8 +465,8 @@ def test_release_passed_end_time(
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        reservation.start_time = datetime.now(timezone.utc) - timedelta(hours=2)
-        reservation.end_time = datetime.now(timezone.utc) - timedelta(hours=1)
+        reservation.schedule.start_time = datetime.now(timezone.utc) - timedelta(hours=2)
+        reservation.schedule.end_time = datetime.now(timezone.utc) - timedelta(hours=1)
     service = ConnectionProviderService()
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
     release_response = service.Release(pb_release_request, mock_context)

@@ -247,36 +247,31 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                 else None,
                 global_reservation_id=pb_reserve_request.global_reservation_id,
                 description=pb_reserve_request.description if pb_reserve_request.description else None,
+                version=pb_criteria.version,
             )
 
-            schedule = model.Schedule()
-            schedule.version = pb_criteria.version
-            if is_specified(start_time):
-                schedule.start_time = start_time
-            if is_specified(end_time):
-                schedule.end_time = end_time
-            # reservation.schedules.append(schedule)
+            reservation.schedule = model.Schedule(
+                start_time=start_time if is_specified(start_time) else None,
+                end_time=end_time if is_specified(end_time) else None,
+            )
 
             # TODO: select service type specific table based on pb_criteria.service_type
-            p2p_criteria = model.P2PCriteria()
-            p2p_criteria.version = pb_criteria.version
-            p2p_criteria.bandwidth = pb_ptps.capacity
-            p2p_criteria.directionality = Directionality.Name(pb_ptps.directionality)
-            p2p_criteria.symmetric = pb_ptps.symmetric_path
-
             src_stp = parse_stp(pb_ptps.source_stp)
-            p2p_criteria.src_domain = src_stp.domain
-            p2p_criteria.src_topology = src_stp.topology
-            p2p_criteria.src_stp_id = src_stp.stp_id
-            p2p_criteria.src_vlans = str(src_stp.vlan_ranges)
-
             dst_stp = parse_stp(pb_ptps.dest_stp)
-            p2p_criteria.dst_domain = dst_stp.domain
-            p2p_criteria.dst_topology = dst_stp.topology
-            p2p_criteria.dst_stp_id = dst_stp.stp_id
-            p2p_criteria.dst_vlans = str(dst_stp.vlan_ranges)
-
-            reservation.p2p_criteria.append(p2p_criteria)
+            reservation.p2p_criteria = model.P2PCriteria(
+                version=pb_criteria.version,
+                bandwidth=pb_ptps.capacity,
+                directionality=Directionality.Name(pb_ptps.directionality),
+                symmetric=pb_ptps.symmetric_path,
+                src_domain=src_stp.domain,
+                src_topology=src_stp.topology,
+                src_stp_id=src_stp.stp_id,
+                src_vlans=str(src_stp.vlan_ranges),
+                dst_domain=dst_stp.domain,
+                dst_topology=dst_stp.topology,
+                dst_stp_id=dst_stp.stp_id,
+                dst_vlans=str(dst_stp.vlan_ranges),
+            )
 
             for k, v in pb_ptps.parameters.items():
                 reservation.parameters.append(model.Parameter(key=k, value=v))
@@ -301,9 +296,6 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             from supa.db.session import db_session
 
             with db_session() as session:
-                session.add(schedule)
-                session.flush()  # let DB generate schedule_id
-                reservation.current_schedule = schedule.schedule_id
                 session.add(reservation)
                 session.flush()  # Let DB (actually SQLAlchemy) generate the connection_id for us.
                 connection_id = reservation.connection_id  # Can't reference it outside the session, hence new var.
@@ -545,11 +537,11 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                         connection_id,
                     ),
                 )
-            elif (current_time := current_timestamp()) > reservation.end_time:
+            elif (current_time := current_timestamp()) > reservation.schedule.end_time:
                 log.info(
                     "Cannot provision a reservation that is passed end time",
                     current_time=current_time.isoformat(),
-                    end_time=reservation.end_time.isoformat(),
+                    end_time=reservation.schedule.end_time.isoformat(),
                 )
                 provision_response = GenericAcknowledgment(
                     header=to_response_header(pb_provision_request.header),
@@ -648,11 +640,11 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                         connection_id,
                     ),
                 )
-            elif (current_time := current_timestamp()) > reservation.end_time:
+            elif (current_time := current_timestamp()) > reservation.schedule.end_time:
                 log.info(
                     "Cannot release a reservation that is passed end time",
                     current_time=current_time.isoformat(),
-                    end_time=reservation.end_time.isoformat(),
+                    end_time=reservation.schedule.end_time.isoformat(),
                 )
                 release_response = GenericAcknowledgment(
                     header=to_response_header(pb_release_request.header),
