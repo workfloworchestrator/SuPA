@@ -449,7 +449,7 @@ def init_app(with_scheduler: bool = True) -> None:
             "`database_file` did not exist. Created new SQLite DB file. Is this really what you wanted?",
             database_file=database_file,
         )
-    engine = create_engine(f"sqlite:///{database_file}")
+    engine = create_engine(f"sqlite:///{database_file}", echo=False)
 
     import supa.db.session
 

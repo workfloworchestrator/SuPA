@@ -606,7 +606,13 @@ def reservation_list(only: Optional[str], order_by: str) -> None:
     from supa.db.session import db_session
 
     with db_session() as session:
-        reservations = session.query(Reservation).join(Schedule).join(P2PCriteria)
+        reservations = (
+            session.query(Reservation)
+            .join(Schedule)
+            .join(P2PCriteria)
+            # only current schedule and p2p_criteria
+            .filter(Schedule.version == Reservation.version, P2PCriteria.version == Reservation.version)
+        )
         if only == "current":
             reservations = reservations.filter(Schedule.end_time >= current_timestamp())
         elif only == "past":
@@ -628,6 +634,7 @@ def reservation_list(only: Optional[str], order_by: str) -> None:
             Reservation.lifecycle_state,
             Reservation.reservation_state,
             Reservation.provision_state,
+            Reservation.data_plane_state,
         )
         reservations = tuple(reservations)
     click.echo(
@@ -646,6 +653,7 @@ def reservation_list(only: Optional[str], order_by: str) -> None:
                 "lifecycle",
                 "reservation",
                 "provision",
+                "dataplane",
             ),
             tablefmt="simple",
         )
@@ -672,7 +680,8 @@ def connection_list(only: Optional[str], order_by: str) -> None:
 
     with db_session() as session:
         connections = session.query(Connection).join(Reservation).join(Schedule)
-        connections = connections.filter(Connection.circuit_id != None)  # noqa: E711 (needed for NOT NULL clause)
+        connections = connections.filter(Schedule.version == Reservation.version)  # only current schedule
+        # connections = connections.filter(Connection.circuit_id != None)  # noqa: E711 (needed for NOT NULL clause)
         if only == "current":
             connections = connections.filter(Schedule.end_time >= current_timestamp())
         elif only == "past":

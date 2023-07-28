@@ -38,7 +38,12 @@ from supa.connection.error import (
     UnknownStp,
     Variable,
 )
-from supa.connection.fsm import LifecycleStateMachine, ProvisionStateMachine, ReservationStateMachine
+from supa.connection.fsm import (
+    DataPlaneStateMachine,
+    LifecycleStateMachine,
+    ProvisionStateMachine,
+    ReservationStateMachine,
+)
 from supa.db.model import (
     Connection,
     P2PCriteria,
@@ -57,6 +62,7 @@ from supa.grpc_nsi.connection_requester_pb2 import (
     ReserveConfirmedRequest,
     ReserveTimeoutRequest,
 )
+from supa.job.dataplane import AutoEndJob, AutoStartJob
 from supa.job.shared import Job, NsiException, register_notification, register_result
 from supa.util.bandwidth import format_bandwidth
 from supa.util.converter import (
@@ -67,6 +73,7 @@ from supa.util.converter import (
     to_header,
     to_notification_header,
 )
+from supa.util.timestamp import NO_END_DATE
 from supa.util.type import NotificationType, ResultType
 from supa.util.vlan import VlanRanges
 
@@ -160,11 +167,17 @@ class ReserveJob(Job):
         overlap_active = (
             # The other part
             session.query(Reservation)
-            .join(Schedule)
+            .join(
+                Schedule,
+                and_(Reservation.connection_id == Schedule.connection_id, Reservation.version == Schedule.version),
+            )
             .join(
                 CurrentSchedule,
                 # Do they overlap?
-                and_(CurrentSchedule.start_time < Schedule.end_time, CurrentSchedule.end_time > Schedule.start_time),
+                and_(
+                    CurrentSchedule.start_time < Schedule.end_time,
+                    CurrentSchedule.end_time > Schedule.start_time,
+                ),
             )
             .filter(
                 # Only select active reservations
@@ -179,8 +192,8 @@ class ReserveJob(Job):
             )
             # And only those that overlap with our reservation.
             .filter(CurrentSchedule.connection_id == self.connection_id)
-        ).subquery()
-        OverlappingActiveReservation = aliased(Reservation, overlap_active, name="oar")
+        )
+        OverlappingActiveReservation = aliased(Reservation, overlap_active.subquery(), name="oar")
 
         # To map STP's to resources (bandwidth and vlan) in use
         # we need to unpivot the two pair of STP columns from the reservations table into separate rows.
@@ -196,12 +209,18 @@ class ReserveJob(Job):
             Reservation.connection_id.label("connection_id"),
             P2PCriteria.src_stp_id.label("stp"),
             P2PCriteria.src_selected_vlan.label("vlan"),
-        ).join(P2PCriteria)
+        ).join(
+            P2PCriteria,
+            and_(Reservation.connection_id == P2PCriteria.connection_id, Reservation.version == P2PCriteria.version),
+        )
         dst_stp = session.query(
             Reservation.connection_id,
             P2PCriteria.dst_stp_id.label("stp"),
             P2PCriteria.dst_selected_vlan.label("vlan"),
-        ).join(P2PCriteria)
+        ).join(
+            P2PCriteria,
+            and_(Reservation.connection_id == P2PCriteria.connection_id, Reservation.version == P2PCriteria.version),
+        )
         stps = src_stp.union(dst_stp).subquery()
 
         # With the 'hard' work done for us in two subqueries,
@@ -213,7 +232,13 @@ class ReserveJob(Job):
                 func.group_concat(stps.c.vlan, ",").label("vlans"),  # yes, plural!
             )
             .select_from(OverlappingActiveReservation)
-            .join(P2PCriteria)
+            .join(
+                P2PCriteria,
+                and_(
+                    OverlappingActiveReservation.connection_id == P2PCriteria.connection_id,
+                    OverlappingActiveReservation.version == P2PCriteria.version,
+                ),
+            )
             .join(stps, OverlappingActiveReservation.connection_id == stps.c.connection_id)
             .filter(
                 stps.c.stp.in_(
@@ -240,6 +265,7 @@ class ReserveJob(Job):
         and the associated port will be stored in {src|dst}_port_id on the job instance.
         """
         stp_resources_in_use = self._stp_resources_in_use(session)
+        self.log.info("stp resources in use", stp_resources_in_use=stp_resources_in_use)  # TODO: remove me
         res_stp = getattr(reservation.p2p_criteria, f"{target}_stp_id")
         nsi_stp = str(getattr(reservation.p2p_criteria, f"{target}_stp")())  # <-- mind the func call
         domain = getattr(reservation.p2p_criteria, f"{target}_domain")
@@ -319,7 +345,7 @@ class ReserveJob(Job):
                     raise NsiException(
                         # Not sure if this is the correct error to use.
                         # As its descriptive text refers to path computation
-                        # it suggests its an error typically returned by an aggregator.
+                        # it suggests it's an error typically returned by an aggregator.
                         # On the other hand it is the only error related to a path/connection as a whole
                         # and that is what is at issue here.
                         NoServiceplanePathFound,
@@ -343,19 +369,26 @@ class ReserveJob(Job):
                     dst_port_id=self.dst_port_id,
                     dst_vlan=reservation.p2p_criteria.dst_selected_vlan,
                 )
-                session.add(
-                    Connection(
-                        connection_id=reservation.connection_id,
-                        bandwidth=reservation.p2p_criteria.bandwidth,
-                        src_port_id=self.src_port_id,
-                        src_vlan=reservation.p2p_criteria.src_selected_vlan,
-                        dst_port_id=self.dst_port_id,
-                        dst_vlan=reservation.p2p_criteria.dst_selected_vlan,
-                        circuit_id=circuit_id,
+                if len(reservation.schedules) == 1:  # new reservation
+                    session.add(
+                        Connection(
+                            connection_id=reservation.connection_id,
+                            bandwidth=reservation.p2p_criteria.bandwidth,
+                            src_port_id=self.src_port_id,
+                            src_vlan=reservation.p2p_criteria.src_selected_vlan,
+                            dst_port_id=self.dst_port_id,
+                            dst_vlan=reservation.p2p_criteria.dst_selected_vlan,
+                            circuit_id=circuit_id,
+                        )
                     )
-                )
+                else:  # modify reservation
+                    connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
+                    connection.bandwidth = reservation.p2p_criteria.bandwidth
+                    if circuit_id:
+                        connection.circuit_id = circuit_id
 
             except NsiException as nsi_exc:
+                # FIXME: should we rollback the reservation version and remove the latest schedule and p2p_criteria?
                 self.log.info("Reservation failed.", reason=nsi_exc.text)
                 request = to_generic_failed_request(reservation, nsi_exc)  # type: ignore[misc]
                 rsm.reserve_failed()
@@ -444,9 +477,54 @@ class ReserveCommitJob(Job):
             reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
             connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
             rsm = ReservationStateMachine(reservation, state_field="reservation_state")
+            psm = ProvisionStateMachine(reservation, state_field="provision_state")
+            dpsm = DataPlaneStateMachine(reservation, state_field="data_plane_state")
+            reschedule_auto_start = False
+            cancel_auto_end = False
+            schedule_auto_end = False
             try:
                 if circuit_id := backend.reserve_commit(**connection_to_dict(connection)):
                     connection.circuit_id = circuit_id
+                if len(reservation.schedules) > 1:  # modify reservation
+                    old_start_time = reservation.schedules[-2].start_time
+                    old_end_time = reservation.schedules[-2].end_time
+                    old_bandwidth = reservation.p2p_criteria_list[-2].bandwidth
+                    new_start_time = reservation.schedule.start_time
+                    new_end_time = reservation.schedule.end_time
+                    new_bandwidth = reservation.p2p_criteria.bandwidth
+                    job: Job
+                    # 1. if start time has changed:
+                    #    - start time was not reached yet, this is checked in ConnectionProviderService.Reserve
+                    #    - if the reservation was not provisioned then let ProvisionJob take care of everything
+                    #    - if the reservation was provisioned then reschedule a AutoStartJob with new start time
+                    if (
+                        new_start_time != old_start_time
+                        and psm.current_state == ProvisionStateMachine.Provisioned
+                        and dpsm.current_state == DataPlaneStateMachine.AutoStart
+                    ):
+                        reschedule_auto_start = True
+                    # 2. if end time has changed and the reservation was provisioned:
+                    #    - if there is an AutoEndJob then either:
+                    #      - if end time changed to NO_END_DATE then remove AutoEndJob
+                    #      - otherwise reschedule AutoEndJob
+                    #    - if the data plane was active with NO_END_DATA then now schedule AutoEndJob
+                    #    - in all other cases the AutoStartJob or ProvisionJob will take the new end time into account
+                    if new_end_time != old_end_time and psm.current_state == ProvisionStateMachine.Provisioned:
+                        if dpsm.current_state == DataPlaneStateMachine.AutoEnd:
+                            dpsm.cancel_auto_end_request()
+                            cancel_auto_end = True
+                        if dpsm.current_state == DataPlaneStateMachine.Activated and new_end_time != NO_END_DATE:
+                            dpsm.auto_end_request()
+                            schedule_auto_end = True
+                    # 3. if bandwidth has changed and data plane is active then call modify() on backend
+                    if new_bandwidth != old_bandwidth:
+                        if (
+                            dpsm.current_state == DataPlaneStateMachine.Activated
+                            or dpsm.current_state == DataPlaneStateMachine.AutoEnd
+                        ):
+                            if circuit_id := backend.modify(**connection_to_dict(connection)):
+                                connection.circuit_id = circuit_id
+
             except NsiException as nsi_exc:
                 self.log.info("Reserve commit failed.", reason=nsi_exc.text)
                 request = to_generic_failed_request(session, nsi_exc)
@@ -465,6 +543,18 @@ class ReserveCommitJob(Job):
 
         stub = requester.get_stub()
         if type(request) == GenericConfirmedRequest:
+            from supa import scheduler
+
+            if reschedule_auto_start:
+                self.log.info("Reschedule auto start", job="AutoStartJob", start_time=new_start_time.isoformat())
+                scheduler.remove_job(job_id=AutoStartJob(self.connection_id).job_id)
+                scheduler.add_job(job := AutoStartJob(self.connection_id), trigger=job.trigger(), id=job.job_id)
+            if cancel_auto_end:
+                self.log.info("Cancel previous auto end")
+                scheduler.remove_job(job_id=AutoEndJob(self.connection_id).job_id)
+            if schedule_auto_end:
+                self.log.info("Schedule auto end", job="AutoEndJob", end_time=new_end_time.isoformat())
+                scheduler.add_job(job := AutoEndJob(self.connection_id), trigger=job.trigger(), id=job.job_id)
             register_result(request, ResultType.ReserveCommitConfirmed)
             self.log.debug("Sending message", method="ReserveCommitConfirmed", request_message=request)
             stub.ReserveCommitConfirmed(request)
@@ -559,6 +649,7 @@ class ReserveAbortJob(Job):
                 )
             else:
                 request = to_generic_confirmed_request(reservation)
+                reservation.reservation_timeout = False  # would probably be better to add reservation state to fsm
                 rsm.reserve_abort_confirmed()
 
         stub = requester.get_stub()
@@ -715,8 +806,9 @@ class ReserveTimeoutJob(Job):
         from supa.db.session import db_session
 
         with db_session() as session:
-            timeout_date = session.query(Reservation.create_date).filter(
-                Reservation.connection_id == self.connection_id
-            ).scalar() + timedelta(seconds=settings.reserve_timeout)
+            reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
+            timeout_date = reservation.create_date if len(reservation.schedules) == 1 else reservation.last_modified
+            timeout_date += timedelta(seconds=settings.reserve_timeout)
+            self.log.debug("reserve timeout set", timeout_date=timeout_date)
 
         return DateTrigger(run_date=timeout_date)

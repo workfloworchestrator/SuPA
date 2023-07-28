@@ -197,7 +197,6 @@ class Reservation(Base):
 
     connection_id = Column(Uuid, primary_key=True, default=uuid.uuid4)
     version = Column(Integer, nullable=False)
-    UniqueConstraint(connection_id, version)  # to allow foreign key references from other tables
     # header
     protocol_version = Column(Text, nullable=False)
     requester_nsa = Column(Text, nullable=False)
@@ -265,20 +264,40 @@ class Reservation(Base):
         passive_deletes=True,
     )  # one-to-one
 
-    schedule = relationship(
+    schedules = relationship(
         "Schedule",
+        order_by="asc(Schedule.version)",
         back_populates="reservation",
         cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    schedule = relationship(
+        "Schedule",
         uselist=False,
+        primaryjoin="""and_(
+                            Reservation.connection_id==Schedule.connection_id,
+                            Reservation.version==Schedule.version
+                        )""",
+        viewonly=True,
+    )
+
+    p2p_criteria_list = relationship(
+        "P2PCriteria",
+        order_by="asc(P2PCriteria.version)",
+        back_populates="reservation",
+        cascade="all, delete-orphan",
         passive_deletes=True,
     )
 
     p2p_criteria = relationship(
         "P2PCriteria",
-        back_populates="reservation",
-        cascade="all, delete-orphan",
         uselist=False,
-        passive_deletes=True,
+        primaryjoin="""and_(
+                            Reservation.connection_id==P2PCriteria.connection_id,
+                            Reservation.version==P2PCriteria.version
+                        )""",
+        viewonly=True,
     )
 
     notification = relationship(
@@ -301,28 +320,19 @@ class Schedule(Base):
 
     __tablename__ = "schedules"
 
-    connection_id = Column(Uuid, primary_key=True)
-    version = Column(Integer, primary_key=True)
+    schedule_id = Column(Integer, primary_key=True, autoincrement=True)
+    connection_id = Column(ForeignKey(Reservation.connection_id))
+    version = Column(Integer, nullable=False)
+    UniqueConstraint(connection_id, version)
 
     # schedule
     start_time = Column(UtcTimestamp, nullable=False, default=current_timestamp, index=True)
     end_time = Column(UtcTimestamp, nullable=False, default=NO_END_DATE, index=True)
-
-    __table_args__ = (
-        # composite foreign key on connection_id and version
-        ForeignKeyConstraint(
-            columns=(connection_id, version),
-            refcolumns=(Reservation.connection_id, Reservation.version),
-            ondelete="CASCADE",
-        ),
-        # sanity check on start and end time
-        CheckConstraint(start_time < end_time),
-    )
+    __table_args__ = (CheckConstraint(start_time < end_time),)
 
     reservation = relationship(
         Reservation,
-        back_populates="schedule",
-        uselist=False,
+        back_populates="schedules",
     )  # (cascades defined in parent)
 
 
@@ -331,8 +341,10 @@ class P2PCriteria(Base):
 
     __tablename__ = "p2p_criteria"
 
-    connection_id = Column(Uuid, primary_key=True)
-    version = Column(Integer, primary_key=True)
+    p2p_criteria_id = Column(Integer, primary_key=True, autoincrement=True)
+    connection_id = Column(ForeignKey(Reservation.connection_id))
+    version = Column(Integer, nullable=False)
+    UniqueConstraint(connection_id, version)
 
     # p2p criteria
     bandwidth = Column(Integer, nullable=False, comment="Mbps")
@@ -356,18 +368,9 @@ class P2PCriteria(Base):
     # See `src_selected_vlan`
     dst_selected_vlan = Column(Integer, nullable=True)
 
-    __table_args__ = (
-        ForeignKeyConstraint(
-            columns=(connection_id, version),
-            refcolumns=(Reservation.connection_id, Reservation.version),
-            ondelete="CASCADE",
-        ),
-    )
-
     reservation = relationship(
         Reservation,
-        back_populates="p2p_criteria",
-        uselist=False,
+        back_populates="p2p_criteria_list",
     )  # (cascades defined in parent)
 
     def src_stp(self, selected: bool = False) -> nsi.Stp:
