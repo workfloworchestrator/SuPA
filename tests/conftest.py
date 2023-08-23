@@ -51,8 +51,10 @@ def add_stp_ids(init: Generator) -> None:
     from supa.db.session import db_session
 
     with db_session() as session:
-        session.add(Topology(port_id=str(uuid4()), stp_id="port1", vlans="1779-1799", bandwidth=1000, enabled=True))
-        session.add(Topology(port_id=str(uuid4()), stp_id="port2", vlans="1779-1799", bandwidth=1000, enabled=True))
+        # session.add(Topology(port_id=str(uuid4()), stp_id="port1", vlans="1779-1799", bandwidth=1000, enabled=True))
+        # session.add(Topology(port_id=str(uuid4()), stp_id="port2", vlans="1779-1799", bandwidth=1000, enabled=True))
+        session.add(Topology(port_id="Ethernet 1", stp_id="port1", vlans="1779-1799", bandwidth=1000, enabled=True))
+        session.add(Topology(port_id="Ethernet 2", stp_id="port2", vlans="1779-1799", bandwidth=1000, enabled=True))
 
 
 @pytest.fixture()
