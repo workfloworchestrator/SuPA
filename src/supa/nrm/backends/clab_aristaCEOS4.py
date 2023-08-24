@@ -96,8 +96,8 @@ def _create_configure_commands(source_port: str, dest_port: str, vlan: int) -> L
 
 
 def _create_delete_commands(source_port: str, dest_port: str, vlan: int) -> List[bytes]:
-    intsrc = COMMAND_INTERFACE % source_port
-    intdst = COMMAND_INTERFACE % dest_port
+    intsrc = COMMAND_INTERFACE % source_port.encode("utf-8")
+    intdst = COMMAND_INTERFACE % dest_port.encode("utf-8")
     remvlan = COMMAND_TRUNK_REM_VLAN % vlan
     cmdexit = COMMAND_EXIT
     # deletevlan = COMMAND_DELETE_VLAN % vlan
