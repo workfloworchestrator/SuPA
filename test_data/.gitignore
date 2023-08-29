@@ -1,0 +1,3 @@
+# containerlab runtime data and directory
+clab-*
+*.clab.yml.bak

@@ -1,0 +1,26 @@
+# topology documentation: http://containerlab.dev/lab-examples/srl-ceos/
+name: 3ceosvlan
+
+topology:
+  kinds:
+    ceos:
+      image: ceos:4.30.1F
+
+  nodes:
+    ceos1:
+      kind: ceos
+
+    ceos2:
+      kind: ceos
+      wait-for:
+        - ceos1
+
+    ceos3:
+      kind: ceos
+      wait-for:
+        - ceos1
+        - ceos2
+
+  links:
+    - endpoints: ["ceos1:eth1", "ceos2:eth1"]
+    - endpoints: ["ceos2:eth2", "ceos3:eth1"]
