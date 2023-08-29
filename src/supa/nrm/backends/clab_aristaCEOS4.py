@@ -252,14 +252,6 @@ class Backend(BaseBackend):
         """Activate resources."""
         if not src_vlan == dst_vlan:
             raise NsiException(GenericRmError, "VLANs must match")
-        self.log.debug(
-            "Activate() function",
-            src_port_id=src_port_id,
-            dst_port_id=dst_port_id,
-            src_vlan=src_vlan,
-            dst_vlan=dst_vlan,
-            circuit_id=circuit_id,
-        )
         self._send_commands(_create_configure_commands(src_port_id, dst_port_id, dst_vlan))
         circuit_id = uuid4().urn  # dummy circuit id
         self.log.info(
