@@ -21,23 +21,40 @@ You need to first enable the switch cli for specified privilege commands level (
 ceos2>enable
 
 To setup a VLAN connection:
-// in configure mode on login
-ceos2#configure
+// in sw cli mode on login
+ceos2# configure
+// config for source interface
 ceos2(config)#vlan {$vlan}
-#exit
-#interface ethernet {$port}
-#switch trunk allowed vlan add {$vlan}
-#exit
-ceos2#copy running-config startup-config
+ceos2(config)#exit
+ceos2(config)#interface {$src_interface}
+ceos2(config-if-{$et?})#switchport mode trunk
+ceos2(config-if-{$et?})#switchport trunk allowed vlan add {$vlan}
+ceos2(config-if-{$et?})#exit
+// redo config for destination interface
+ceos2(config)# interface {$dst_interface}
+ceos2(config-if-{$et?})#switchport mode trunk
+ceos2(config-if-{$et?})#switchport trunk allowed vlan add {$vlan}
+ceos2(config-if-{$et?})#exit
+// Saving config
+ceos2#write
 
 teardown:
-ceos2#configure
-#interface ethernet {$port}
-#switch trunk allowed vlan remove {$vlan}
-#exit
-ceos2(config)#no vlan {$vlan}
-#exit
-ceos2#copy running-config startup-config
+// in sw cli mode on login
+ceos2# configure
+// rm vlan for source interface
+ceos2(config)#interface {$src_interface}
+ceos2(config-if-{$et?})#switchport trunk allowed vlan remove {$vlan}
+ceos2(config-if-{$et?})#exit
+// rm vlan for destination interface
+ceos2(config)#interface {$dst_interface}
+ceos2(config-if-{$et?})#switchport trunk allowed vlan remove {$vlan}
+ceos2(config-if-{$et?})#exit
+// Saving config
+ceos2#write
+
+// no use
+# ceos2(config)#no vlan {$vlan}
+# ceos2#copy running-config startup-config
 
 """
 import os
@@ -111,7 +128,8 @@ class Backend(BaseBackend):
     def __init__(self) -> None:
         """Load properties from 'clab_aristaCEOS4.env'."""
         super(Backend, self).__init__()
-        self.backend_settings = BackendSettings(_env_file=(env_file := find_file("clab_aristaCEOS4.env")))
+        # self.backend_settings = BackendSettings(_env_file=(env_file := find_file("clab_aristaCEOS4.env")))
+        self.backend_settings = BackendSettings(_env_file=(env_file := find_file(os.path.basename(__file__).split('.')[0] + ".env")))
         self.log.info("Read backend properties", path=str(env_file))
 
     def _get_ssh_shell(self) -> None:
