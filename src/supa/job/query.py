@@ -95,7 +95,8 @@ def create_query_confirmed_request(
             query_result.connection_states.CopyFrom(
                 to_connection_states(
                     reservation,
-                    data_plane_active=reservation.data_plane_state == DataPlaneStateMachine.Activated.value,
+                    data_plane_active=reservation.data_plane_state
+                    in (DataPlaneStateMachine.Activated.value, DataPlaneStateMachine.AutoEnd.value),
                 )
             )
             if reservation.global_reservation_id:
