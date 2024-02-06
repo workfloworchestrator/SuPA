@@ -67,6 +67,9 @@ class ActivateJob(Job):
             connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
             dpsm = DataPlaneStateMachine(reservation, state_field="data_plane_state")
             try:
+                self.log.debug("reservation in db_session(): %r", reservation)
+                self.log.debug("connection in db_session(): %r", connection)
+                self.log.debug("connection_to_dict(connection): %r", connection_to_dict(connection))
                 if circuit_id := backend.activate(**connection_to_dict(connection)):
                     connection.circuit_id = circuit_id
             except NsiException as nsi_exc:
