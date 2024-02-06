@@ -6,7 +6,8 @@ services:
   # SuPA
   #
   supa:
-    image: "ghcr.io/workfloworchestrator/supa:latest"
+    # image: "ghcr.io/workfloworchestrator/supa:latest"
+    image: "supa:clab-ceos4"
     configs:
       - source: supa.env
         target: /usr/local/etc/supa/supa.env
@@ -23,8 +24,8 @@ services:
   # PolyNSI
   #
   polynsi:
-    #image: "ghcr.io/workfloworchestrator/polynsi:latest"
-    image: polynsi:test
+    image: "ghcr.io/workfloworchestrator/polynsi:latest"
+    #image: polynsi:test
     ports:
       - "8443:8443"
     configs:
