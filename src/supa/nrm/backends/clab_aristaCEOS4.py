@@ -66,9 +66,10 @@ from pydantic import BaseSettings
 
 from supa.connection.error import GenericRmError
 from supa.job.shared import NsiException
-from supa.nrm.backend import BaseBackend
+from supa.nrm.backend import BaseBackend, STP
 from supa.util.find import find_file
 
+import yaml
 
 class BackendSettings(BaseSettings):
     """Backend settings with default values."""
@@ -83,6 +84,8 @@ class BackendSettings(BaseSettings):
 
     cli_prompt: str = ""
     cli_needs_enable: bool = True
+
+    stps_config: str = "stps_config.yml"
 
 # parametrized commands
 COMMAND_ENABLE = b"enable"
@@ -128,8 +131,9 @@ class Backend(BaseBackend):
     def __init__(self) -> None:
         """Load properties from 'clab_aristaCEOS4.env'."""
         super(Backend, self).__init__()
-        # self.backend_settings = BackendSettings(_env_file=(env_file := find_file("clab_aristaCEOS4.env")))
-        self.backend_settings = BackendSettings(_env_file=(env_file := find_file(os.path.basename(__file__).split('.')[0] + ".env")))
+        file_basename = os.path.basename(__file__).split('.')[0]
+        self.configs_dir = file_basename + "_configs"
+        self.backend_settings = BackendSettings(_env_file=(env_file := find_file(self.configs_dir + "/" + file_basename + ".env")))
         self.log.info("Read backend properties", path=str(env_file))
 
     def _get_ssh_shell(self) -> None:
@@ -257,6 +261,7 @@ class Backend(BaseBackend):
         self._close_ssh_shell()
         self.log.debug("Commands successfully committed")
 
+
     def activate(
         self,
         connection_id: UUID,
@@ -282,6 +287,7 @@ class Backend(BaseBackend):
         )
         return circuit_id
 
+
     def deactivate(
         self,
         connection_id: UUID,
@@ -303,3 +309,19 @@ class Backend(BaseBackend):
             circuit_id=circuit_id,
         )
         return None
+
+
+    def topology(self) -> List[STP]:
+        """Read STPs from yaml file."""
+        stp_list_file = find_file(self.configs_dir + "/" + self.backend_settings.stps_config)
+        self.log.info("Read STPs config", path=str(stp_list_file))
+
+        def _load_stp_from_file(stp_list_file: str) -> List[STP]:
+            with open(stp_list_file, "r") as stps_file:
+                stp_list = [STP(**stp) for stp in yaml.safe_load(stps_file)["stps"]]
+            return stp_list
+
+        stp_list = _load_stp_from_file(stp_list_file)
+        self.log.info("STP list", stp_list=stp_list)
+
+        return stp_list
