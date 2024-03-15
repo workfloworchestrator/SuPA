@@ -62,14 +62,14 @@ from typing import List, Optional
 from uuid import UUID, uuid4
 
 import paramiko
+import yaml
 from pydantic import BaseSettings
 
 from supa.connection.error import GenericRmError
 from supa.job.shared import NsiException
-from supa.nrm.backend import BaseBackend, STP
+from supa.nrm.backend import STP, BaseBackend
 from supa.util.find import find_file
 
-import yaml
 
 class BackendSettings(BaseSettings):
     """Backend settings with default values."""
