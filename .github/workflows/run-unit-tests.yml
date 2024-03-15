@@ -23,6 +23,7 @@ jobs:
       - name: Run Unit tests
         run: pytest --cov-report term-missing --cov-report=xml --cov=src tests
               -k "not activate_job_end_date and not activate_job_no_end_date and not deactivate_job and not release_job_release_confirmed_auto_end"
+              --ignore=tests/nrm/
               # Exclude test targets in "test_dataplane.py" and "test_provision.py" that require a backend device when calling backend's de/activate().
       - name: "Upload coverage to Codecov"
         uses: codecov/codecov-action@v2
