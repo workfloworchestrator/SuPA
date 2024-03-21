@@ -30,11 +30,11 @@ services:
       - "8443:8443"
     configs:
       - source: application.properties
-        target: /usr/local/polynsi/application.properties
+        target: /usr/local/src/polynsi/application.properties
       - source: polynsi-keystore.jks
-        target: /usr/local/polynsi/polynsi-keystore.jks
+        target: /usr/local/src/polynsi/polynsi-keystore.jks
       - source: polynsi-truststore.jks
-        target: /usr/local/polynsi/polynsi-truststore.jks
+        target: /usr/local/src/polynsi/polynsi-truststore.jks
   #
   # create SuPA database folder
   #
