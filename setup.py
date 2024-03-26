@@ -1,8 +1,9 @@
 """Distutils/setuptools packaging information file."""
+
 import operator
 import shutil
 import sys
-from distutils.command.clean import clean  # type: ignore
+from distutils.command.clean import clean
 from fileinput import FileInput
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -123,7 +124,7 @@ class InstallCommand(install):
 class DevelopCommand(develop):
     """Support Python code generation during 'editable' package installation."""
 
-    def run(self) -> None:  # noqa: D102
+    def run(self) -> None:  # type: ignore[override] # noqa: D102
         self.run_command("gen_code")
         super().run()
 
@@ -142,5 +143,10 @@ class CleanCommand(clean):
 # to generate Python code from protobuf/gRPC definitions during installation.
 setuptools.setup(
     name="supa",
-    cmdclass={"gen_code": GenCode, "install": InstallCommand, "develop": DevelopCommand, "clean": CleanCommand},
+    cmdclass={
+        "gen_code": GenCode,
+        "install": InstallCommand,
+        "develop": DevelopCommand,
+        "clean": CleanCommand,  # type: ignore[dict-item]
+    },
 )
