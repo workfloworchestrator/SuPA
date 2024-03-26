@@ -18,7 +18,7 @@ from uuid import UUID
 from pydantic import BaseSettings
 from requests import get, post
 from requests.auth import HTTPBasicAuth
-from requests.exceptions import ConnectionError, HTTPError
+from requests.exceptions import ConnectionError, HTTPError  # noqa: A004
 from structlog.stdlib import BoundLogger
 
 from supa.connection.error import GenericRmError

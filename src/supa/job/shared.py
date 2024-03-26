@@ -223,7 +223,7 @@ def register_result(
     if type(request) == ErrorRequest:
         connection_id = request.service_exception.connection_id
     else:
-        connection_id = request.connection_id  # type: ignore[union-attr]
+        connection_id = request.connection_id
     with db_session() as session:
         try:
             # find the highest result ID for this connection ID and increment by 1
