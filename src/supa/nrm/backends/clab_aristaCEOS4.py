@@ -207,7 +207,7 @@ class Backend(BaseBackend):
                     line += resp
                     self.log.debug(resp)
                 line = b""
-                
+
                 # Enable Privileged Mode
                 self.log.debug("Enable Privileged Mode")
                 self.channel.send(COMMAND_ENABLE + line_termination)
@@ -273,6 +273,10 @@ class Backend(BaseBackend):
         circuit_id: str,
     ) -> Optional[str]:
         """Activate resources."""
+        self.log.info(
+            "Activate resources in clab_aristaCEOS4 NRM", backend=self.__module__, primitive="activate", connection_id=str(connection_id)
+        )
+
         if not src_vlan == dst_vlan:
             raise NsiException(GenericRmError, "VLANs must match")
         self._send_commands(_create_configure_commands(src_port_id, dst_port_id, dst_vlan))
@@ -299,6 +303,10 @@ class Backend(BaseBackend):
         circuit_id: str,
     ) -> Optional[str]:
         """Deactivate resources."""
+        self.log.info(
+            "Deactivate resources in clab_aristaCEOS4 NRM", backend=self.__module__, primitive="deactivate", connection_id=str(connection_id)
+        )
+
         self._send_commands(_create_delete_commands(src_port_id, dst_port_id, dst_vlan))
         self.log.info(
             "Link down",
@@ -313,6 +321,8 @@ class Backend(BaseBackend):
 
     def topology(self) -> List[STP]:
         """Read STPs from yaml file."""
+        self.log.info("get topology from clab_aristaCEOS4 NRM", backend=self.__module__, primitive="topology")
+
         stp_list_file = find_file(self.configs_dir + "/" + self.backend_settings.stps_config)
         self.log.info("Read STPs config", path=str(stp_list_file))
 
