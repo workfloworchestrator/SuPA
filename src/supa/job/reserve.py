@@ -671,7 +671,7 @@ class ReserveTimeoutJob(Job):
             self.log.debug("Sending message", method="ReserveTimeout", request_message=request)
             stub.ReserveTimeout(request)
         else:
-            register_result(request, ResultType.Error)
+            register_result(request, ResultType.Error)  # type: ignore[arg-type]
             self.log.debug("Sending message", method="Error", request_message=request)
             stub.Error(request)
 

@@ -163,7 +163,7 @@ def _register_request(
     is stored in this function.
     """
     if not connection_id and type(request) != QueryRequest:
-        connection_id = UUID(request.connection_id)
+        connection_id = UUID(request.connection_id)  # type: ignore[arg-type]
 
     from supa.db.session import db_session
 
