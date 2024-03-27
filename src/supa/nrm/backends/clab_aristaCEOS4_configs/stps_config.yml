@@ -1,0 +1,30 @@
+stps:
+  - stp_id: my_stp1                  # Required, str, Uniq ID of the STP.
+    port_id: ethernet1                  # Required, str, ID of the corresponding port.
+    vlans: "1728"                    # Required, str, VLANs part of this STP.
+    description: "my test stp 1."         # Optional, str, STP description.
+    is_alias_in: my_stp1         # Optional, str, Inbound STP ID from connected topology.
+    is_alias_out: my_stp1        # Optional, str, Outbound STP ID to connected topology.
+    bandwidth: 1000   # Required, int, Available bandwidth for this STP in Mbps.
+    enabled: True          # Optional, bool, STP status.
+
+  - stp_id: my_stp2
+    port_id: ethernet2
+    vlans: "1729"
+    description: "my test stp 2."
+    is_alias_in: my_stp2
+    is_alias_out: my_stp2
+
+  - stp_id: my_stp3
+    port_id: ethernet3
+    vlans: "1730"
+    description: "my test stp 3."
+
+  - stp_id: my_stp4
+    port_id: ethernet4
+    vlans: "1731"
+    description: "my test stp 4."
+    is_alias_in: my_stp4
+    is_alias_out: my_stp4
+    bandwidth: 1000
+    enabled: False
