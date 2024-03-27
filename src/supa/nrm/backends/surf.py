@@ -81,7 +81,7 @@ class Backend(BaseBackend):
         json = [
             {"product": self.backend_settings.product_id},
             {
-                "customer_id": self.backend_settings.customer_id,
+                "organisation": self.backend_settings.customer_id,
                 "service_ports": [
                     {
                         "subscription_id": src_port_id,
