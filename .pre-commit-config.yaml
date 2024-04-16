@@ -1,36 +1,50 @@
 repos:
   - repo: https://github.com/pre-commit/mirrors-isort
-    rev: v5.5.2
+    rev: v5.10.1
     hooks:
       - id: isort
         additional_dependencies: [toml]
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v3.2.0
+    rev: v4.5.0
     hooks:
       - id: check-json
       - id: check-merge-conflict
       - id: check-yaml
-        exclude: (charts/|.gitlab-ci.yml)
+        exclude: (chart/|.gitlab-ci.yml)
       - id: debug-statements
       - id: detect-private-key
       - id: end-of-file-fixer
       - id: trailing-whitespace
-  - repo: https://gitlab.com/pycqa/flake8
-    rev: 3.8.3
+  - repo: https://github.com/pycqa/flake8
+    rev: 4.0.1
     hooks:
       - id: flake8
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v0.782
+  - repo: local
     hooks:
       - id: mypy
-        language_version: python3
+        name: mypy
+        language: system
+        entry: "mypy"
+        types: [ python ]
+        require_serial: true
+        verbose: true
+        args:
+          - --no-warn-unused-ignores
+          - --allow-untyped-decorators
+        exclude: (tests/)
   - repo: https://github.com/pre-commit/pygrep-hooks
-    rev: v1.6.0
+    rev: v1.10.0
     hooks:
       - id: python-check-blanket-noqa
       - id: python-use-type-annotations
   - repo: https://github.com/ambv/black
-    rev: 20.8b1
+    rev: 24.3.0
     hooks:
       - id: black
         language_version: python3.8
+  - repo: https://github.com/jazzband/pip-tools
+    rev: 7.4.1
+    hooks:
+      - id: pip-compile
+        files: ^setup.cfg$
+        args: [--output-file, requirements.txt, --strip-extras, setup.cfg]

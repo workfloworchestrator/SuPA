@@ -126,4 +126,4 @@ src/supa/grpc_nsi
 *.db-wal
 
 # SuPA docker compose database folder
-**/db/ 
+**/db/
