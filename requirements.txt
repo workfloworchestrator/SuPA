@@ -32,7 +32,7 @@ grpcio-tools==1.62.1
     # via supa (setup.cfg)
 htmlgen==2.0.0
     # via supa (setup.cfg)
-idna==3.6
+idna==3.7
     # via requests
 importlib-metadata==7.1.0
     # via typeguard
