@@ -40,7 +40,7 @@ importlib-resources==6.4.0
     # via jaraco-text
 inflect==7.2.0
     # via jaraco-text
-jaraco-collections==5.0.0
+jaraco-collections==5.0.1
     # via cherrypy
 jaraco-context==5.3.0
     # via jaraco-text
