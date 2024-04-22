@@ -44,7 +44,7 @@ jaraco-collections==5.0.1
     # via cherrypy
 jaraco-context==5.3.0
     # via jaraco-text
-jaraco-functools==4.0.0
+jaraco-functools==4.0.1
     # via
     #   cheroot
     #   jaraco-text
