@@ -24,7 +24,7 @@ click==8.1.7
     # via supa (setup.cfg)
 colorama==0.4.6
     # via supa (setup.cfg)
-grpcio==1.62.1
+grpcio==1.62.2
     # via
     #   grpcio-tools
     #   supa (setup.cfg)
