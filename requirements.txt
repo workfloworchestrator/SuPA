@@ -8,7 +8,7 @@ apscheduler==3.6.3
     # via supa (setup.cfg)
 autocommand==2.2.2
     # via jaraco-text
-backports-tarfile==1.0.0
+backports-tarfile==1.1.1
     # via jaraco-context
 backports-zoneinfo==0.2.1
     # via tzlocal
