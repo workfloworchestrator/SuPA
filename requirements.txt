@@ -53,7 +53,7 @@ jaraco-text==3.12.0
     # via jaraco-collections
 lxml==4.9.4
     # via supa (setup.cfg)
-lxml-stubs==0.4.0
+lxml-stubs==0.5.1
     # via supa (setup.cfg)
 more-itertools==10.2.0
     # via
