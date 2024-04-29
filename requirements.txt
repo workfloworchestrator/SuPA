@@ -38,7 +38,7 @@ importlib-metadata==7.1.0
     # via typeguard
 importlib-resources==6.4.0
     # via jaraco-text
-inflect==7.2.0
+inflect==7.2.1
     # via jaraco-text
 jaraco-collections==5.0.1
     # via cherrypy
