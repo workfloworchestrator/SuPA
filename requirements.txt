@@ -16,7 +16,7 @@ certifi==2024.2.2
     # via requests
 charset-normalizer==3.3.2
     # via requests
-cheroot==10.0.0
+cheroot==10.0.1
     # via cherrypy
 cherrypy==18.9.0
     # via supa (setup.cfg)
