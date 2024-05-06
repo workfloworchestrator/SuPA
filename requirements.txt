@@ -28,7 +28,7 @@ grpcio==1.62.2
     # via
     #   grpcio-tools
     #   supa (setup.cfg)
-grpcio-tools==1.62.2
+grpcio-tools==1.63.0
     # via supa (setup.cfg)
 htmlgen==2.0.0
     # via supa (setup.cfg)
