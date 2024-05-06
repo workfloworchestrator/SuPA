@@ -67,7 +67,7 @@ mypy-protobuf==3.2.0
     # via supa (setup.cfg)
 portend==3.2.0
     # via cherrypy
-protobuf==4.21.12
+protobuf==5.26.1
     # via
     #   grpcio-tools
     #   mypy-protobuf
