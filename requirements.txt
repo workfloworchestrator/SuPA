@@ -24,11 +24,11 @@ click==8.1.7
     # via supa (setup.cfg)
 colorama==0.4.6
     # via supa (setup.cfg)
-grpcio==1.62.2
+grpcio==1.63.0
     # via
     #   grpcio-tools
     #   supa (setup.cfg)
-grpcio-tools==1.62.2
+grpcio-tools==1.63.0
     # via supa (setup.cfg)
 htmlgen==2.0.0
     # via supa (setup.cfg)
@@ -63,11 +63,11 @@ more-itertools==10.2.0
     #   jaraco-functools
     #   jaraco-text
     #   supa (setup.cfg)
-mypy-protobuf==3.2.0
+mypy-protobuf==3.6.0
     # via supa (setup.cfg)
 portend==3.2.0
     # via cherrypy
-protobuf==4.21.12
+protobuf==5.26.1
     # via
     #   grpcio-tools
     #   mypy-protobuf
