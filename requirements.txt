@@ -63,7 +63,7 @@ more-itertools==10.2.0
     #   jaraco-functools
     #   jaraco-text
     #   supa (setup.cfg)
-mypy-protobuf==3.2.0
+mypy-protobuf==3.6.0
     # via supa (setup.cfg)
 portend==3.2.0
     # via cherrypy
