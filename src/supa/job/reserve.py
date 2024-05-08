@@ -301,7 +301,8 @@ class ReserveJob(Job):
                     .joinedload(Path.segments)
                     .joinedload(Segment.stps),
                 )
-                .get(self.connection_id)
+                .filter(Reservation.connection_id == self.connection_id)
+                .one()
             )
             rsm = ReservationStateMachine(reservation, state_field="reservation_state")
 
