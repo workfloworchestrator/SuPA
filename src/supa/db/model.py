@@ -79,9 +79,8 @@ from sqlalchemy import (
 from sqlalchemy.dialects import sqlite
 from sqlalchemy.engine import Dialect
 from sqlalchemy.exc import DontWrapMixin
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.ext.orderinglist import ordering_list
-from sqlalchemy.orm import object_session, relationship
+from sqlalchemy.orm import declarative_base, object_session, relationship
 from sqlalchemy.orm.state import InstanceState
 
 from supa.connection.fsm import (
@@ -105,6 +104,8 @@ class Uuid(TypeDecorator):
     """
 
     impl = sqlite.CHAR(36)
+
+    cache_ok = True
 
     def process_bind_param(self, value: Optional[uuid.UUID], dialect: Dialect) -> Optional[str]:  # noqa: D102
         if value is not None:
@@ -167,6 +168,8 @@ class UtcTimestamp(TypeDecorator):
     """
 
     impl = sqlite.DATETIME(truncate_microseconds=False)
+
+    cache_ok = True
 
     def process_bind_param(self, value: Optional[datetime], dialect: Dialect) -> Optional[datetime]:  # noqa: D102
         if value is not None:
