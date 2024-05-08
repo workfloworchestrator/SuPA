@@ -85,9 +85,7 @@ pytz==2024.1
 requests==2.31.0
     # via supa (setup.cfg)
 six==1.16.0
-    # via
-    #   apscheduler
-    #   structlog
+    # via apscheduler
 sqlalchemy==1.3.24
     # via supa (setup.cfg)
 structlog==24.1.0
