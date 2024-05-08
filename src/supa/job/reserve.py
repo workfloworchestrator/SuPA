@@ -22,7 +22,7 @@ from uuid import UUID
 import structlog
 from apscheduler.triggers.date import DateTrigger
 from more_itertools import flatten
-from sqlalchemy import and_, func, or_, orm
+from sqlalchemy import and_, func, or_, orm, select
 from sqlalchemy.orm import aliased, joinedload
 from statemachine.exceptions import TransitionNotAllowed
 from structlog.stdlib import BoundLogger
@@ -148,19 +148,16 @@ class ReserveJob(Job):
         # The other part is for joining the overlapping ones with our (current) reservation.
         CurrentReservation = aliased(Reservation, name="cr")
         overlap_active = (
+            select(Reservation)
             # The other part
-            session.query(Reservation)
             .join(
-                (
-                    CurrentReservation,
-                    # Do they overlap?
-                    and_(
-                        CurrentReservation.start_time < Reservation.end_time,
-                        CurrentReservation.end_time > Reservation.start_time,
-                    ),
-                )
-            )
-            .filter(
+                CurrentReservation,
+                # Do they overlap?
+                and_(
+                    CurrentReservation.start_time < Reservation.end_time,
+                    CurrentReservation.end_time > Reservation.start_time,
+                ),
+            ).filter(
                 # Only select active reservations
                 or_(
                     and_(
