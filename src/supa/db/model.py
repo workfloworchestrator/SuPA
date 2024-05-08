@@ -79,9 +79,8 @@ from sqlalchemy import (
 from sqlalchemy.dialects import sqlite
 from sqlalchemy.engine import Dialect
 from sqlalchemy.exc import DontWrapMixin
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.ext.orderinglist import ordering_list
-from sqlalchemy.orm import object_session, relationship
+from sqlalchemy.orm import declarative_base, object_session, relationship
 from sqlalchemy.orm.state import InstanceState
 
 from supa.connection.fsm import (
