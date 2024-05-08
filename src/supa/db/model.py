@@ -106,6 +106,8 @@ class Uuid(TypeDecorator):
 
     impl = sqlite.CHAR(36)
 
+    cache_ok = True
+
     def process_bind_param(self, value: Optional[uuid.UUID], dialect: Dialect) -> Optional[str]:  # noqa: D102
         if value is not None:
             if not isinstance(value, uuid.UUID):
@@ -167,6 +169,8 @@ class UtcTimestamp(TypeDecorator):
     """
 
     impl = sqlite.DATETIME(truncate_microseconds=False)
+
+    cache_ok = True
 
     def process_bind_param(self, value: Optional[datetime], dialect: Dialect) -> Optional[datetime]:  # noqa: D102
         if value is not None:
