@@ -115,6 +115,7 @@ class Backend(BaseBackend):
     def _get_ssh_shell(self) -> None:
         self.sshclient = paramiko.SSHClient()
         self.sshclient.load_system_host_keys()
+        self.log.warning("paramiko is set to automatically accept host keys, this is unsafe!")
         self.sshclient.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         privkey = None
 
