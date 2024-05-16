@@ -177,7 +177,7 @@ class Backend(BaseBackend):
             while not line.decode("utf-8").endswith("prism-core(s1)#"):
                 resp = self.channel.recv(999)
                 line += resp
-                self.log.debug(resp)
+                self.log.debug(resp.decode("utf-8"))
 
             line = b""
             self.log.debug("Starting Config")
@@ -185,7 +185,7 @@ class Backend(BaseBackend):
             while not line.decode("utf-8").endswith("prism-core(s1)(config)#"):
                 resp = self.channel.recv(999)
                 line += resp
-                self.log.debug(resp)
+                self.log.debug(resp.decode("utf-8"))
             line = b""
 
             self.log.debug("Entered configure mode")
@@ -195,7 +195,7 @@ class Backend(BaseBackend):
                 while not line.decode("utf-8").endswith(")#"):
                     resp = self.channel.recv(999)
                     line += resp
-                    self.log.debug(resp)
+                    self.log.debug(resp.decode("utf-8"))
 
                 # self.log.debug(line)
                 line = b""
@@ -205,7 +205,7 @@ class Backend(BaseBackend):
             while not line.decode("utf-8").endswith("prism-core(s1)#"):
                 resp = self.channel.recv(999)
                 line += resp
-                self.log.debug(resp)
+                self.log.debug(resp.decode("utf-8"))
 
             line = b""
             self.log.debug("Exited configure mode; saving config")
@@ -213,7 +213,7 @@ class Backend(BaseBackend):
             while not line.decode("utf-8").endswith("prism-core(s1)#"):
                 resp = self.channel.recv(999)
                 line += resp
-                self.log.debug(resp)
+                self.log.debug(resp.decode("utf-8"))
 
         except Exception as exception:
             self._close_ssh_shell()
