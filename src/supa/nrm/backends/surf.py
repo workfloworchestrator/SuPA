@@ -175,19 +175,21 @@ class Backend(BaseBackend):
         except ConnectionError as con_err:
             self.log.warning("cannot get process status", reason=str(con_err))
             raise NsiException(GenericRmError, str(con_err)) from con_err
-        self.log.debug("process status", process_status=process.json()["status"])
+        self.log.debug("process status", process_status=process.json()["last_status"])
         return process.json()
 
     def _wait_for_completion(self, process_id: str) -> None:
         log = self.log.bind(process_id=process_id)
         sleep(1)
-        while (info := self._get_process_info(process_id))["status"] == "created" or info["status"] == "running":
-            log.debug("waiting on workflow to finish", status=info["status"])
+        while (info := self._get_process_info(process_id))["last_status"] == "created" or info[
+            "last_status"
+        ] == "running":
+            log.debug("waiting on workflow to finish", status=info["last_status"])
             sleep(3)
-        if info["status"] == "completed":
-            log.info("workflow finished", status=info["status"])
+        if info["last_status"] == "completed":
+            log.info("workflow finished", status=info["last_status"])
         else:
-            log.warning("workflow process failed", status=info["status"], reason=info["failed_reason"])
+            log.warning("workflow process failed", status=info["last_status"], reason=info["failed_reason"])
             raise NsiException(GenericRmError, info["failed_reason"]) from None
 
     def _get_subscription_id(self, process_id: str) -> str:
@@ -196,7 +198,7 @@ class Backend(BaseBackend):
             f"{self.backend_settings.base_url}/api/processes/{process_id}",
             headers={"Authorization": f"bearer {access_token}"},
         )
-        self.log.debug("process status", process_status=process.json()["status"])
+        self.log.debug("process status", process_status=process.json()["last_status"])
         return str(process.json()["current_state"]["subscription"]["subscription_id"])
 
     def _get_nsi_stp_subscriptions(self) -> Any:
