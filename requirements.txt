@@ -123,7 +123,7 @@ urllib3==2.2.1
     # via requests
 zc-lockfile==3.0.post1
     # via cherrypy
-zipp==3.18.2
+zipp==3.19.0
     # via
     #   importlib-metadata
     #   importlib-resources
