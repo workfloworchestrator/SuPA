@@ -4,7 +4,7 @@
 #
 #    pip-compile --output-file=requirements.txt --strip-extras setup.cfg
 #
-apscheduler==3.6.3
+apscheduler==3.10.4
     # via supa (setup.cfg)
 autocommand==2.2.2
     # via jaraco-text
