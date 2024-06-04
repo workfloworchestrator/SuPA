@@ -100,7 +100,7 @@ requests==2.32.2
     # via supa (setup.cfg)
 six==1.16.0
     # via apscheduler
-sqlalchemy==1.4.52
+sqlalchemy==2.0.30
     # via supa (setup.cfg)
 structlog==24.1.0
     # via supa (setup.cfg)
@@ -116,6 +116,7 @@ typing-extensions==4.12.0
     # via
     #   inflect
     #   pydantic
+    #   sqlalchemy
     #   typeguard
 tzlocal==5.2
     # via apscheduler
