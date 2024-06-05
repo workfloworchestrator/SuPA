@@ -397,7 +397,5 @@ class AutoEndJob(Job):
         from supa.db.session import db_session
 
         with db_session() as session:
-            reservation = (
-                session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one_or_none()
-            )
+            reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
             return DateTrigger(run_date=reservation.end_time)

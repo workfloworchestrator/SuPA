@@ -455,7 +455,7 @@ def init_app(with_scheduler: bool = True) -> None:
 
     Base.metadata.create_all(engine)
     session_factory = sessionmaker(bind=engine)
-    supa.db.session.Session = scoped_session(session_factory)
+    supa.db.session.Session = scoped_session(session_factory)  # type: ignore[assignment]
 
     import supa.nrm.backend
 

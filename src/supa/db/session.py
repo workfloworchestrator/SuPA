@@ -52,7 +52,7 @@ from supa import settings
 logger = structlog.get_logger(__name__)
 
 
-@event.listens_for(Engine, "connect")  # type: ignore
+@event.listens_for(Engine, "connect")
 def set_sqlite_pragma(dbapi_connection: sqlite3.Connection, connection_record: _ConnectionRecord) -> None:
     """Configure certain SQLite settings.
 
@@ -147,7 +147,7 @@ def db_session() -> Iterator[scoped_session]:
     session = None
     try:
         session = Session()
-        yield session
+        yield session  # type: ignore
         session.commit()
     except BaseException:
         logger.error("An exception occurred while doing DB work. Rolling back.")

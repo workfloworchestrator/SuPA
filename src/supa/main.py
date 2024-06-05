@@ -487,12 +487,12 @@ def stp_list(only: Optional[str]) -> None:
     from supa.db.session import db_session
 
     with db_session() as session:
-        stps = session.query(Topology)
+        topology = session.query(Topology)
         if only == "enabled":
-            stps = stps.filter(Topology.enabled.is_(True))
+            topology = topology.filter(Topology.enabled.is_(True))
         elif only == "disabled":
-            stps = stps.filter(Topology.enabled.is_(False))
-        stps = stps.values(
+            topology = topology.filter(Topology.enabled.is_(False))
+        stps = topology.with_entities(
             Topology.stp_id,
             Topology.port_id,
             Topology.vlans,
@@ -614,7 +614,7 @@ def reservation_list(only: Optional[str], order_by: str) -> None:
             reservations = reservations.order_by(Reservation.start_time)
         elif order_by == "end_time":
             reservations = reservations.order_by(Reservation.end_time)
-        reservations = reservations.values(
+        reservation_entities = reservations.with_entities(
             Reservation.connection_id,
             Reservation.start_time,
             Reservation.end_time,
@@ -627,10 +627,9 @@ def reservation_list(only: Optional[str], order_by: str) -> None:
             Reservation.reservation_state,
             Reservation.provision_state,
         )
-        reservations = tuple(reservations)
     click.echo(
         tabulate(
-            reservations,
+            tuple(reservation_entities),
             headers=(
                 "connection id",
                 "start time",
@@ -678,7 +677,7 @@ def connection_list(only: Optional[str], order_by: str) -> None:
             connections = connections.order_by(Reservation.start_time)
         elif order_by == "end_time":
             connections = connections.order_by(Reservation.end_time)
-        connections = connections.values(
+        connection_entities = connections.with_entities(
             Connection.connection_id,
             Connection.circuit_id,
             Reservation.start_time,
@@ -689,10 +688,9 @@ def connection_list(only: Optional[str], order_by: str) -> None:
             Connection.dst_vlan,
             Connection.bandwidth,
         )
-        connections = tuple(connections)
     click.echo(
         tabulate(
-            connections,
+            tuple(connection_entities),
             headers=(
                 "connection id",
                 "circuit id",

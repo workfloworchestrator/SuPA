@@ -94,7 +94,7 @@ def to_header(reservation: model.Reservation, *, add_path_segment: bool = False)
             segment: model.Segment
             for segment in path.segments:
                 pb_segment = pb_path.segments.add()
-                pb_segment.id = segment.segment.id
+                pb_segment.id = segment.segment_id
                 pb_segment.connection_id = segment.upa_connection_id
                 stp: model.Stp
                 for stp in segment.stps:

@@ -22,8 +22,8 @@ from uuid import UUID
 import structlog
 from apscheduler.triggers.date import DateTrigger
 from more_itertools import flatten
-from sqlalchemy import and_, func, or_, orm, select
-from sqlalchemy.orm import aliased, joinedload
+from sqlalchemy import and_, func, or_, select
+from sqlalchemy.orm import aliased, joinedload, scoped_session
 from statemachine.exceptions import TransitionNotAllowed
 from structlog.stdlib import BoundLogger
 
@@ -112,7 +112,7 @@ class ReserveJob(Job):
         self.src_port_id: str = ""
         self.dst_port_id: str = ""
 
-    def _stp_resources_in_use(self, session: orm.Session) -> Dict[str, StpResources]:
+    def _stp_resources_in_use(self, session: scoped_session) -> Dict[str, StpResources]:
         """Calculate STP resources in use for active reservations that overlap with ours.
 
         Active reservations being those that:
@@ -221,7 +221,7 @@ class ReserveJob(Job):
             rec.stp: StpResources(bandwidth=rec.bandwidth, vlans=VlanRanges(rec.vlans)) for rec in stp_resources_in_use
         }
 
-    def _process_stp(self, target: str, var: Variable, reservation: Reservation, session: orm.Session) -> None:
+    def _process_stp(self, target: str, var: Variable, reservation: Reservation, session: scoped_session) -> None:
         """Check validity of STP and select available VLAN.
 
         Target can be either "src" or "dst".
@@ -438,12 +438,12 @@ class ReserveCommitJob(Job):
                     connection.circuit_id = circuit_id
             except NsiException as nsi_exc:
                 self.log.info("Reserve commit failed.", reason=nsi_exc.text)
-                request = to_generic_failed_request(session, nsi_exc)
+                request = to_generic_failed_request(reservation, nsi_exc)
                 rsm.reserve_commit_failed()
             except Exception as exc:
                 self.log.exception("Unexpected error occurred.", reason=str(exc))
                 nsi_exc = NsiException(GenericInternalError, str(exc))  # type: ignore[misc]
-                request = to_generic_failed_request(session, nsi_exc)  # type: ignore[misc]
+                request = to_generic_failed_request(reservation, nsi_exc)  # type: ignore[misc]
                 rsm.reserve_commit_failed()
             else:
                 request = to_generic_confirmed_request(reservation)

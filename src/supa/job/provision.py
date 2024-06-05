@@ -88,7 +88,7 @@ class ProvisionJob(Job):
                         GenericInternalError,
                         str(exc),
                         {
-                            Variable.PROVISION_STATE: reservation.provsion_state,
+                            Variable.PROVISION_STATE: reservation.provision_state,
                             Variable.CONNECTION_ID: str(self.connection_id),
                         },
                     ),
@@ -257,7 +257,7 @@ class ReleaseJob(Job):
                         GenericInternalError,
                         str(exc),
                         {
-                            Variable.PROVISION_STATE: reservation.provsion_state,
+                            Variable.PROVISION_STATE: reservation.provision_state,
                             Variable.CONNECTION_ID: str(self.connection_id),
                         },
                     ),
