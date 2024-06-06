@@ -4,6 +4,8 @@
 #
 #    pip-compile --output-file=requirements.txt --strip-extras setup.cfg
 #
+annotated-types==0.7.0
+    # via pydantic
 apscheduler==3.10.4
     # via supa (setup.cfg)
 autocommand==2.2.2
@@ -30,13 +32,13 @@ click==8.1.7
     # via supa (setup.cfg)
 colorama==0.4.6
     # via supa (setup.cfg)
-cryptography==42.0.7
+cryptography==42.0.8
     # via paramiko
-grpcio==1.64.0
+grpcio==1.64.1
     # via
     #   grpcio-tools
     #   supa (setup.cfg)
-grpcio-tools==1.64.0
+grpcio-tools==1.64.1
     # via supa (setup.cfg)
 htmlgen==2.0.0
     # via supa (setup.cfg)
@@ -84,12 +86,16 @@ protobuf==5.27.0
     #   supa (setup.cfg)
 pycparser==2.22
     # via cffi
-pydantic==1.10.15
+pydantic==2.7.3
+    # via pydantic-settings
+pydantic-core==2.18.4
+    # via pydantic
+pydantic-settings==2.3.1
     # via supa (setup.cfg)
 pynacl==1.5.0
     # via paramiko
 python-dotenv==1.0.1
-    # via pydantic
+    # via pydantic-settings
 python-statemachine==0.8.0
     # via supa (setup.cfg)
 pytz==2024.1
@@ -114,8 +120,10 @@ types-protobuf==5.26.0.20240422
     # via mypy-protobuf
 typing-extensions==4.12.1
     # via
+    #   annotated-types
     #   inflect
     #   pydantic
+    #   pydantic-core
     #   sqlalchemy
     #   typeguard
 tzlocal==5.2

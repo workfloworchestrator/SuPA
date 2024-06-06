@@ -15,7 +15,7 @@ from time import sleep
 from typing import Any, List
 from uuid import UUID
 
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings
 from requests import get, post
 from requests.auth import HTTPBasicAuth
 from requests.exceptions import ConnectionError, HTTPError  # noqa: A004
