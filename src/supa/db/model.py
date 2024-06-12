@@ -262,13 +262,13 @@ class Reservation(Base):
     reservation_state = mapped_column(
         Enum(*[s.value for s in ReservationStateMachine.states]),
         nullable=False,
-        default=ReservationStateMachine.ReserveStart.value,
+        default=ReservationStateMachine.ReserveStart.value,  # type: ignore[has-type]
     )
     provision_state = mapped_column(Enum(*[s.value for s in ProvisionStateMachine.states]))
     lifecycle_state = mapped_column(
         Enum(*[s.value for s in LifecycleStateMachine.states]),
         nullable=False,
-        default=LifecycleStateMachine.Created.value,
+        default=LifecycleStateMachine.Created.value,  # type: ignore[has-type]
     )
     data_plane_state = mapped_column(Enum(*[s.value for s in DataPlaneStateMachine.states]))
     # need this because the reservation state machine is missing a state

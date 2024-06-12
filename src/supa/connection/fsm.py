@@ -44,8 +44,19 @@ from structlog.stdlib import BoundLogger
 logger = structlog.get_logger(__name__)
 
 
-class SuPAStateMachine(StateMachine):
-    """Add logging capabilities to StateMachine."""
+class SuPAStateMachine:
+    """Add logging capabilities to StateMachine.
+
+    The python-statemachine version 0.x allowed class Statemachine to be used as a base class like this:
+
+        class SuPAStateMachine(StateMachine)
+
+    But version 1.x wil trigger a "statemachine.exceptions.InvalidDefinition: There are no states." exception
+    when there are no states defined in the StateMachine derived class, this is why, for now,
+    we use multiple inheritance to override the methods, like in:
+
+        class ReservationStateMachine(SuPAStateMachine, StateMachine)
+    """
 
     log: BoundLogger
 
@@ -57,10 +68,11 @@ class SuPAStateMachine(StateMachine):
     def on_enter_state(self, state: State) -> None:
         """Statemachine will call this function on every state transition."""
         if isinstance(state, State):
-            self.log.info("State transition", to_state=state.identifier, connection_id=str(self.model.connection_id))
+            connection_id = self.model.connection_id  # type: ignore[attr-defined]
+            self.log.info("State transition", to_state=state.id, connection_id=str(connection_id))
 
 
-class ReservationStateMachine(SuPAStateMachine):
+class ReservationStateMachine(SuPAStateMachine, StateMachine):
     """Reservation State Machine.
 
     .. image:: /images/ReservationStateMachine.png
@@ -87,7 +99,7 @@ class ReservationStateMachine(SuPAStateMachine):
     )
 
 
-class ProvisionStateMachine(SuPAStateMachine):
+class ProvisionStateMachine(SuPAStateMachine, StateMachine):
     """Provision State Machine.
 
     .. image:: /images/ProvisionStateMachine.png
@@ -104,7 +116,7 @@ class ProvisionStateMachine(SuPAStateMachine):
     release_confirmed = Releasing.to(Released)
 
 
-class LifecycleStateMachine(SuPAStateMachine):
+class LifecycleStateMachine(SuPAStateMachine, StateMachine):
     """Lifecycle State Machine.
 
     .. image:: /images/LifecycleStateMachine.png
@@ -114,7 +126,7 @@ class LifecycleStateMachine(SuPAStateMachine):
     Failed = State("Failed", "FAILED")
     Terminating = State("Terminating", "TERMINATING")
     PassedEndTime = State("PassedEndTime", "PASSED_END_TIME")
-    Terminated = State("Terminated", "TERMINATED")
+    Terminated = State("Terminated", "TERMINATED", final=True)
 
     forced_end_notification = Created.to(Failed)
     terminate_request = Created.to(Terminating) | PassedEndTime.to(Terminating) | Failed.to(Terminating)
@@ -122,7 +134,7 @@ class LifecycleStateMachine(SuPAStateMachine):
     terminate_confirmed = Terminating.to(Terminated)
 
 
-class DataPlaneStateMachine(SuPAStateMachine):
+class DataPlaneStateMachine(SuPAStateMachine, StateMachine):
     """DataPlane State Machine.
 
     .. image:: /images/DataPlaneStateMachine.png
@@ -134,8 +146,8 @@ class DataPlaneStateMachine(SuPAStateMachine):
     Activated = State("Activated", "ACTIVATED")
     AutoEnd = State("AutoEnd", "AUTO_END")
     Deactivating = State("Deactivating", "DEACTIVATING")
-    ActivateFailed = State("ActivateFailed", "ACTIVATE_FAILED")
-    DeactivateFailed = State("DeactivateFailed", "DEACTIVATE_FAILED")
+    ActivateFailed = State("ActivateFailed", "ACTIVATE_FAILED", final=True)
+    DeactivateFailed = State("DeactivateFailed", "DEACTIVATE_FAILED", final=True)
 
     auto_start_request = Deactivated.to(AutoStart)
     activate_request = Deactivated.to(Activating) | AutoStart.to(Activating)
