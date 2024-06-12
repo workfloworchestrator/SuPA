@@ -96,7 +96,7 @@ pynacl==1.5.0
     # via paramiko
 python-dotenv==1.0.1
     # via pydantic-settings
-python-statemachine==1.0.3
+python-statemachine==2.3.1
     # via supa (setup.cfg)
 pytz==2024.1
     # via
