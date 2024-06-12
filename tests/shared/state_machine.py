@@ -16,7 +16,7 @@ def is_reserve_start(connection_id: UUID) -> Any:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        return ReservationStateMachine(reservation, state_field="reservation_state").is_ReserveStart
+        return ReservationStateMachine(reservation, state_field="reservation_state").ReserveStart.is_active
 
 
 def is_reserve_failed(connection_id: UUID) -> Any:
@@ -25,7 +25,7 @@ def is_reserve_failed(connection_id: UUID) -> Any:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        return ReservationStateMachine(reservation, state_field="reservation_state").is_ReserveFailed
+        return ReservationStateMachine(reservation, state_field="reservation_state").ReserveFailed.is_active
 
 
 def is_reserve_committing(connection_id: UUID) -> Any:
@@ -34,7 +34,7 @@ def is_reserve_committing(connection_id: UUID) -> Any:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        return ReservationStateMachine(reservation, state_field="reservation_state").is_ReserveCommitting
+        return ReservationStateMachine(reservation, state_field="reservation_state").ReserveCommitting.is_active
 
 
 def is_reserve_held(connection_id: UUID) -> Any:
@@ -43,7 +43,7 @@ def is_reserve_held(connection_id: UUID) -> Any:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        return ReservationStateMachine(reservation, state_field="reservation_state").is_ReserveHeld
+        return ReservationStateMachine(reservation, state_field="reservation_state").ReserveHeld.is_active
 
 
 def is_reserve_checking(connection_id: UUID) -> Any:
@@ -52,7 +52,7 @@ def is_reserve_checking(connection_id: UUID) -> Any:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        return ReservationStateMachine(reservation, state_field="reservation_state").is_ReserveChecking
+        return ReservationStateMachine(reservation, state_field="reservation_state").ReserveChecking.is_active
 
 
 def is_reserve_aborting(connection_id: UUID) -> Any:
@@ -61,7 +61,7 @@ def is_reserve_aborting(connection_id: UUID) -> Any:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        return ReservationStateMachine(reservation, state_field="reservation_state").is_ReserveAborting
+        return ReservationStateMachine(reservation, state_field="reservation_state").ReserveAborting.is_active
 
 
 def is_reserve_timeout(connection_id: UUID) -> Any:
@@ -70,7 +70,7 @@ def is_reserve_timeout(connection_id: UUID) -> Any:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        return ReservationStateMachine(reservation, state_field="reservation_state").is_ReserveTimeout
+        return ReservationStateMachine(reservation, state_field="reservation_state").ReserveTimeout.is_active
 
 
 def is_released(connection_id: UUID) -> Any:
@@ -79,7 +79,7 @@ def is_released(connection_id: UUID) -> Any:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        return ProvisionStateMachine(reservation, state_field="provision_state").is_Released
+        return ProvisionStateMachine(reservation, state_field="provision_state").Released.is_active
 
 
 def is_provisioning(connection_id: UUID) -> Any:
@@ -88,7 +88,7 @@ def is_provisioning(connection_id: UUID) -> Any:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        return ProvisionStateMachine(reservation, state_field="provision_state").is_Provisioning
+        return ProvisionStateMachine(reservation, state_field="provision_state").Provisioning.is_active
 
 
 def is_provisioned(connection_id: UUID) -> Any:
@@ -97,7 +97,7 @@ def is_provisioned(connection_id: UUID) -> Any:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        return ProvisionStateMachine(reservation, state_field="provision_state").is_Provisioned
+        return ProvisionStateMachine(reservation, state_field="provision_state").Provisioned.is_active
 
 
 def is_releasing(connection_id: UUID) -> Any:
@@ -106,7 +106,7 @@ def is_releasing(connection_id: UUID) -> Any:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        return ProvisionStateMachine(reservation, state_field="provision_state").is_Releasing
+        return ProvisionStateMachine(reservation, state_field="provision_state").Releasing.is_active
 
 
 def is_deactivated(connection_id: UUID) -> Any:
@@ -115,7 +115,7 @@ def is_deactivated(connection_id: UUID) -> Any:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        return DataPlaneStateMachine(reservation, state_field="data_plane_state").is_Deactivated
+        return DataPlaneStateMachine(reservation, state_field="data_plane_state").Deactivated.is_active
 
 
 def is_auto_start(connection_id: UUID) -> Any:
@@ -124,7 +124,7 @@ def is_auto_start(connection_id: UUID) -> Any:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        return DataPlaneStateMachine(reservation, state_field="data_plane_state").is_AutoStart
+        return DataPlaneStateMachine(reservation, state_field="data_plane_state").AutoStart.is_active
 
 
 def is_activating(connection_id: UUID) -> Any:
@@ -133,7 +133,7 @@ def is_activating(connection_id: UUID) -> Any:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        return DataPlaneStateMachine(reservation, state_field="data_plane_state").is_Activating
+        return DataPlaneStateMachine(reservation, state_field="data_plane_state").Activating.is_active
 
 
 def is_activated(connection_id: UUID) -> Any:
@@ -142,7 +142,7 @@ def is_activated(connection_id: UUID) -> Any:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        return DataPlaneStateMachine(reservation, state_field="data_plane_state").is_Activated
+        return DataPlaneStateMachine(reservation, state_field="data_plane_state").Activated.is_active
 
 
 def is_auto_end(connection_id: UUID) -> Any:
@@ -151,7 +151,7 @@ def is_auto_end(connection_id: UUID) -> Any:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        return DataPlaneStateMachine(reservation, state_field="data_plane_state").is_AutoEnd
+        return DataPlaneStateMachine(reservation, state_field="data_plane_state").AutoEnd.is_active
 
 
 def is_deactivating(connection_id: UUID) -> Any:
@@ -160,7 +160,7 @@ def is_deactivating(connection_id: UUID) -> Any:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        return DataPlaneStateMachine(reservation, state_field="data_plane_state").is_Deactivating
+        return DataPlaneStateMachine(reservation, state_field="data_plane_state").Deactivating.is_active
 
 
 def is_activate_failed(connection_id: UUID) -> Any:
@@ -169,7 +169,7 @@ def is_activate_failed(connection_id: UUID) -> Any:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        return DataPlaneStateMachine(reservation, state_field="data_plane_state").is_ActivateFailed
+        return DataPlaneStateMachine(reservation, state_field="data_plane_state").ActivateFailed.is_active
 
 
 def is_deactivate_failed(connection_id: UUID) -> Any:
@@ -178,7 +178,7 @@ def is_deactivate_failed(connection_id: UUID) -> Any:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        return DataPlaneStateMachine(reservation, state_field="data_plane_state").is_DeactivateFailed
+        return DataPlaneStateMachine(reservation, state_field="data_plane_state").DeactivateFailed.is_active
 
 
 def is_created(connection_id: UUID) -> Any:
@@ -187,7 +187,7 @@ def is_created(connection_id: UUID) -> Any:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        return LifecycleStateMachine(reservation, state_field="lifecycle_state").is_Created
+        return LifecycleStateMachine(reservation, state_field="lifecycle_state").Created.is_active
 
 
 def is_failed(connection_id: UUID) -> Any:
@@ -196,7 +196,7 @@ def is_failed(connection_id: UUID) -> Any:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        return LifecycleStateMachine(reservation, state_field="lifecycle_state").is_Failed
+        return LifecycleStateMachine(reservation, state_field="lifecycle_state").Failed.is_active
 
 
 def is_terminating(connection_id: UUID) -> Any:
@@ -205,7 +205,7 @@ def is_terminating(connection_id: UUID) -> Any:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        return LifecycleStateMachine(reservation, state_field="lifecycle_state").is_Terminating
+        return LifecycleStateMachine(reservation, state_field="lifecycle_state").Terminating.is_active
 
 
 def is_passed_end_time(connection_id: UUID) -> Any:
@@ -214,7 +214,7 @@ def is_passed_end_time(connection_id: UUID) -> Any:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        return LifecycleStateMachine(reservation, state_field="lifecycle_state").is_PassedEndTime
+        return LifecycleStateMachine(reservation, state_field="lifecycle_state").PassedEndTime.is_active
 
 
 def is_terminated(connection_id: UUID) -> Any:
@@ -223,4 +223,4 @@ def is_terminated(connection_id: UUID) -> Any:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        return LifecycleStateMachine(reservation, state_field="lifecycle_state").is_Terminated
+        return LifecycleStateMachine(reservation, state_field="lifecycle_state").Terminated.is_active

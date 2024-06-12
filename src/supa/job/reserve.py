@@ -630,7 +630,7 @@ class ReserveTimeoutJob(Job):
                 self.log.info(
                     "Reserve timeout failed",
                     reason=str(tna),
-                    state=rsm.current_state.identifier,
+                    state=rsm.current_state.id,
                     connection_id=str(self.connection_id),
                 )
                 return
