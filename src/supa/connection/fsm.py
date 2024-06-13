@@ -44,19 +44,8 @@ from structlog.stdlib import BoundLogger
 logger = structlog.get_logger(__name__)
 
 
-class SuPAStateMachine:
-    """Add logging capabilities to StateMachine.
-
-    The python-statemachine version 0.x allowed class Statemachine to be used as a base class like this:
-
-        class SuPAStateMachine(StateMachine)
-
-    But version 1.x wil trigger a "statemachine.exceptions.InvalidDefinition: There are no states." exception
-    when there are no states defined in the StateMachine derived class, this is why, for now,
-    we use multiple inheritance to override the methods, like in:
-
-        class ReservationStateMachine(SuPAStateMachine, StateMachine)
-    """
+class SuPAStateMachine(StateMachine):
+    """Add logging capabilities to StateMachine."""
 
     log: BoundLogger
 
@@ -68,11 +57,10 @@ class SuPAStateMachine:
     def on_enter_state(self, state: State) -> None:
         """Statemachine will call this function on every state transition."""
         if isinstance(state, State):
-            connection_id = self.model.connection_id  # type: ignore[attr-defined]
-            self.log.info("State transition", to_state=state.id, connection_id=str(connection_id))
+            self.log.info("State transition", to_state=state.id, connection_id=str(self.model.connection_id))
 
 
-class ReservationStateMachine(SuPAStateMachine, StateMachine):
+class ReservationStateMachine(SuPAStateMachine):
     """Reservation State Machine.
 
     .. image:: /images/ReservationStateMachine.png
@@ -99,7 +87,7 @@ class ReservationStateMachine(SuPAStateMachine, StateMachine):
     )
 
 
-class ProvisionStateMachine(SuPAStateMachine, StateMachine):
+class ProvisionStateMachine(SuPAStateMachine):
     """Provision State Machine.
 
     .. image:: /images/ProvisionStateMachine.png
@@ -116,7 +104,7 @@ class ProvisionStateMachine(SuPAStateMachine, StateMachine):
     release_confirmed = Releasing.to(Released)
 
 
-class LifecycleStateMachine(SuPAStateMachine, StateMachine):
+class LifecycleStateMachine(SuPAStateMachine):
     """Lifecycle State Machine.
 
     .. image:: /images/LifecycleStateMachine.png
@@ -134,7 +122,7 @@ class LifecycleStateMachine(SuPAStateMachine, StateMachine):
     terminate_confirmed = Terminating.to(Terminated)
 
 
-class DataPlaneStateMachine(SuPAStateMachine, StateMachine):
+class DataPlaneStateMachine(SuPAStateMachine):
     """DataPlane State Machine.
 
     .. image:: /images/DataPlaneStateMachine.png
