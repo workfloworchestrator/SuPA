@@ -63,14 +63,11 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import (
-    Boolean,
     CheckConstraint,
     Enum,
     ForeignKey,
     ForeignKeyConstraint,
     Index,
-    Integer,
-    Text,
     TypeDecorator,
     UniqueConstraint,
     inspect,
@@ -79,7 +76,7 @@ from sqlalchemy.dialects import sqlite
 from sqlalchemy.engine import Dialect
 from sqlalchemy.exc import DontWrapMixin
 from sqlalchemy.ext.orderinglist import ordering_list
-from sqlalchemy.orm import DeclarativeBase, mapped_column, object_session, relationship
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, object_session, relationship
 
 from supa.connection.fsm import (
     DataPlaneStateMachine,
@@ -190,7 +187,10 @@ class UtcTimestamp(TypeDecorator):
 class Base(ReprBase, DeclarativeBase):
     """Base class used for declarative class definitions."""
 
-    pass
+    type_annotation_map = {
+        uuid.UUID: Uuid(),
+        datetime: UtcTimestamp(),
+    }
 
 
 class Reservation(Base):
@@ -202,21 +202,20 @@ class Reservation(Base):
     # Although this is not a direct mapping, we have indicated from what parts some these
     # attribute comes from.
 
-    connection_id = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-
+    connection_id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     # header
-    protocol_version = mapped_column(Text, nullable=False)
-    requester_nsa = mapped_column(Text, nullable=False)
-    provider_nsa = mapped_column(Text, nullable=False)
-    reply_to = mapped_column(Text)
-    session_security_attributes = mapped_column(Text)
+    protocol_version: Mapped[str]
+    requester_nsa: Mapped[str]
+    provider_nsa: Mapped[str]
+    reply_to: Mapped[Optional[str]]
+    session_security_attributes: Mapped[Optional[str]]
 
     @property
     def correlation_id(self) -> uuid.UUID:
         """Return correlation_id of the latest request for this connection_id."""
         session = object_session(self)
         result: List[Tuple[uuid.UUID]] = (
-            session.query(Request.correlation_id)  # type: ignore[union-attr]
+            session.query(Request.correlation_id)  # type: ignore
             .filter(Request.connection_id == self.connection_id)
             .order_by(Request.timestamp)
             .all()
@@ -224,39 +223,39 @@ class Reservation(Base):
         return result[-1][0]
 
     # request message (+ connection_id)
-    global_reservation_id = mapped_column(Text, nullable=False)
-    description = mapped_column(Text)
+    global_reservation_id: Mapped[str]
+    description: Mapped[Optional[str]]
 
     # reservation request criteria
-    version = mapped_column(Integer, nullable=False)
+    version: Mapped[int]
 
     # schedule
-    start_time = mapped_column(UtcTimestamp, nullable=False, default=current_timestamp, index=True)
-    end_time = mapped_column(UtcTimestamp, nullable=False, default=NO_END_DATE, index=True)
+    start_time: Mapped[datetime] = mapped_column(default=current_timestamp, index=True)
+    end_time: Mapped[datetime] = mapped_column(default=NO_END_DATE, index=True)
 
     # p2p
-    bandwidth = mapped_column(Integer, nullable=False, comment="Mbps")
+    bandwidth: Mapped[int] = mapped_column(comment="Mbps")
     directionality = mapped_column(Enum("BI_DIRECTIONAL", "UNI_DIRECTIONAL"), nullable=False, default="BI_DIRECTIONAL")
-    symmetric = mapped_column(Boolean, nullable=False)
+    symmetric: Mapped[bool]
 
-    src_domain = mapped_column(Text, nullable=False)
-    src_topology = mapped_column(Text, nullable=False)
-    src_stp_id = mapped_column(Text, nullable=False, comment="uniq identifier of STP in the topology")
-    src_vlans = mapped_column(Text, nullable=False)
+    src_domain: Mapped[str]
+    src_topology: Mapped[str]
+    src_stp_id: Mapped[str] = mapped_column(comment="uniq identifier of STP in the topology")
+    src_vlans: Mapped[str]
 
     # `src_vlans` might be a range of VLANs in case the reservation specified an unqualified STP.
     # In that case it is up to the reservation process to select an available VLAN out of the
     # supplied range.
     # This also explain the difference in column types. A range is expressed as a string (eg "1-10").
     # A single VLAN is always a single number, hence integer.
-    src_selected_vlan = mapped_column(Integer, nullable=True)
-    dst_domain = mapped_column(Text, nullable=False)
-    dst_topology = mapped_column(Text, nullable=False)
-    dst_stp_id = mapped_column(Text, nullable=False, comment="uniq identifier of STP in the topology")
-    dst_vlans = mapped_column(Text, nullable=False)
+    src_selected_vlan: Mapped[Optional[int]]
+    dst_domain: Mapped[str]
+    dst_topology: Mapped[str]
+    dst_stp_id: Mapped[str] = mapped_column(comment="uniq identifier of STP in the topology")
+    dst_vlans: Mapped[str]
 
     # See `src_selected_vlan`
-    dst_selected_vlan = mapped_column(Integer, nullable=True)
+    dst_selected_vlan: Mapped[Optional[int]]
 
     # internal state keeping
     reservation_state = mapped_column(
@@ -272,11 +271,11 @@ class Reservation(Base):
     )
     data_plane_state = mapped_column(Enum(*[s.value for s in DataPlaneStateMachine.states]))
     # need this because the reservation state machine is missing a state
-    reservation_timeout = mapped_column(Boolean, nullable=False, default=False)
+    reservation_timeout: Mapped[bool] = mapped_column(default=False)
 
     # some housekeeping, last_modified is used by the Query lastModifiedSince
-    create_date = mapped_column(UtcTimestamp, nullable=False, default=current_timestamp)
-    last_modified = mapped_column(UtcTimestamp, onupdate=current_timestamp, index=True)
+    create_date: Mapped[datetime] = mapped_column(default=current_timestamp)
+    last_modified: Mapped[Optional[datetime]] = mapped_column(onupdate=current_timestamp, index=True)
 
     # another header part
     path_trace = relationship(
@@ -362,11 +361,13 @@ class PathTrace(Base):
 
     __tablename__ = "path_traces"
 
-    path_trace_id = mapped_column(Text, primary_key=True, comment="NSA identifier of root or head-end aggregator NSA")
-    ag_connection_id = mapped_column(Text, primary_key=True, comment="Aggregator issued connection_id")
+    path_trace_id: Mapped[str] = mapped_column(
+        primary_key=True, comment="NSA identifier of root or head-end aggregator NSA"
+    )
+    ag_connection_id: Mapped[str] = mapped_column(primary_key=True, comment="Aggregator issued connection_id")
 
-    connection_id = mapped_column(
-        Uuid, ForeignKey(Reservation.connection_id, ondelete="CASCADE"), nullable=False, comment="Our connection_id"
+    connection_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey(Reservation.connection_id, ondelete="CASCADE"), comment="Our connection_id"
     )
 
     reservation = relationship(
@@ -392,9 +393,10 @@ class Path(Base):
 
     __tablename__ = "paths"
 
-    path_id = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    path_trace_id = mapped_column(Text, nullable=False)
-    ag_connection_id = mapped_column(Text, nullable=False)
+    path_id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    # need to assign something in order to use this field in the table args below
+    path_trace_id: Mapped[str] = mapped_column()
+    ag_connection_id: Mapped[str] = mapped_column()
 
     segments = relationship(
         "Segment",
@@ -419,15 +421,13 @@ class Segment(Base):
 
     __tablename__ = "segments"
 
-    segment_id = mapped_column(
-        Text, primary_key=True, comment="The NSA identifier for the uPA associated with this path segment"
+    segment_id: Mapped[str] = mapped_column(
+        primary_key=True, comment="The NSA identifier for the uPA associated with this path segment"
     )
-    path_id = mapped_column(Uuid, ForeignKey(Path.path_id, ondelete="CASCADE"), nullable=False, primary_key=True)
+    path_id: Mapped[uuid.UUID] = mapped_column(ForeignKey(Path.path_id, ondelete="CASCADE"), primary_key=True)
 
-    upa_connection_id = mapped_column(
-        Text, nullable=False, comment="Not ours; it's is the connection_id from another uPA"
-    )
-    order = mapped_column(Integer, nullable=False)
+    upa_connection_id: Mapped[str] = mapped_column(comment="Not ours; it's is the connection_id from another uPA")
+    order: Mapped[int] = mapped_column()
 
     stps = relationship(
         "Stp",
@@ -450,10 +450,10 @@ class Stp(Base):
 
     __tablename__ = "stps"
 
-    stp_id = mapped_column(Text, primary_key=True, comment="Assumes fully qualified STP")
-    segment_id = mapped_column(Text, nullable=False)
-    path_id = mapped_column(Uuid, nullable=False)
-    order = mapped_column(Integer, nullable=False)
+    stp_id: Mapped[str] = mapped_column(primary_key=True, comment="Assumes fully qualified STP")
+    segment_id: Mapped[str] = mapped_column()
+    path_id: Mapped[uuid.UUID] = mapped_column()
+    order: Mapped[int] = mapped_column()
 
     __table_args__ = (
         ForeignKeyConstraint((segment_id, path_id), (Segment.segment_id, Segment.path_id), ondelete="CASCADE"),
@@ -468,11 +468,11 @@ class Parameter(Base):
 
     __tablename__ = "parameters"
 
-    connection_id = mapped_column(
-        Uuid, ForeignKey(Reservation.connection_id, ondelete="CASCADE"), nullable=False, primary_key=True
+    connection_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey(Reservation.connection_id, ondelete="CASCADE"), primary_key=True
     )
-    key = mapped_column(Text, primary_key=True)
-    value = mapped_column(Text)
+    key: Mapped[str] = mapped_column(primary_key=True)
+    value: Mapped[Optional[str]]
 
 
 class Topology(Base):
@@ -480,20 +480,18 @@ class Topology(Base):
 
     __tablename__ = "topology"
 
-    stp_id = mapped_column(Text, primary_key=True, index=True)
-    port_id = mapped_column(Text, nullable=False, comment="NRM port identifier")
-    vlans = mapped_column(Text, nullable=False)
-    bandwidth = mapped_column(Integer, nullable=False, comment="Mbps")
-    description = mapped_column(Text, nullable=True)
-    is_alias_in = mapped_column(Text, nullable=True)
-    is_alias_out = mapped_column(Text, nullable=True)
+    stp_id: Mapped[str] = mapped_column(primary_key=True, index=True)
+    port_id: Mapped[str] = mapped_column(comment="NRM port identifier")
+    vlans: Mapped[str]
+    bandwidth: Mapped[int] = mapped_column(comment="Mbps")
+    description: Mapped[Optional[str]]
+    is_alias_in: Mapped[Optional[str]]
+    is_alias_out: Mapped[Optional[str]]
 
     # A STP might still be in operation (eg active) as part of one or more connections.
     # However to prevent new reservations be made against it,
-    # we can enable of disable it.
-    enabled = mapped_column(
-        Boolean, nullable=False, default=True, comment="We don't delete STP's, we enable or disable them."
-    )
+    # we can enable or disable it.
+    enabled: Mapped[bool] = mapped_column(default=True, comment="We don't delete STP's, we enable or disable them.")
 
 
 class Connection(Base):
@@ -505,8 +503,10 @@ class Connection(Base):
 
     __tablename__ = "connections"
 
-    connection_id = mapped_column(Uuid, ForeignKey(Reservation.connection_id, ondelete="CASCADE"), primary_key=True)
-    bandwidth = mapped_column(Integer, nullable=False, comment="Mbps")
+    connection_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey(Reservation.connection_id, ondelete="CASCADE"), primary_key=True
+    )
+    bandwidth: Mapped[int] = mapped_column(comment="Mbps")
 
     # Mind the singular {src,dst}_vlan
     # compared to the plural {src,dst}_vlans in
@@ -514,11 +514,11 @@ class Connection(Base):
     # We use singular here,
     # as by the time we are creating a Connection a VLAN
     # per port will have been selected.
-    src_port_id = mapped_column(Text, nullable=False, comment="id of src port in NRM")
-    src_vlan = mapped_column(Integer, nullable=False)
-    dst_port_id = mapped_column(Text, nullable=False, comment="id of dst port in NRM")
-    dst_vlan = mapped_column(Integer, nullable=False)
-    circuit_id = mapped_column(Text, nullable=True, unique=True, comment="id of circuit in the NRM")
+    src_port_id: Mapped[str] = mapped_column(comment="id of src port in NRM")
+    src_vlan: Mapped[int]
+    dst_port_id: Mapped[str] = mapped_column(comment="id of dst port in NRM")
+    dst_vlan: Mapped[int]
+    circuit_id: Mapped[Optional[str]] = mapped_column(unique=True, comment="id of circuit in the NRM")
 
     reservation = relationship(
         Reservation,
@@ -542,11 +542,11 @@ class Request(Base):
 
     __tablename__ = "requests"
 
-    correlation_id = mapped_column(Uuid, nullable=False, comment="urn:uid", primary_key=True)
-    timestamp = mapped_column(UtcTimestamp, nullable=False, default=current_timestamp)
-    connection_id = mapped_column(Uuid, nullable=True)
+    correlation_id: Mapped[uuid.UUID] = mapped_column(comment="urn:uid", primary_key=True)
+    timestamp: Mapped[datetime] = mapped_column(default=current_timestamp)
+    connection_id: Mapped[Optional[uuid.UUID]]
     request_type = mapped_column(Enum(*[r_type.value for r_type in RequestType]), nullable=False)
-    request_data = mapped_column(Text, nullable=False)
+    request_data: Mapped[str]
 
 
 class Notification(Base):
@@ -559,11 +559,13 @@ class Notification(Base):
 
     __tablename__ = "notifications"
 
-    connection_id = mapped_column(Uuid, ForeignKey(Reservation.connection_id, ondelete="CASCADE"), primary_key=True)
-    timestamp = mapped_column(UtcTimestamp, nullable=False, default=current_timestamp)
-    notification_id = mapped_column(Integer, nullable=False, primary_key=True)
+    connection_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey(Reservation.connection_id, ondelete="CASCADE"), primary_key=True
+    )
+    timestamp: Mapped[datetime] = mapped_column(default=current_timestamp)
+    notification_id: Mapped[int] = mapped_column(primary_key=True)
     notification_type = mapped_column(Enum(*[n_type.value for n_type in NotificationType]), nullable=False)
-    notification_data = mapped_column(Text, nullable=False)
+    notification_data: Mapped[str]
 
     reservation = relationship(
         Reservation,
@@ -583,12 +585,14 @@ class Result(Base):
 
     __tablename__ = "results"
 
-    connection_id = mapped_column(Uuid, ForeignKey(Reservation.connection_id, ondelete="CASCADE"), primary_key=True)
-    timestamp = mapped_column(UtcTimestamp, nullable=False, default=current_timestamp)
-    correlation_id = mapped_column(Uuid, nullable=False, comment="urn:uid", unique=True)
-    result_id = mapped_column(Integer, nullable=False, primary_key=True)
+    connection_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey(Reservation.connection_id, ondelete="CASCADE"), primary_key=True
+    )
+    timestamp: Mapped[datetime] = mapped_column(default=current_timestamp)
+    correlation_id: Mapped[uuid.UUID] = mapped_column(comment="urn:uid", unique=True)
+    result_id: Mapped[int] = mapped_column(primary_key=True)
     result_type = mapped_column(Enum(*[r_type.value for r_type in ResultType]), nullable=False)
-    result_data = mapped_column(Text, nullable=False)
+    result_data: Mapped[str]
 
     reservation = relationship(
         Reservation,
