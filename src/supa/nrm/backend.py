@@ -34,9 +34,9 @@ class STP:
     stp_id: str
     port_id: str
     vlans: str
-    description: str = ""
-    is_alias_in: str = ""
-    is_alias_out: str = ""
+    description: Optional[str] = None
+    is_alias_in: Optional[str] = None
+    is_alias_out: Optional[str] = None
     bandwidth: int = 1000000000
     enabled: bool = True
     topology: str = settings.topology

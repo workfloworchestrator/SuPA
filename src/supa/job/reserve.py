@@ -328,9 +328,9 @@ class ReserveJob(Job):
                     connection_id=reservation.connection_id,
                     bandwidth=reservation.bandwidth,
                     src_port_id=self.src_port_id,
-                    src_vlan=reservation.src_selected_vlan,
+                    src_vlan=reservation.src_selected_vlan,  # type: ignore[arg-type]
                     dst_port_id=self.dst_port_id,
-                    dst_vlan=reservation.dst_selected_vlan,
+                    dst_vlan=reservation.dst_selected_vlan,  # type: ignore[arg-type]
                 )
                 session.add(
                     Connection(
