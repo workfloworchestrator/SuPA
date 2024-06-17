@@ -86,7 +86,7 @@ protobuf==5.27.1
     #   supa (setup.cfg)
 pycparser==2.22
     # via cffi
-pydantic==2.7.3
+pydantic==2.7.4
     # via pydantic-settings
 pydantic-core==2.19.0
     # via pydantic
