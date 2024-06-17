@@ -88,7 +88,7 @@ pycparser==2.22
     # via cffi
 pydantic==2.7.3
     # via pydantic-settings
-pydantic-core==2.18.4
+pydantic-core==2.19.0
     # via pydantic
 pydantic-settings==2.3.3
     # via supa (setup.cfg)
