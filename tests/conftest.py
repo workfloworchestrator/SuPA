@@ -132,7 +132,7 @@ def connection_id() -> Column:
             connection_id=connection_id,
             correlation_id=uuid4(),
             request_type=RequestType.Reserve,  # should add specific request type
-            request_data="should add request message here",
+            request_data=b"should add request message here",
         )
         session.add(request)
 
