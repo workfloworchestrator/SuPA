@@ -546,7 +546,7 @@ class Request(Base):
     timestamp: Mapped[datetime] = mapped_column(default=current_timestamp)
     connection_id: Mapped[Optional[uuid.UUID]]
     request_type = mapped_column(Enum(*[r_type.value for r_type in RequestType]), nullable=False)
-    request_data: Mapped[str]
+    request_data: Mapped[bytes]
 
 
 class Notification(Base):
@@ -565,7 +565,7 @@ class Notification(Base):
     timestamp: Mapped[datetime] = mapped_column(default=current_timestamp)
     notification_id: Mapped[int] = mapped_column(primary_key=True)
     notification_type = mapped_column(Enum(*[n_type.value for n_type in NotificationType]), nullable=False)
-    notification_data: Mapped[str]
+    notification_data: Mapped[bytes]
 
     reservation = relationship(
         Reservation,
@@ -592,7 +592,7 @@ class Result(Base):
     correlation_id: Mapped[uuid.UUID] = mapped_column(comment="urn:uid", unique=True)
     result_id: Mapped[int] = mapped_column(primary_key=True)
     result_type = mapped_column(Enum(*[r_type.value for r_type in ResultType]), nullable=False)
-    result_data: Mapped[str]
+    result_data: Mapped[bytes]
 
     reservation = relationship(
         Reservation,
