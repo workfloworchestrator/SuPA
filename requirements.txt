@@ -128,7 +128,7 @@ typing-extensions==4.12.2
     #   typeguard
 tzlocal==5.2
     # via apscheduler
-urllib3==2.2.1
+urllib3==2.2.2
     # via requests
 zc-lockfile==3.0.post1
     # via cherrypy
