@@ -65,7 +65,7 @@ lxml==5.2.2
     # via supa (setup.cfg)
 lxml-stubs==0.5.1
     # via supa (setup.cfg)
-more-itertools==10.2.0
+more-itertools==10.3.0
     # via
     #   cheroot
     #   cherrypy
