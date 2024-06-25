@@ -33,7 +33,7 @@ class BackendSettings(BaseSettings):
     See also: the ``src/supa/nrm/backends/surf.env`` file
     """
 
-    host: str = "http://localhost"
+    base_url: str = "http://localhost"
     oauth2_active: bool = False
     oidc_url: str = ""
     oidc_user: str = ""
@@ -72,7 +72,7 @@ class Backend(BaseBackend):
                         raise NsiException(GenericRmError, str(http_err)) from http_err
                 else:
                     access_token = token.json()["access_token"]
-        self.log.debug("workflow credentials", access_token=access_token, host=self.backend_settings.host)
+        self.log.debug("workflow credentials", access_token=access_token, base_url=self.backend_settings.base_url)
         return access_token
 
     def _workflow_create(self, src_port_id: str, src_vlan: int, dst_port_id: str, dst_vlan: int, bandwidth: int) -> Any:
@@ -96,7 +96,7 @@ class Backend(BaseBackend):
         self.log.debug("create workflow payload", payload=dumps(json))
         try:
             result = post(
-                f"{self.backend_settings.host}/api/processes/{self.backend_settings.create_workflow_name}",
+                f"{self.backend_settings.base_url}/api/processes/{self.backend_settings.create_workflow_name}",
                 headers={"Authorization": f"bearer {access_token}", "Content-Type": "application/json"},
                 json=json,
             )
@@ -120,7 +120,7 @@ class Backend(BaseBackend):
         access_token = self._retrieve_access_token()
         try:
             result = post(
-                f"{self.backend_settings.host}/api/processes/{self.backend_settings.terminate_workflow_name}",
+                f"{self.backend_settings.base_url}/api/processes/{self.backend_settings.terminate_workflow_name}",
                 headers={
                     "Authorization": f"bearer {access_token}",
                     "Content-Type": "application/json",
@@ -144,7 +144,7 @@ class Backend(BaseBackend):
         try:
             self.log.debug("adding connection id to note of subscription")
             result = post(
-                f"{self.backend_settings.host}/api/processes/modify_note",
+                f"{self.backend_settings.base_url}/api/processes/modify_note",
                 headers={
                     "Authorization": f"bearer {access_token}",
                     "Content-Type": "application/json",
@@ -169,7 +169,7 @@ class Backend(BaseBackend):
         access_token = self._retrieve_access_token()
         try:
             process = get(
-                f"{self.backend_settings.host}/api/processes/{process_id}",
+                f"{self.backend_settings.base_url}/api/processes/{process_id}",
                 headers={"Authorization": f"bearer {access_token}"},
             )
         except ConnectionError as con_err:
@@ -193,7 +193,7 @@ class Backend(BaseBackend):
     def _get_subscription_id(self, process_id: str) -> str:
         access_token = self._retrieve_access_token()
         process = get(
-            f"{self.backend_settings.host}/api/processes/{process_id}",
+            f"{self.backend_settings.base_url}/api/processes/{process_id}",
             headers={"Authorization": f"bearer {access_token}"},
         )
         self.log.debug("process status", process_status=process.json()["status"])
@@ -202,7 +202,7 @@ class Backend(BaseBackend):
     def _get_nsi_stp_subscriptions(self) -> Any:
         access_token = self._retrieve_access_token()
         nsi_stp_subscriptions = get(
-            f"{self.backend_settings.host}/api/subscriptions/?filter=status,active,tag,NSISTP-NSISTPNL",
+            f"{self.backend_settings.base_url}/api/subscriptions/?filter=status,active,tag,NSISTP-NSISTPNL",
             headers={"Authorization": f"bearer {access_token}"},
         )
         if nsi_stp_subscriptions.status_code != 200:
@@ -219,7 +219,7 @@ class Backend(BaseBackend):
         ports: List[STP] = []
         for nsi_stp_sub in self._get_nsi_stp_subscriptions():
             nsi_stp_dm = get(
-                f"{self.backend_settings.host}/api/subscriptions/domain-model/{nsi_stp_sub['subscription_id']}",
+                f"{self.backend_settings.base_url}/api/subscriptions/domain-model/{nsi_stp_sub['subscription_id']}",
                 headers={"Authorization": f"bearer {access_token}"},
             )
             if nsi_stp_dm.status_code != 200:
