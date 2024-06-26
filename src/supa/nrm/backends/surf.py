@@ -204,7 +204,7 @@ class Backend(BaseBackend):
     def _get_nsi_stp_subscriptions(self) -> Any:
         access_token = self._retrieve_access_token()
         nsi_stp_subscriptions = get(
-            f"{self.backend_settings.base_url}/api/subscriptions/?filter=status,active,tag,NSISTP-NSISTPNL",
+            f"{self.backend_settings.base_url}/api/pythia_legacy/subscriptions/?filter=status,active,tag,NSISTP-NSISTPNL",  # noqa: E501
             headers={"Authorization": f"bearer {access_token}"},
         )
         if nsi_stp_subscriptions.status_code != 200:
@@ -221,7 +221,7 @@ class Backend(BaseBackend):
         ports: List[STP] = []
         for nsi_stp_sub in self._get_nsi_stp_subscriptions():
             nsi_stp_dm = get(
-                f"{self.backend_settings.base_url}/api/subscriptions/domain-model/{nsi_stp_sub['subscription_id']}",
+                f"{self.backend_settings.base_url}/api/pythia_legacy/subscriptions/domain-model/{nsi_stp_sub['subscription_id']}",  # noqa: E501
                 headers={"Authorization": f"bearer {access_token}"},
             )
             if nsi_stp_dm.status_code != 200:
