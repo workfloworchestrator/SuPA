@@ -221,7 +221,7 @@ class Backend(BaseBackend):
         ports: List[STP] = []
         for nsi_stp_sub in self._get_nsi_stp_subscriptions():
             nsi_stp_dm = get(
-                f"{self.backend_settings.base_url}/api/subscriptions/domain-model/{nsi_stp_sub['subscription_id']}",  # noqa: E501
+                f"{self.backend_settings.base_url}/api/subscriptions/domain-model/{nsi_stp_sub['subscription_id']}",
                 headers={"Authorization": f"bearer {access_token}"},
             )
             if nsi_stp_dm.status_code != 200:
