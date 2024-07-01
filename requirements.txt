@@ -26,7 +26,7 @@ charset-normalizer==3.3.2
     # via requests
 cheroot==10.0.1
     # via cherrypy
-cherrypy==18.9.0
+cherrypy==18.10.0
     # via supa (setup.cfg)
 click==8.1.7
     # via supa (setup.cfg)
