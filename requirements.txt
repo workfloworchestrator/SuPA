@@ -106,7 +106,7 @@ requests==2.32.3
     # via supa (setup.cfg)
 six==1.16.0
     # via apscheduler
-sqlalchemy==2.0.30
+sqlalchemy==2.0.31
     # via supa (setup.cfg)
 structlog==24.2.0
     # via supa (setup.cfg)
