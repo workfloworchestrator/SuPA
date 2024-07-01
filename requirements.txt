@@ -59,7 +59,7 @@ jaraco-functools==4.0.1
     #   cheroot
     #   jaraco-text
     #   tempora
-jaraco-text==3.12.0
+jaraco-text==3.12.1
     # via jaraco-collections
 lxml==5.2.2
     # via supa (setup.cfg)
