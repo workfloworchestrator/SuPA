@@ -10,13 +10,14 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
+import time
 from json import dumps, loads
 from time import sleep
 from typing import Any, List
 from uuid import UUID
 
 from pydantic_settings import BaseSettings
-from requests import get, post
+from requests import Response, get, post
 from requests.auth import HTTPBasicAuth
 from requests.exceptions import ConnectionError, HTTPError  # noqa: A004
 from structlog.stdlib import BoundLogger
@@ -42,6 +43,9 @@ class BackendSettings(BaseSettings):
     terminate_workflow_name: str = ""
     customer_id: str = ""
     product_id: str = ""
+    connect_timeout: float = 3.05
+    read_timeout: float = 12.0
+    write_timeout: float = 9.0
 
 
 class Backend(BaseBackend):
@@ -55,14 +59,18 @@ class Backend(BaseBackend):
 
     def _retrieve_access_token(self) -> str:
         access_token = ""  # noqa: S105
+        timeout = (self.backend_settings.connect_timeout, self.backend_settings.write_timeout)
         if self.backend_settings.oauth2_active:
-            self.log.debug("retrieve access_token")
+            self.log.debug("retrieve access token")
+            start = time.time()
             token = post(
                 self.backend_settings.oidc_url,
                 auth=HTTPBasicAuth(self.backend_settings.oidc_user, self.backend_settings.oidc_password),
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
                 data="grant_type=client_credentials",
+                timeout=timeout,
             )
+            self.log.debug("retrieve access token timer", seconds=time.time() - start)
             if token:
                 if token.status_code > 210:
                     try:
@@ -75,9 +83,29 @@ class Backend(BaseBackend):
         self.log.debug("workflow credentials", access_token=access_token, base_url=self.backend_settings.base_url)
         return access_token
 
+    def _get_url(self, url: str) -> Response:
+        """Get response from authorised URL."""
+        access_token = self._retrieve_access_token()
+        headers = {"Authorization": f"bearer {access_token}"}
+        timeout = (self.backend_settings.connect_timeout, self.backend_settings.read_timeout)
+        start = time.time()
+        response = get(url=url, headers=headers, timeout=timeout)
+        self.log.debug("get url timer", url=url, seconds=time.time() - start)
+        return response
+
+    def _post_url_json(self, url: str, json: Any) -> Response:
+        """Post JSON request to authorised URL."""
+        access_token = self._retrieve_access_token()
+        headers = {"Authorization": f"bearer {access_token}", "Content-Type": "application/json"}
+        timeout = (self.backend_settings.connect_timeout, self.backend_settings.write_timeout)
+        start = time.time()
+        response = post(url=url, headers=headers, json=json, timeout=timeout)
+        self.log.debug(f"post({url}) took {time.time() - start} seconds")
+        self.log.debug("post url timer", url=url, seconds=time.time() - start)
+        return response
+
     def _workflow_create(self, src_port_id: str, src_vlan: int, dst_port_id: str, dst_vlan: int, bandwidth: int) -> Any:
         self.log.info("start workflow create")
-        access_token = self._retrieve_access_token()
         json = [
             {"product": self.backend_settings.product_id},
             {
@@ -92,12 +120,12 @@ class Backend(BaseBackend):
                 "service_speed": str(bandwidth),
                 "speed_policer": True,
             },
+            {},  # summary form
         ]
         self.log.debug("create workflow payload", payload=dumps(json))
         try:
-            result = post(
-                f"{self.backend_settings.base_url}/api/processes/{self.backend_settings.create_workflow_name}",
-                headers={"Authorization": f"bearer {access_token}", "Content-Type": "application/json"},
+            result = self._post_url_json(
+                url=f"{self.backend_settings.base_url}/api/processes/{self.backend_settings.create_workflow_name}",
                 json=json,
             )
         except ConnectionError as con_err:
@@ -117,14 +145,9 @@ class Backend(BaseBackend):
 
     def _workflow_terminate(self, subscription_id: str) -> Any:
         self.log.info("start workflow terminate")
-        access_token = self._retrieve_access_token()
         try:
-            result = post(
-                f"{self.backend_settings.base_url}/api/processes/{self.backend_settings.terminate_workflow_name}",
-                headers={
-                    "Authorization": f"bearer {access_token}",
-                    "Content-Type": "application/json",
-                },
+            result = self._post_url_json(
+                url=f"{self.backend_settings.base_url}/api/processes/{self.backend_settings.terminate_workflow_name}",
                 json=[{"subscription_id": subscription_id}, {}],
             )
         except ConnectionError as con_err:
@@ -140,15 +163,10 @@ class Backend(BaseBackend):
 
     def _add_note(self, connection_id: UUID, subscription_id: str) -> Any:
         self.log.info("start workflow modify note")
-        access_token = self._retrieve_access_token()
         try:
             self.log.debug("adding connection id to note of subscription")
-            result = post(
-                f"{self.backend_settings.base_url}/api/processes/modify_note",
-                headers={
-                    "Authorization": f"bearer {access_token}",
-                    "Content-Type": "application/json",
-                },
+            result = self._post_url_json(
+                url=f"{self.backend_settings.base_url}/api/processes/modify_note",
                 json=[
                     {"subscription_id": subscription_id},
                     {"note": f"NSI connectionId {connection_id}"},
@@ -166,12 +184,8 @@ class Backend(BaseBackend):
         return result.json()
 
     def _get_process_info(self, process_id: str) -> Any:
-        access_token = self._retrieve_access_token()
         try:
-            process = get(
-                f"{self.backend_settings.base_url}/api/processes/{process_id}",
-                headers={"Authorization": f"bearer {access_token}"},
-            )
+            process = self._get_url(f"{self.backend_settings.base_url}/api/processes/{process_id}")
         except ConnectionError as con_err:
             self.log.warning("cannot get process status", reason=str(con_err))
             raise NsiException(GenericRmError, str(con_err)) from con_err
@@ -193,19 +207,13 @@ class Backend(BaseBackend):
             raise NsiException(GenericRmError, info["failed_reason"]) from None
 
     def _get_subscription_id(self, process_id: str) -> str:
-        access_token = self._retrieve_access_token()
-        process = get(
-            f"{self.backend_settings.base_url}/api/processes/{process_id}",
-            headers={"Authorization": f"bearer {access_token}"},
-        )
+        process = self._get_url(f"{self.backend_settings.base_url}/api/processes/{process_id}")
         self.log.debug("process status", process_status=process.json()["last_status"])
         return str(process.json()["current_state"]["subscription"]["subscription_id"])
 
     def _get_nsi_stp_subscriptions(self) -> Any:
-        access_token = self._retrieve_access_token()
-        nsi_stp_subscriptions = get(
-            f"{self.backend_settings.base_url}/api/pythia_legacy/subscriptions/?filter=status,active,tag,NSISTP-NSISTPNL",  # noqa: E501
-            headers={"Authorization": f"bearer {access_token}"},
+        nsi_stp_subscriptions = self._get_url(
+            f"{self.backend_settings.base_url}/api/pythia_legacy/subscriptions/?filter=status,active,tag,NSISTP-NSISTPNL"  # noqa: E501
         )
         if nsi_stp_subscriptions.status_code != 200:
             try:
@@ -217,12 +225,10 @@ class Backend(BaseBackend):
 
     def _get_topology(self) -> List[STP]:
         self.log.debug("get topology from NRM")
-        access_token = self._retrieve_access_token()
         ports: List[STP] = []
         for nsi_stp_sub in self._get_nsi_stp_subscriptions():
-            nsi_stp_dm = get(
-                f"{self.backend_settings.base_url}/api/subscriptions/domain-model/{nsi_stp_sub['subscription_id']}",
-                headers={"Authorization": f"bearer {access_token}"},
+            nsi_stp_dm = self._get_url(
+                f"{self.backend_settings.base_url}/api/subscriptions/domain-model/{nsi_stp_sub['subscription_id']}"
             )
             if nsi_stp_dm.status_code != 200:
                 try:
