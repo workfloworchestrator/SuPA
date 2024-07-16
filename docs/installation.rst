@@ -18,8 +18,9 @@ There are several methods to install and run the application:
 
 .. note::
 
-    SuPA was developed using Python 3.8.
-    Compatibility with other Python versions is untested.
+    SuPA has been tested with Python 3.12.
+    Compatibility with earlier Python versions will brake in the future or is already broken.
+    Compatibility with later Python versions is untested.
 
     PolyNSI was developed using Java 11 and Maven 3.8.5.
     Compatibility with other Java and Maven versions is untested.
@@ -41,9 +42,9 @@ for example version 0.2.0::
 
 There are multiple ways to add an virtual Python environment, and you can choose
 whatever suits you best. This example uses the standard ``venv`` module and assumes
-that Python version 3.8 is already installed using your local package manager::
+that Python version 3.12 is already installed using your local package manager::
 
-    python3.8 -m venv venv
+    python3.12 -m venv venv
     source venv/bin/activate
 
 The virtual environment created by the ``venv`` module does not always contain the most recent version of ``pip``.
