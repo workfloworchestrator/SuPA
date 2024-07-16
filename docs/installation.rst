@@ -18,7 +18,7 @@ There are several methods to install and run the application:
 
 .. note::
 
-    SuPA has been tested with Python 3.12.
+    SuPA has been tested with Python 3.11 and 3.12.
     Compatibility with earlier Python versions will brake in the future or is already broken.
     Compatibility with later Python versions is untested.
 
