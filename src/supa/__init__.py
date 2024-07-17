@@ -337,7 +337,8 @@ class UnconfiguredScheduler(BaseScheduler):
     only to overwrite it with the real thing after command line options have been processed.
     """
 
-    exc_msg = """Scheduler has not yet been initialized. Call `main.init_app` first. Only then (locally) import `scheduler`.
+    exc_msg = """Scheduler has not yet been initialized.
+Call `main.init_app` first. Only then (locally) import `scheduler`.
 
 IMPORTANT
 ==========

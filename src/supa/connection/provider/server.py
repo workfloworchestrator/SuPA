@@ -162,7 +162,7 @@ def _register_request(
     because the correlation_id used in the response message generated in the job
     is stored in this function.
     """
-    if not connection_id and type(request) != QueryRequest:
+    if not connection_id and not isinstance(request, QueryRequest):
         connection_id = UUID(request.connection_id)
 
     from supa.db.session import db_session

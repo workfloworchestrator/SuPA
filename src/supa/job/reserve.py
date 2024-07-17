@@ -358,12 +358,13 @@ class ReserveJob(Job):
                 rsm.reserve_confirmed()
 
         stub = requester.get_stub()
-        if type(request) == ReserveConfirmedRequest:
+        if isinstance(request, ReserveConfirmedRequest):
             register_result(request, ResultType.ReserveConfirmed)
             self.log.debug("Sending message.", method="ReserveConfirmed", request_message=request)
             stub.ReserveConfirmed(request)
         else:
-            from supa import scheduler
+            # for some reason the isinstance() above triggers a unreachable below, but this code is definitely reachable
+            from supa import scheduler  # type: ignore[unreachable]
 
             self.log.info("Cancel reserve timeout")
             scheduler.remove_job(job_id=ReserveTimeoutJob(self.connection_id).job_id)
@@ -453,7 +454,7 @@ class ReserveCommitJob(Job):
                 rsm.reserve_commit_confirmed()
 
         stub = requester.get_stub()
-        if type(request) == GenericConfirmedRequest:
+        if isinstance(request, GenericConfirmedRequest):
             register_result(request, ResultType.ReserveCommitConfirmed)
             self.log.debug("Sending message", method="ReserveCommitConfirmed", request_message=request)
             stub.ReserveCommitConfirmed(request)
@@ -551,7 +552,7 @@ class ReserveAbortJob(Job):
                 rsm.reserve_abort_confirmed()
 
         stub = requester.get_stub()
-        if type(request) == GenericConfirmedRequest:
+        if isinstance(request, GenericConfirmedRequest):
             register_result(request, ResultType.ReserveAbortConfirmed)
             self.log.debug("Sending message", method="ReserveAbortConfirmed", request_message=request)
             stub.ReserveAbortConfirmed(request)
@@ -664,7 +665,7 @@ class ReserveTimeoutJob(Job):
                 reservation.reservation_timeout = True
 
         stub = requester.get_stub()
-        if type(request) == ReserveTimeoutRequest:
+        if isinstance(request, ReserveTimeoutRequest):
             register_notification(request, NotificationType.ReserveTimeout)
             self.log.debug("Sending message", method="ReserveTimeout", request_message=request)
             stub.ReserveTimeout(request)
