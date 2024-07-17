@@ -43,9 +43,9 @@ class BackendSettings(BaseSettings):
     terminate_workflow_name: str = ""
     customer_id: str = ""
     product_id: str = ""
-    connect_timeout: float = 3.05
+    connect_timeout: float = 9.05
     read_timeout: float = 12.0
-    write_timeout: float = 9.0
+    write_timeout: float = 18.0
 
 
 class Backend(BaseBackend):
@@ -100,7 +100,6 @@ class Backend(BaseBackend):
         timeout = (self.backend_settings.connect_timeout, self.backend_settings.write_timeout)
         start = time.time()
         response = post(url=url, headers=headers, json=json, timeout=timeout)
-        self.log.debug(f"post({url}) took {time.time() - start} seconds")
         self.log.debug("post url timer", url=url, seconds=time.time() - start)
         return response
 
