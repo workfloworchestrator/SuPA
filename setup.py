@@ -1,5 +1,6 @@
 """Distutils/setuptools packaging information file."""
 
+import importlib
 import operator
 import shutil
 import sys
@@ -8,7 +9,6 @@ from fileinput import FileInput
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-import pkg_resources
 import setuptools
 from setuptools.command.develop import develop
 from setuptools.command.install import install
@@ -61,7 +61,7 @@ class GenCode(setuptools.Command):
         gen_code_path.mkdir(exist_ok=True)
 
         # Include common gRPC protobuf definitions
-        proto_include = pkg_resources.resource_filename("grpc_tools", "_proto")
+        proto_include = importlib.resources.files("grpc_tools") / "_proto"  # type: ignore[attr-defined]
 
         proto_files = list(PROTOS_PATH.glob("*.proto"))
         if len(proto_files) == 0:

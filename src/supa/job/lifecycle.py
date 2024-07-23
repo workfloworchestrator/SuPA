@@ -117,7 +117,7 @@ class TerminateJob(Job):
                 lsm.terminate_confirmed()
 
         stub = requester.get_stub()
-        if type(request) == GenericConfirmedRequest:
+        if isinstance(request, GenericConfirmedRequest):
             if (
                 previous_data_plane_state == DataPlaneStateMachine.AutoEnd.value
                 or previous_data_plane_state == DataPlaneStateMachine.Activated.value

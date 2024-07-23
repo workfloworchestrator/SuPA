@@ -220,7 +220,7 @@ def register_result(
     from supa.db.session import db_session
 
     # The connection_id on ErrorRequest is located in service_exception.
-    if type(request) == ErrorRequest:
+    if isinstance(request, ErrorRequest):
         connection_id = request.service_exception.connection_id
     else:
         connection_id = request.connection_id
