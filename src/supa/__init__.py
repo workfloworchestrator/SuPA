@@ -36,6 +36,7 @@ import logging.config
 import platform
 import random
 import sys
+from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Union
@@ -48,7 +49,7 @@ from apscheduler.jobstores.memory import MemoryJobStore
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.schedulers.base import BaseScheduler
 from apscheduler.util import undefined
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import create_engine
 from sqlalchemy.orm import scoped_session, sessionmaker
 
@@ -166,6 +167,8 @@ class Settings(BaseSettings):
     See also: the ``supa.env`` file
     """
 
+    model_config = SettingsConfigDict(case_sensitive=True)
+
     grpc_server_max_workers: int = 8
 
     grpc_server_insecure_host: str = "localhost"
@@ -195,7 +198,7 @@ class Settings(BaseSettings):
     reserve_timeout: int = 120
     backend: str = ""
 
-    nsa_start_time = current_timestamp()
+    nsa_start_time: datetime = current_timestamp()
     nsa_scheme: str = "http"
     nsa_host: str = "localhost"
     nsa_port: str = "8080"
@@ -214,9 +217,6 @@ class Settings(BaseSettings):
     def nsa_exposed_url(self) -> str:
         """Return URL that NSA is exposed on constructed from nsa_scheme, nsa_host and nsa_port."""
         return f"{self.nsa_scheme}://{self.nsa_host}:{self.nsa_port}"
-
-    class Config:  # noqa: D106
-        case_sensitive = True
 
     @property
     def nsa_id(self) -> str:
@@ -337,7 +337,8 @@ class UnconfiguredScheduler(BaseScheduler):
     only to overwrite it with the real thing after command line options have been processed.
     """
 
-    exc_msg = """Scheduler has not yet been initialized. Call `main.init_app` first. Only then (locally) import `scheduler`.
+    exc_msg = """Scheduler has not yet been initialized.
+Call `main.init_app` first. Only then (locally) import `scheduler`.
 
 IMPORTANT
 ==========
@@ -455,7 +456,7 @@ def init_app(with_scheduler: bool = True) -> None:
 
     Base.metadata.create_all(engine)
     session_factory = sessionmaker(bind=engine)
-    supa.db.session.Session = scoped_session(session_factory)
+    supa.db.session.Session = scoped_session(session_factory)  # type: ignore[assignment]
 
     import supa.nrm.backend
 

@@ -120,12 +120,12 @@ def test_release_job_release_confirmed_auto_start(
 def test_release_job_release_confirmed_auto_end(
     connection_id: Column, connection: None, releasing: None, auto_end: None, get_stub: None, caplog: Any
 ) -> None:
-    """Test ReleaseJob to transition to Released and disable auto end of data plane."""
+    """Test ReleaseJob to transition to Released and, disable auto end and schedule deactivate of data plane."""
     release_job = ReleaseJob(connection_id)
     release_job.__call__()
     assert state_machine.is_released(connection_id)
-    assert state_machine.is_deactivated(connection_id)
     assert "Cancel auto end" in caplog.text
+    assert "Schedule deactivate" in caplog.text
 
 
 def test_release_job_release_confirmed_invalid_data_plane_state(

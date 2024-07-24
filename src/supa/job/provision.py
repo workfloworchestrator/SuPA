@@ -88,7 +88,7 @@ class ProvisionJob(Job):
                         GenericInternalError,
                         str(exc),
                         {
-                            Variable.PROVISION_STATE: reservation.provsion_state,
+                            Variable.PROVISION_STATE: reservation.provision_state,
                             Variable.CONNECTION_ID: str(self.connection_id),
                         },
                     ),
@@ -153,7 +153,7 @@ class ProvisionJob(Job):
                 new_data_plane_state = reservation.data_plane_state
 
         stub = requester.get_stub()
-        if type(request) == GenericConfirmedRequest:
+        if isinstance(request, GenericConfirmedRequest):
             from supa import scheduler
 
             job: Job  # help mypy understand that both AutoStartJob and ActivateJob are Job's
@@ -258,7 +258,7 @@ class ReleaseJob(Job):
                         GenericInternalError,
                         str(exc),
                         {
-                            Variable.PROVISION_STATE: reservation.provsion_state,
+                            Variable.PROVISION_STATE: reservation.provision_state,
                             Variable.CONNECTION_ID: str(self.connection_id),
                         },
                     ),
@@ -303,7 +303,7 @@ class ReleaseJob(Job):
                     psm.release_confirmed()
 
         stub = requester.get_stub()
-        if type(request) == GenericConfirmedRequest:
+        if isinstance(request, GenericConfirmedRequest):
             from supa import scheduler
 
             if previous_data_plane_state == DataPlaneStateMachine.AutoStart.value:

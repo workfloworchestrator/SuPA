@@ -4,9 +4,9 @@
 # should match that of `grpcio` in `setup.cfg`. Actual code generation is done from within `setup.py` in a custom
 # Command class.
 requires = [
-    "setuptools>=47.3.1",
+    "setuptools>=65.5.0",
     "wheel",
-    "grpcio-tools~=1.42.0",
+    "grpcio-tools~=1.64.0",
     "mypy-protobuf",
     "bandit==1.7.2",
 ]

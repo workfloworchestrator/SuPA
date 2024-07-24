@@ -51,8 +51,47 @@ def add_stp_ids(init: Generator) -> None:
     from supa.db.session import db_session
 
     with db_session() as session:
-        session.add(Topology(port_id=str(uuid4()), stp_id="port1", vlans="1779-1799", bandwidth=1000, enabled=True))
-        session.add(Topology(port_id=str(uuid4()), stp_id="port2", vlans="1779-1799", bandwidth=1000, enabled=True))
+        session.add(
+            Topology(
+                stp_id="port1",
+                port_id="2d35f97c-7e90-4f2d-bc52-d22d05d972f4",
+                vlans="1779-1799",
+                bandwidth=1000,
+                enabled=True,
+            )
+        )
+        session.add(
+            Topology(
+                stp_id="port2",
+                port_id="port.id",
+                vlans="1779-1799",
+                bandwidth=1000,
+                enabled=True,
+            )
+        )
+        session.add(
+            Topology(
+                stp_id="enni.port1",
+                port_id="52fa0ee0-e10a-44a1-b095-ea1bcc7a60f4",
+                vlans="2-4094",
+                bandwidth=10000,
+                description="To external network",
+                is_alias_in="urn:ogf:network:domain:1999:topology:neighbour-1-out",
+                is_alias_out="urn:ogf:network:domain:1999:topology:neighbour-1-in",
+                enabled=True,
+            )
+        )
+        session.add(
+            Topology(
+                stp_id="enni.port2",
+                port_id="my_favorite_neighbour",
+                vlans="1000-1009",
+                bandwidth=10000,
+                is_alias_in="urn:ogf:network:domain:2024::3-out",
+                is_alias_out="urn:ogf:network:domain:2024::3-in",
+                enabled=True,
+            )
+        )
 
 
 @pytest.fixture()
@@ -97,7 +136,7 @@ def connection_id() -> Column:
             connection_id=connection_id,
             correlation_id=uuid4(),
             request_type=RequestType.Reserve,  # should add specific request type
-            request_data="should add request message here",
+            request_data=b"should add request message here",
         )
         session.add(request)
 

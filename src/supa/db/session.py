@@ -52,7 +52,7 @@ from supa import settings
 logger = structlog.get_logger(__name__)
 
 
-@event.listens_for(Engine, "connect")  # type: ignore
+@event.listens_for(Engine, "connect")
 def set_sqlite_pragma(dbapi_connection: sqlite3.Connection, connection_record: _ConnectionRecord) -> None:
     """Configure certain SQLite settings.
 
@@ -100,7 +100,8 @@ class UnconfiguredSession(scoped_session):
     def __call__(self, *args: Any, **kwargs: Any) -> orm.Session:
         """Trap premature ``Session()`` calls and raise an exception."""
         raise Exception(
-            """DB has not yet been initialized. Call `main.init_app` first. Only then (locally) import `Session` or `db_session`.
+            """DB has not yet been initialized.
+Call `main.init_app` first. Only then (locally) import `Session` or `db_session`.
 
 IMPORTANT
 ==========
@@ -147,7 +148,7 @@ def db_session() -> Iterator[scoped_session]:
     session = None
     try:
         session = Session()
-        yield session
+        yield session  # type: ignore
         session.commit()
     except BaseException:
         logger.error("An exception occurred while doing DB work. Rolling back.")

@@ -57,7 +57,7 @@ class SuPAStateMachine(StateMachine):
     def on_enter_state(self, state: State) -> None:
         """Statemachine will call this function on every state transition."""
         if isinstance(state, State):
-            self.log.info("State transition", to_state=state.identifier, connection_id=str(self.model.connection_id))
+            self.log.info("State transition", to_state=state.id, connection_id=str(self.model.connection_id))
 
 
 class ReservationStateMachine(SuPAStateMachine):
@@ -114,7 +114,7 @@ class LifecycleStateMachine(SuPAStateMachine):
     Failed = State("Failed", "FAILED")
     Terminating = State("Terminating", "TERMINATING")
     PassedEndTime = State("PassedEndTime", "PASSED_END_TIME")
-    Terminated = State("Terminated", "TERMINATED")
+    Terminated = State("Terminated", "TERMINATED", final=True)
 
     forced_end_notification = Created.to(Failed)
     terminate_request = Created.to(Terminating) | PassedEndTime.to(Terminating) | Failed.to(Terminating)
@@ -134,8 +134,8 @@ class DataPlaneStateMachine(SuPAStateMachine):
     Activated = State("Activated", "ACTIVATED")
     AutoEnd = State("AutoEnd", "AUTO_END")
     Deactivating = State("Deactivating", "DEACTIVATING")
-    ActivateFailed = State("ActivateFailed", "ACTIVATE_FAILED")
-    DeactivateFailed = State("DeactivateFailed", "DEACTIVATE_FAILED")
+    ActivateFailed = State("ActivateFailed", "ACTIVATE_FAILED", final=True)
+    DeactivateFailed = State("DeactivateFailed", "DEACTIVATE_FAILED", final=True)
 
     auto_start_request = Deactivated.to(AutoStart)
     activate_request = Deactivated.to(Activating) | AutoStart.to(Activating)

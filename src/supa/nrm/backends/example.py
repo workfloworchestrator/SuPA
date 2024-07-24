@@ -13,7 +13,11 @@
 
 # from uuid import UUID
 
-from pydantic import BaseSettings
+
+# from typing import List
+# from uuid import UUID
+
+from pydantic_settings import BaseSettings
 
 from supa.nrm.backend import BaseBackend
 
@@ -26,8 +30,8 @@ class BackendSettings(BaseSettings):
     See also: the ``src/supa/nrm/backends/example.env`` file
     """
 
-    host: str = "localhost"
-    port: int = 80
+    target_host: str = "localhost"
+    target_port: int = 80
 
 
 backend_settings = BackendSettings(_env_file="src/supa/nrm/backends/example.env")
@@ -40,48 +44,114 @@ class Backend(BaseBackend):
     """
 
     # def reserve(
-    #     self, connection_id: UUID, src_port_id: str, src_vlan: int, dst_port_id: str, dst_vlan: int, bandwidth: int
+    #     self,
+    #     connection_id: UUID,
+    #     bandwidth: int,
+    #     src_port_id: str,
+    #     src_vlan: int,
+    #     dst_port_id: str,
+    #     dst_vlan: int,
     # ) -> None:
     #     """Reserve resources in NRM."""
-    #     self.log.info("reserve resources in NRM", host=backend_settings.host, port=backend_settings.port)
+    #     self.log.info(
+    #         "reserve resources in NRM",
+    #         target_host=backend_settings.target_host,
+    #         target_port=backend_settings.target_port,
+    #     )
     #
     # def reserve_timeout(
-    #     self, connection_id: UUID, src_port_id: str, src_vlan: int, dst_port_id: str, dst_vlan: int, bandwidth: int
+    #     self,
+    #     connection_id: UUID,
+    #     bandwidth: int,
+    #     src_port_id: str,
+    #     src_vlan: int,
+    #     dst_port_id: str,
+    #     dst_vlan: int,
+    #     circuit_id: str,
     # ) -> None:
     #     """Reserve timeout resources in NRM."""
     #
     # def reserve_commit(
-    #     self, connection_id: UUID, src_port_id: str, src_vlan: int, dst_port_id: str, dst_vlan: int, bandwidth: int
+    #     self,
+    #     connection_id: UUID,
+    #     bandwidth: int,
+    #     src_port_id: str,
+    #     src_vlan: int,
+    #     dst_port_id: str,
+    #     dst_vlan: int,
+    #     circuit_id: str,
     # ) -> None:
     #     """Reserve commit resources in NRM."""
     #
     # def reserve_abort(
-    #     self, connection_id: UUID, src_port_id: str, src_vlan: int, dst_port_id: str, dst_vlan: int, bandwidth: int
+    #     self,
+    #     connection_id: UUID,
+    #     bandwidth: int,
+    #     src_port_id: str,
+    #     src_vlan: int,
+    #     dst_port_id: str,
+    #     dst_vlan: int,
+    #     circuit_id: str,
     # ) -> None:
     #     """Reserve abort resources in NRM."""
     #
     # def provision(
-    #     self, connection_id: UUID, src_port_id: str, src_vlan: int, dst_port_id: str, dst_vlan: int, bandwidth: int
+    #     self,
+    #     connection_id: UUID,
+    #     bandwidth: int,
+    #     src_port_id: str,
+    #     src_vlan: int,
+    #     dst_port_id: str,
+    #     dst_vlan: int,
+    #     circuit_id: str,
     # ) -> None:
     #     """Provision resources in NRM."""
     #
     # def release(
-    #     self, connection_id: UUID, src_port_id: str, src_vlan: int, dst_port_id: str, dst_vlan: int, bandwidth: int
+    #     self,
+    #     connection_id: UUID,
+    #     bandwidth: int,
+    #     src_port_id: str,
+    #     src_vlan: int,
+    #     dst_port_id: str,
+    #     dst_vlan: int,
+    #     circuit_id: str,
     # ) -> None:
     #     """Release resources in NRM."""
     #
     # def activate(
-    #     self, connection_id: UUID, src_port_id: str, src_vlan: int, dst_port_id: str, dst_vlan: int, bandwidth: int
+    #     self,
+    #     connection_id: UUID,
+    #     bandwidth: int,
+    #     src_port_id: str,
+    #     src_vlan: int,
+    #     dst_port_id: str,
+    #     dst_vlan: int,
+    #     circuit_id: str,
     # ) -> None:
     #     """Activate resources in NRM."""
     #
     # def deactivate(
-    #     self, connection_id: UUID, src_port_id: str, src_vlan: int, dst_port_id: str, dst_vlan: int, bandwidth: int
+    #     self,
+    #     connection_id: UUID,
+    #     bandwidth: int,
+    #     src_port_id: str,
+    #     src_vlan: int,
+    #     dst_port_id: str,
+    #     dst_vlan: int,
+    #     circuit_id: str,
     # ) -> None:
     #     """Deactivate resources in NRM."""
     #
     # def terminate(
-    #     self, connection_id: UUID, src_port_id: str, src_vlan: int, dst_port_id: str, dst_vlan: int, bandwidth: int
+    #     self,
+    #     connection_id: UUID,
+    #     bandwidth: int,
+    #     src_port_id: str,
+    #     src_vlan: int,
+    #     dst_port_id: str,
+    #     dst_vlan: int,
+    #     circuit_id: str,
     # ) -> None:
     #     """Terminate resources in NRM."""
     #

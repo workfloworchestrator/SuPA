@@ -161,8 +161,8 @@ def _register_request(
     because the correlation_id used in the response message generated in the job
     is stored in this function.
     """
-    if not connection_id and type(request) != QueryRequest:
-        connection_id = UUID(request.connection_id)  # type: ignore[arg-type]
+    if not connection_id and not isinstance(request, QueryRequest):
+        connection_id = UUID(request.connection_id)
 
     from supa.db.session import db_session
 
@@ -244,9 +244,9 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                 requester_nsa=pb_header.requester_nsa,
                 provider_nsa=pb_header.provider_nsa,
                 reply_to=pb_header.reply_to if pb_header.reply_to else None,
-                session_security_attributes=pb_header.session_security_attributes
-                if pb_header.session_security_attributes
-                else None,
+                session_security_attributes=(
+                    pb_header.session_security_attributes if pb_header.session_security_attributes else None
+                ),
                 global_reservation_id=pb_reserve_request.global_reservation_id,
                 description=pb_reserve_request.description if pb_reserve_request.description else None,
             )

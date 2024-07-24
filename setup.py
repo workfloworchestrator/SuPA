@@ -1,13 +1,14 @@
 """Distutils/setuptools packaging information file."""
+
+import importlib
 import operator
 import shutil
 import sys
-from distutils.command.clean import clean  # type: ignore
+from distutils.command.clean import clean
 from fileinput import FileInput
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-import pkg_resources
 import setuptools
 from setuptools.command.develop import develop
 from setuptools.command.install import install
@@ -60,7 +61,7 @@ class GenCode(setuptools.Command):
         gen_code_path.mkdir(exist_ok=True)
 
         # Include common gRPC protobuf definitions
-        proto_include = pkg_resources.resource_filename("grpc_tools", "_proto")
+        proto_include = importlib.resources.files("grpc_tools") / "_proto"  # type: ignore[attr-defined]
 
         proto_files = list(PROTOS_PATH.glob("*.proto"))
         if len(proto_files) == 0:
@@ -123,7 +124,7 @@ class InstallCommand(install):
 class DevelopCommand(develop):
     """Support Python code generation during 'editable' package installation."""
 
-    def run(self) -> None:  # noqa: D102
+    def run(self) -> None:  # type: ignore[override] # noqa: D102
         self.run_command("gen_code")
         super().run()
 
@@ -142,5 +143,10 @@ class CleanCommand(clean):
 # to generate Python code from protobuf/gRPC definitions during installation.
 setuptools.setup(
     name="supa",
-    cmdclass={"gen_code": GenCode, "install": InstallCommand, "develop": DevelopCommand, "clean": CleanCommand},
+    cmdclass={
+        "gen_code": GenCode,
+        "install": InstallCommand,
+        "develop": DevelopCommand,
+        "clean": CleanCommand,  # type: ignore[dict-item]
+    },
 )

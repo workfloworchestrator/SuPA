@@ -93,7 +93,7 @@ class ActivateJob(Job):
                     dpsm.auto_end_request()
 
         stub = requester.get_stub()
-        if type(request) == DataPlaneStateChangeRequest:
+        if isinstance(request, DataPlaneStateChangeRequest):
             if auto_end_job:
                 from supa import scheduler
 
@@ -209,7 +209,7 @@ class DeactivateJob(Job):
                 request = to_data_plane_state_change_request(reservation)
 
         stub = requester.get_stub()
-        if type(request) == DataPlaneStateChangeRequest:
+        if isinstance(request, DataPlaneStateChangeRequest):
             register_notification(request, NotificationType.DataPlaneStateChange)
             self.log.debug("Sending message", method="DataPlaneStateChange", request_message=request)
             stub.DataPlaneStateChange(request)
@@ -398,7 +398,5 @@ class AutoEndJob(Job):
         from supa.db.session import db_session
 
         with db_session() as session:
-            reservation = (
-                session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one_or_none()
-            )
-            return DateTrigger(run_date=reservation.schedule.end_time)
+            reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
+            return DateTrigger(run_date=reservation.end_time)

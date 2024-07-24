@@ -220,10 +220,10 @@ def register_result(
     from supa.db.session import db_session
 
     # The connection_id on ErrorRequest is located in service_exception.
-    if type(request) == ErrorRequest:
+    if isinstance(request, ErrorRequest):
         connection_id = request.service_exception.connection_id
     else:
-        connection_id = request.connection_id  # type: ignore[union-attr]
+        connection_id = request.connection_id
     with db_session() as session:
         try:
             # find the highest result ID for this connection ID and increment by 1

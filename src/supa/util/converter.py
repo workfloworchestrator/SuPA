@@ -94,7 +94,7 @@ def to_header(reservation: model.Reservation, *, add_path_segment: bool = False)
             segment: model.Segment
             for segment in path.segments:
                 pb_segment = pb_path.segments.add()
-                pb_segment.id = segment.segment.id
+                pb_segment.id = segment.segment_id
                 pb_segment.connection_id = segment.upa_connection_id
                 stp: model.Stp
                 for stp in segment.stps:
@@ -311,7 +311,7 @@ def to_error_event(reservation: model.Reservation, nsi_exc: NsiException, event:
     pb_header.correlation_id = uuid4().urn
     pb_header.requester_nsa = reservation.requester_nsa
     pb_header.provider_nsa = reservation.provider_nsa
-    pb_header.reply_to = reservation.reply_to
+    pb_header.reply_to = reservation.reply_to  # type: ignore[assignment]
 
     pb_ee_req = ErrorEventRequest()
     pb_ee_req.header.CopyFrom(pb_header)

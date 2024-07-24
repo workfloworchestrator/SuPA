@@ -22,8 +22,8 @@ from uuid import UUID
 import structlog
 from apscheduler.triggers.date import DateTrigger
 from more_itertools import flatten
-from sqlalchemy import and_, func, or_, orm
-from sqlalchemy.orm import aliased, joinedload
+from sqlalchemy import and_, func, or_, select
+from sqlalchemy.orm import aliased, joinedload, scoped_session
 from statemachine.exceptions import TransitionNotAllowed
 from structlog.stdlib import BoundLogger
 
@@ -129,7 +129,7 @@ class ReserveJob(Job):
         self.src_port_id: str = ""
         self.dst_port_id: str = ""
 
-    def _stp_resources_in_use(self, session: orm.Session) -> Dict[str, StpResources]:
+    def _stp_resources_in_use(self, session: scoped_session) -> Dict[str, StpResources]:
         """Calculate STP resources in use for active reservations that overlap with ours.
 
         Active reservations being those that:
@@ -165,8 +165,8 @@ class ReserveJob(Job):
         # The other part is for joining the overlapping ones with our (current) reservation.
         CurrentSchedule = aliased(Schedule, name="cs")
         overlap_active = (
+            select(Reservation)
             # The other part
-            session.query(Reservation)
             .join(
                 Schedule,
                 and_(Reservation.connection_id == Schedule.connection_id, Reservation.version == Schedule.version),
@@ -256,7 +256,7 @@ class ReserveJob(Job):
             rec.stp: StpResources(bandwidth=rec.bandwidth, vlans=VlanRanges(rec.vlans)) for rec in stp_resources_in_use
         }
 
-    def _process_stp(self, target: str, var: Variable, reservation: Reservation, session: orm.Session) -> None:
+    def _process_stp(self, target: str, var: Variable, reservation: Reservation, session: scoped_session) -> None:
         """Check validity of STP and select available VLAN.
 
         Target can be either "src" or "dst".
@@ -334,7 +334,8 @@ class ReserveJob(Job):
                     .joinedload(Path.segments)
                     .joinedload(Segment.stps),
                 )
-                .get(self.connection_id)
+                .filter(Reservation.connection_id == self.connection_id)
+                .one()
             )
             assert reservation.version == reservation.schedule.version  # assert versions on references are the same
             assert reservation.version == reservation.p2p_criteria.version  # TODO: refactor into unit test(s)
@@ -402,12 +403,13 @@ class ReserveJob(Job):
                 rsm.reserve_confirmed()
 
         stub = requester.get_stub()
-        if type(request) == ReserveConfirmedRequest:
+        if isinstance(request, ReserveConfirmedRequest):
             register_result(request, ResultType.ReserveConfirmed)
             self.log.debug("Sending message.", method="ReserveConfirmed", request_message=request)
             stub.ReserveConfirmed(request)
         else:
-            from supa import scheduler
+            # for some reason the isinstance() above triggers a unreachable below, but this code is definitely reachable
+            from supa import scheduler  # type: ignore[unreachable]
 
             self.log.info("Cancel reserve timeout")
             scheduler.remove_job(job_id=ReserveTimeoutJob(self.connection_id).job_id)
@@ -527,12 +529,12 @@ class ReserveCommitJob(Job):
 
             except NsiException as nsi_exc:
                 self.log.info("Reserve commit failed.", reason=nsi_exc.text)
-                request = to_generic_failed_request(session, nsi_exc)
+                request = to_generic_failed_request(reservation, nsi_exc)
                 rsm.reserve_commit_failed()
             except Exception as exc:
                 self.log.exception("Unexpected error occurred.", reason=str(exc))
                 nsi_exc = NsiException(GenericInternalError, str(exc))  # type: ignore[misc]
-                request = to_generic_failed_request(session, nsi_exc)  # type: ignore[misc]
+                request = to_generic_failed_request(reservation, nsi_exc)  # type: ignore[misc]
                 rsm.reserve_commit_failed()
             else:
                 request = to_generic_confirmed_request(reservation)
@@ -542,7 +544,7 @@ class ReserveCommitJob(Job):
                 rsm.reserve_commit_confirmed()
 
         stub = requester.get_stub()
-        if type(request) == GenericConfirmedRequest:
+        if isinstance(request, GenericConfirmedRequest):
             from supa import scheduler
 
             if reschedule_auto_start:
@@ -653,7 +655,7 @@ class ReserveAbortJob(Job):
                 rsm.reserve_abort_confirmed()
 
         stub = requester.get_stub()
-        if type(request) == GenericConfirmedRequest:
+        if isinstance(request, GenericConfirmedRequest):
             register_result(request, ResultType.ReserveAbortConfirmed)
             self.log.debug("Sending message", method="ReserveAbortConfirmed", request_message=request)
             stub.ReserveAbortConfirmed(request)
@@ -732,7 +734,7 @@ class ReserveTimeoutJob(Job):
                 self.log.info(
                     "Reserve timeout failed",
                     reason=str(tna),
-                    state=rsm.current_state.identifier,
+                    state=rsm.current_state.id,
                     connection_id=str(self.connection_id),
                 )
                 return
@@ -766,12 +768,12 @@ class ReserveTimeoutJob(Job):
                 reservation.reservation_timeout = True
 
         stub = requester.get_stub()
-        if type(request) == ReserveTimeoutRequest:
+        if isinstance(request, ReserveTimeoutRequest):
             register_notification(request, NotificationType.ReserveTimeout)
             self.log.debug("Sending message", method="ReserveTimeout", request_message=request)
             stub.ReserveTimeout(request)
         else:
-            register_result(request, ResultType.Error)  # type: ignore[arg-type]
+            register_result(request, ResultType.Error)
             self.log.debug("Sending message", method="Error", request_message=request)
             stub.Error(request)
 
