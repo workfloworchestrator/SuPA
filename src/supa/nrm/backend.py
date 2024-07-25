@@ -95,6 +95,20 @@ class BaseBackend:
         )
         return None
 
+    def modify(
+        self,
+        connection_id: UUID,
+        bandwidth: int,
+        src_port_id: str,
+        src_vlan: int,
+        dst_port_id: str,
+        dst_vlan: int,
+        circuit_id: str,
+    ) -> Optional[str]:
+        """Modify resources in NRM."""
+        self.log.info("Modify resources in NRM", backend="no-op", primitive="reserve", connection_id=str(connection_id))
+        return None
+
     def reserve_timeout(
         self,
         connection_id: UUID,

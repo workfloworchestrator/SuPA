@@ -203,6 +203,7 @@ class Reservation(Base):
     # attribute comes from.
 
     connection_id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    version: Mapped[int]
     # header
     protocol_version: Mapped[str]
     requester_nsa: Mapped[str]
@@ -225,37 +226,6 @@ class Reservation(Base):
     # request message (+ connection_id)
     global_reservation_id: Mapped[str]
     description: Mapped[Optional[str]]
-
-    # reservation request criteria
-    version: Mapped[int]
-
-    # schedule
-    start_time: Mapped[datetime] = mapped_column(default=current_timestamp, index=True)
-    end_time: Mapped[datetime] = mapped_column(default=NO_END_DATE, index=True)
-
-    # p2p
-    bandwidth: Mapped[int] = mapped_column(comment="Mbps")
-    directionality = mapped_column(Enum("BI_DIRECTIONAL", "UNI_DIRECTIONAL"), nullable=False, default="BI_DIRECTIONAL")
-    symmetric: Mapped[bool]
-
-    src_domain: Mapped[str]
-    src_topology: Mapped[str]
-    src_stp_id: Mapped[str] = mapped_column(comment="uniq identifier of STP in the topology")
-    src_vlans: Mapped[str]
-
-    # `src_vlans` might be a range of VLANs in case the reservation specified an unqualified STP.
-    # In that case it is up to the reservation process to select an available VLAN out of the
-    # supplied range.
-    # This also explain the difference in column types. A range is expressed as a string (eg "1-10").
-    # A single VLAN is always a single number, hence integer.
-    src_selected_vlan: Mapped[Optional[int]]
-    dst_domain: Mapped[str]
-    dst_topology: Mapped[str]
-    dst_stp_id: Mapped[str] = mapped_column(comment="uniq identifier of STP in the topology")
-    dst_vlans: Mapped[str]
-
-    # See `src_selected_vlan`
-    dst_selected_vlan: Mapped[Optional[int]]
 
     # internal state keeping
     reservation_state = mapped_column(
@@ -301,6 +271,42 @@ class Reservation(Base):
         passive_deletes=True,
     )  # one-to-one
 
+    schedules = relationship(
+        "Schedule",
+        order_by="asc(Schedule.version)",
+        back_populates="reservation",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    schedule = relationship(
+        "Schedule",
+        uselist=False,
+        primaryjoin="""and_(
+                            Reservation.connection_id==Schedule.connection_id,
+                            Reservation.version==Schedule.version
+                        )""",
+        viewonly=True,
+    )
+
+    p2p_criteria_list = relationship(
+        "P2PCriteria",
+        order_by="asc(P2PCriteria.version)",
+        back_populates="reservation",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    p2p_criteria = relationship(
+        "P2PCriteria",
+        uselist=False,
+        primaryjoin="""and_(
+                            Reservation.connection_id==P2PCriteria.connection_id,
+                            Reservation.version==P2PCriteria.version
+                        )""",
+        viewonly=True,
+    )
+
     notification = relationship(
         "Notification",
         back_populates="reservation",
@@ -315,7 +321,64 @@ class Reservation(Base):
         passive_deletes=True,
     )
 
+
+class Schedule(Base):
+    """DB mapping for versioned schedules."""
+
+    __tablename__ = "schedules"
+
+    schedule_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    connection_id: Mapped[uuid.UUID] = mapped_column(ForeignKey(Reservation.connection_id, ondelete="CASCADE"))
+    version: Mapped[int] = mapped_column()
+    UniqueConstraint(connection_id, version)
+
+    # schedule
+    start_time: Mapped[datetime] = mapped_column(default=current_timestamp, index=True)
+    end_time: Mapped[datetime] = mapped_column(default=NO_END_DATE, index=True)
     __table_args__ = (CheckConstraint(start_time < end_time),)
+
+    reservation = relationship(
+        Reservation,
+        back_populates="schedules",
+    )  # (cascades defined in parent)
+
+
+class P2PCriteria(Base):
+    """DB mapping for versioned P2P criteria."""
+
+    __tablename__ = "p2p_criteria"
+
+    p2p_criteria_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    connection_id: Mapped[uuid.UUID] = mapped_column(ForeignKey(Reservation.connection_id, ondelete="CASCADE"))
+    version: Mapped[int] = mapped_column()
+    UniqueConstraint(connection_id, version)
+
+    # p2p criteria
+    bandwidth: Mapped[int] = mapped_column(comment="Mbps")
+    directionality = mapped_column(Enum("BI_DIRECTIONAL", "UNI_DIRECTIONAL"), nullable=False, default="BI_DIRECTIONAL")
+    symmetric: Mapped[bool]
+
+    src_domain: Mapped[str]
+    src_topology: Mapped[str]
+    src_stp_id: Mapped[str] = mapped_column(comment="uniq identifier of STP in the topology")
+    src_vlans: Mapped[str]
+    # `src_vlans` might be a range of VLANs in case the reservation specified an unqualified STP.
+    # In that case it is up to the reservation process to select an available VLAN out of the
+    # supplied range.
+    # This also explain the difference in column types. A range is expressed as a string (eg "1-10").
+    # A single VLAN is always a single number, hence integer.
+    src_selected_vlan: Mapped[Optional[int]]
+    dst_domain: Mapped[str]
+    dst_topology: Mapped[str]
+    dst_stp_id: Mapped[str] = mapped_column(comment="uniq identifier of STP in the topology")
+    dst_vlans: Mapped[str]
+    # See `src_selected_vlan`
+    dst_selected_vlan: Mapped[Optional[int]]
+
+    reservation = relationship(
+        Reservation,
+        back_populates="p2p_criteria_list",
+    )  # (cascades defined in parent)
 
     def src_stp(self, selected: bool = False) -> nsi.Stp:
         """Return :class:`~supa.util.nsi.STP` instance for src data.

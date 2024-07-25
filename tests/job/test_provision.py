@@ -1,7 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any
-
-from sqlalchemy import Column
+from uuid import UUID
 
 import tests.shared.state_machine as state_machine
 
@@ -11,7 +10,7 @@ from supa.util.timestamp import current_timestamp
 
 
 def test_provision_job_provision_confirmed(
-    connection_id: Column, connection: None, provisioning: None, get_stub: None, caplog: Any
+    connection_id: UUID, connection: None, provisioning: None, get_stub: None, caplog: Any
 ) -> None:
     """Test ProvisionJob to transition to Provisioned."""
     provision_job = ProvisionJob(connection_id)
@@ -22,7 +21,7 @@ def test_provision_job_provision_confirmed(
 
 
 def test_provision_job_already_terminated(
-    connection_id: Column, connection: None, provisioning: None, terminated: None, get_stub: None, caplog: Any
+    connection_id: UUID, connection: None, provisioning: None, terminated: None, get_stub: None, caplog: Any
 ) -> None:
     """Test ProvisionJob to return Error when reservation is already terminated."""
     provision_job = ProvisionJob(connection_id)
@@ -33,15 +32,15 @@ def test_provision_job_already_terminated(
 
 
 def test_provision_passed_start_time(
-    connection_id: Column, connection: None, provisioning: None, get_stub: None, caplog: Any
+    connection_id: UUID, connection: None, provisioning: None, get_stub: None, caplog: Any
 ) -> None:
     """Test ProvisionJob to transition to Provisioned and not start a AutoStartJob."""
     from supa.db.session import db_session
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        reservation.start_time = datetime.now(timezone.utc) - timedelta(hours=1)
-        reservation.end_time = datetime.now(timezone.utc) + timedelta(hours=1)
+        reservation.schedule.start_time = datetime.now(timezone.utc) - timedelta(hours=1)
+        reservation.schedule.end_time = datetime.now(timezone.utc) + timedelta(hours=1)
     provision_job = ProvisionJob(connection_id)
     provision_job.__call__()
     assert state_machine.is_provisioned(connection_id)
@@ -49,7 +48,7 @@ def test_provision_passed_start_time(
 
 
 def test_provision_cannot_auto_start(
-    connection_id: Column, connection: None, provisioning: None, activated: None, get_stub: None, caplog: Any
+    connection_id: UUID, connection: None, provisioning: None, activated: None, get_stub: None, caplog: Any
 ) -> None:
     """Test ProvisionJob to return error when data plane cannot transition to auto start."""
     provision_job = ProvisionJob(connection_id)
@@ -60,15 +59,15 @@ def test_provision_cannot_auto_start(
 
 
 def test_provision_cannot_activate(
-    connection_id: Column, connection: None, provisioning: None, activate_failed: None, get_stub: None, caplog: Any
+    connection_id: UUID, connection: None, provisioning: None, activate_failed: None, get_stub: None, caplog: Any
 ) -> None:
     """Test ProvisionJob to return error when data plane cannot transition to activating."""
     from supa.db.session import db_session
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        reservation.start_time = datetime.now(timezone.utc) - timedelta(hours=1)
-        reservation.end_time = datetime.now(timezone.utc) + timedelta(hours=1)
+        reservation.schedule.start_time = datetime.now(timezone.utc) - timedelta(hours=1)
+        reservation.schedule.end_time = datetime.now(timezone.utc) + timedelta(hours=1)
     provision_job = ProvisionJob(connection_id)
     provision_job.__call__()
     assert state_machine.is_provisioning(connection_id)
@@ -76,7 +75,7 @@ def test_provision_cannot_activate(
     assert "Can't activate_request when in ActivateFailed" in caplog.text
 
 
-def test_provision_job_recover(connection_id: Column, provisioning: None, get_stub: None, caplog: Any) -> None:
+def test_provision_job_recover(connection_id: UUID, provisioning: None, get_stub: None, caplog: Any) -> None:
     """Test ProvisionJob to recover reservations in state Created and Provisioning and not passed end time."""
     provision_job = ProvisionJob(connection_id)
     job_list = provision_job.recover()
@@ -93,7 +92,7 @@ def test_provision_job_recover(connection_id: Column, provisioning: None, get_st
     assert msgs[0]["event"] == "Recovering job"
 
 
-def test_provision_job_trigger(connection_id: Column, caplog: Any) -> None:
+def test_provision_job_trigger(connection_id: UUID, caplog: Any) -> None:
     """Test ProvisionJob to return trigger to run immediately."""
     provision_job = ProvisionJob(connection_id)
     job_trigger = provision_job.trigger()
@@ -101,7 +100,7 @@ def test_provision_job_trigger(connection_id: Column, caplog: Any) -> None:
 
 
 def test_release_job_release_confirmed_auto_start(
-    connection_id: Column,
+    connection_id: UUID,
     connection: None,
     releasing: None,
     auto_start: None,
@@ -118,7 +117,7 @@ def test_release_job_release_confirmed_auto_start(
 
 
 def test_release_job_release_confirmed_auto_end(
-    connection_id: Column, connection: None, releasing: None, auto_end: None, get_stub: None, caplog: Any
+    connection_id: UUID, connection: None, releasing: None, auto_end: None, get_stub: None, caplog: Any
 ) -> None:
     """Test ReleaseJob to transition to Released and, disable auto end and schedule deactivate of data plane."""
     release_job = ReleaseJob(connection_id)
@@ -129,7 +128,7 @@ def test_release_job_release_confirmed_auto_end(
 
 
 def test_release_job_release_confirmed_invalid_data_plane_state(
-    connection_id: Column, connection: None, releasing: None, activate_failed: None, get_stub: None, caplog: Any
+    connection_id: UUID, connection: None, releasing: None, activate_failed: None, get_stub: None, caplog: Any
 ) -> None:
     """Test ReleaseJob to transition to Released even when data plane is in activate failed state."""
     release_job = ReleaseJob(connection_id)
@@ -140,7 +139,7 @@ def test_release_job_release_confirmed_invalid_data_plane_state(
 
 
 def test_release_job_already_terminated(
-    connection_id: Column, connection: None, releasing: None, terminated: None, get_stub: None, caplog: Any
+    connection_id: UUID, connection: None, releasing: None, terminated: None, get_stub: None, caplog: Any
 ) -> None:
     """Test ReleaseJob to return Error when reservation is already terminated."""
     release_job = ReleaseJob(connection_id)
@@ -150,7 +149,7 @@ def test_release_job_already_terminated(
     assert "No deactivate" in caplog.text
 
 
-def test_release_job_recover(connection_id: Column, releasing: None, get_stub: None, caplog: Any) -> None:
+def test_release_job_recover(connection_id: UUID, releasing: None, get_stub: None, caplog: Any) -> None:
     """Test ReleaseJob to recover reservations in state Created and releasing."""
     release_job = ReleaseJob(connection_id)
     job_list = release_job.recover()
@@ -165,7 +164,7 @@ def test_release_job_recover(connection_id: Column, releasing: None, get_stub: N
     assert msgs[0]["event"] == "Recovering job"
 
 
-def test_release_job_trigger(connection_id: Column, caplog: Any) -> None:
+def test_release_job_trigger(connection_id: UUID, caplog: Any) -> None:
     """Test ReleaseJob to return trigger to run immediately."""
     release_job = ReleaseJob(connection_id)
     job_trigger = release_job.trigger()

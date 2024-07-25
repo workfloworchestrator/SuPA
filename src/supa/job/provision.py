@@ -24,7 +24,7 @@ from structlog.stdlib import BoundLogger
 from supa.connection import requester
 from supa.connection.error import GenericConnectionError, GenericInternalError, InvalidTransition, Variable
 from supa.connection.fsm import DataPlaneStateMachine, LifecycleStateMachine, ProvisionStateMachine
-from supa.db.model import Connection, Reservation, connection_to_dict
+from supa.db.model import Connection, Reservation, Schedule, connection_to_dict
 from supa.grpc_nsi.connection_requester_pb2 import ErrorRequest, GenericConfirmedRequest
 from supa.job.dataplane import ActivateJob, AutoEndJob, AutoStartJob, DeactivateJob
 from supa.job.shared import Job, NsiException, register_result
@@ -111,7 +111,7 @@ class ProvisionJob(Job):
                         ),
                         self.connection_id,
                     )
-                elif current_timestamp() < reservation.start_time:
+                elif current_timestamp() < reservation.schedule.start_time:
                     try:
                         dpsm.auto_start_request()
                     except TransitionNotAllowed as tna:
@@ -128,7 +128,7 @@ class ProvisionJob(Job):
                             self.connection_id,
                         )
                     else:
-                        start_time = reservation.start_time
+                        start_time = reservation.schedule.start_time
                         request = to_generic_confirmed_request(reservation)
                         psm.provision_confirmed()
                 else:
@@ -187,10 +187,11 @@ class ProvisionJob(Job):
             connection_ids: List[UUID] = list(
                 flatten(
                     session.query(Reservation.connection_id)
+                    .join(Schedule)
                     .filter(
                         Reservation.lifecycle_state == LifecycleStateMachine.Created.value,
                         Reservation.provision_state == ProvisionStateMachine.Provisioning.value,
-                        Reservation.end_time > current_timestamp(),
+                        Schedule.end_time > current_timestamp(),
                     )
                     .all()
                 )
