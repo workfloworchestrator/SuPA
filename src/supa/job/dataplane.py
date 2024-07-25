@@ -399,4 +399,4 @@ class AutoEndJob(Job):
 
         with db_session() as session:
             reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
-            return DateTrigger(run_date=reservation.end_time)
+            return DateTrigger(run_date=reservation.schedule.end_time)

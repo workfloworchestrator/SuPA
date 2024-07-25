@@ -810,7 +810,7 @@ class ReserveTimeoutJob(Job):
         with db_session() as session:
             reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
             timeout_date = reservation.create_date if len(reservation.schedules) == 1 else reservation.last_modified
-            timeout_date += timedelta(seconds=settings.reserve_timeout)
+            timeout_date += timedelta(seconds=settings.reserve_timeout)  # type: ignore
             self.log.debug("reserve timeout set", timeout_date=timeout_date)
 
         return DateTrigger(run_date=timeout_date)

@@ -2,7 +2,7 @@ import time
 from concurrent import futures
 from datetime import datetime, timedelta, timezone
 from typing import Generator
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import grpc
 import pytest
@@ -95,7 +95,7 @@ def add_stp_ids(init: Generator) -> None:
 
 
 @pytest.fixture()
-def connection_id() -> Column:
+def connection_id() -> Generator[UUID, None, None]:
     """Create new reservation in db and return connection ID."""
     from supa.db.session import db_session
 
@@ -111,23 +111,29 @@ def connection_id() -> Column:
             version=0,
             lifecycle_state="CREATED",
         )
-        reservation.schedule = Schedule(
-            start_time=datetime.now(timezone.utc) + timedelta(minutes=10),
-            end_time=datetime.now(timezone.utc) + timedelta(minutes=20),
+        reservation.schedules.append(
+            Schedule(
+                version=0,
+                start_time=datetime.now(timezone.utc) + timedelta(minutes=10),
+                end_time=datetime.now(timezone.utc) + timedelta(minutes=20),
+            )
         )
-        reservation.p2p_criteria = P2PCriteria(
-            bandwidth=10,
-            symmetric=True,
-            src_domain="example.domain:2001",
-            src_topology="topology",
-            src_stp_id="port1",
-            src_vlans="1783",
-            src_selected_vlan=1783,
-            dst_domain="example.domain:2001",
-            dst_topology="topology",
-            dst_stp_id="port2",
-            dst_vlans="1783",
-            dst_selected_vlan=1783,
+        reservation.p2p_criteria_list.append(
+            P2PCriteria(
+                version=0,
+                bandwidth=10,
+                symmetric=True,
+                src_domain="example.domain:2001",
+                src_topology="topology",
+                src_stp_id="port1",
+                src_vlans="1783",
+                src_selected_vlan=1783,
+                dst_domain="example.domain:2001",
+                dst_topology="topology",
+                dst_stp_id="port2",
+                dst_vlans="1783",
+                dst_selected_vlan=1783,
+            )
         )
         session.add(reservation)
         session.flush()  # let db generate connection_id

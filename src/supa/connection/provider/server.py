@@ -316,7 +316,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
 
             with db_session() as session:
                 reservation = (
-                    session.query(model.Reservation)
+                    session.query(model.Reservation)  # type: ignore[assignment]
                     .filter(model.Reservation.connection_id == connection_id)
                     .one_or_none()
                 )

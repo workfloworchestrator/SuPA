@@ -328,7 +328,7 @@ class Schedule(Base):
     __tablename__ = "schedules"
 
     schedule_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    connection_id: Mapped[uuid.UUID] = mapped_column(ForeignKey(Reservation.connection_id))
+    connection_id: Mapped[uuid.UUID] = mapped_column(ForeignKey(Reservation.connection_id, ondelete="CASCADE"))
     version: Mapped[int] = mapped_column()
     UniqueConstraint(connection_id, version)
 
@@ -349,7 +349,7 @@ class P2PCriteria(Base):
     __tablename__ = "p2p_criteria"
 
     p2p_criteria_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    connection_id: Mapped[uuid.UUID] = mapped_column(ForeignKey(Reservation.connection_id))
+    connection_id: Mapped[uuid.UUID] = mapped_column(ForeignKey(Reservation.connection_id, ondelete="CASCADE"))
     version: Mapped[int] = mapped_column()
     UniqueConstraint(connection_id, version)
 

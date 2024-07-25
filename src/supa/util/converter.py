@@ -103,7 +103,9 @@ def to_header(reservation: model.Reservation, *, add_path_segment: bool = False)
                 pb_segment = Segment()
                 pb_segment.id = settings.nsa_id
                 pb_segment.connection_id = str(reservation.connection_id)
-                pb_segment.stps.extend([reservation.src_stp(selected=True), reservation.dst_stp(selected=True)])
+                pb_segment.stps.extend(
+                    [reservation.p2p_criteria.src_stp(selected=True), reservation.p2p_criteria.dst_stp(selected=True)]
+                )
                 pb_path.append(pb_segment)
     return pb_header
 
@@ -193,7 +195,7 @@ def to_p2p_service(p2p_criteria: model.P2PCriteria, parameters: List[Parameter])
     pb_ptps.dest_stp = str(p2p_criteria.dst_stp(selected=True))
     # The initial version didn't have to support Explicit Routing Objects.
     for param in parameters:
-        pb_ptps.parameters[param.key] = param.value
+        pb_ptps.parameters[param.key] = param.value  # type: ignore[assignment]
     return pb_ptps
 
 
