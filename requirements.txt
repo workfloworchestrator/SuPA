@@ -38,7 +38,7 @@ grpcio-tools==1.64.1
     # via supa (setup.cfg)
 htmlgen==2.0.0
     # via supa (setup.cfg)
-idna==3.7
+idna==3.8
     # via requests
 inflect==7.3.1
     # via jaraco-text
