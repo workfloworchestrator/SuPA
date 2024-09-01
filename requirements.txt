@@ -67,7 +67,7 @@ more-itertools==10.2.0
     #   supa (setup.cfg)
 mypy-protobuf==3.6.0
     # via supa (setup.cfg)
-paramiko==3.4.0
+paramiko==3.4.1
     # via supa (setup.cfg)
 portend==3.2.0
     # via cherrypy
