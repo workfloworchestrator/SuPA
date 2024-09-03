@@ -21,6 +21,7 @@ from supa.db.model import Connection, P2PCriteria, Request, Reservation, Schedul
 from supa.grpc_nsi import connection_provider_pb2_grpc
 from supa.job.dataplane import AutoEndJob, AutoStartJob
 from supa.job.reserve import ReserveTimeoutJob
+from supa.util.timestamp import NO_END_DATE
 from supa.util.type import RequestType
 
 
@@ -495,6 +496,21 @@ def auto_end(connection_id: Column) -> Generator:
 
 
 @pytest.fixture
+def auto_end_job(connection_id: Column) -> Generator:
+    """Run AutoEndtJob for connection_id."""
+    from supa import scheduler
+
+    job_handle = scheduler.add_job(job := AutoEndJob(connection_id), trigger=job.trigger(), id=job.job_id)
+
+    yield None
+
+    try:
+        job_handle.remove()
+    except JobLookupError:
+        pass  # job already removed from job store
+
+
+@pytest.fixture
 def deactivating(connection_id: Column) -> None:
     """Set data plane state machine of reservation identified by connection_id to state Deactivating."""
     from supa.db.session import db_session
@@ -522,3 +538,124 @@ def flag_reservation_timeout(connection_id: Column) -> None:
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
         reservation.reservation_timeout = True
+
+
+@pytest.fixture
+def start_now(connection_id: Column) -> None:
+    """Set reservation start time to now."""
+    from supa.db.session import db_session
+
+    with db_session() as session:
+        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
+        reservation.schedule.start_time = datetime.now(timezone.utc)
+
+
+@pytest.fixture
+def no_end_time(connection_id: Column) -> None:
+    """Set reservation start time to now."""
+    from supa.db.session import db_session
+
+    with db_session() as session:
+        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
+        reservation.schedule.end_time = NO_END_DATE
+
+
+def p2p_criteria_from_p2_criteria(p2p_criteria: P2PCriteria) -> P2PCriteria:
+    """Create deepcopy of given P2PCriteria object with version set to 1."""
+    return P2PCriteria(
+        version=1,
+        bandwidth=p2p_criteria.bandwidth,
+        symmetric=p2p_criteria.symmetric,
+        src_domain=p2p_criteria.src_domain,
+        src_topology=p2p_criteria.src_topology,
+        src_stp_id=p2p_criteria.src_stp_id,
+        src_vlans=p2p_criteria.src_vlans,
+        src_selected_vlan=p2p_criteria.src_selected_vlan,
+        dst_domain=p2p_criteria.dst_domain,
+        dst_topology=p2p_criteria.dst_topology,
+        dst_stp_id=p2p_criteria.dst_stp_id,
+        dst_vlans=p2p_criteria.dst_vlans,
+        dst_selected_vlan=p2p_criteria.dst_selected_vlan,
+    )
+
+
+@pytest.fixture
+def modified_start_time(connection_id: Column) -> None:
+    """Add Schedule with modified start time on connection set to Provisioned and AutoStart."""
+    from supa.db.session import db_session
+
+    with db_session() as session:
+        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
+        reservation.data_plane_state = DataPlaneStateMachine.AutoStart.value
+        reservation.provision_state = ProvisionStateMachine.Provisioned.value
+        reservation.schedules.append(
+            Schedule(
+                version=1,
+                start_time=reservation.schedule.start_time + timedelta(minutes=1),
+                end_time=reservation.schedule.end_time,
+            )
+        )
+        reservation.p2p_criteria_list.append(p2p_criteria_from_p2_criteria(reservation.p2p_criteria))
+        reservation.version = reservation.version + 1
+
+
+@pytest.fixture
+def modified_no_end_time(connection_id: Column) -> None:
+    """Add Schedule with no end time on connection set to Provisioned and AutoEnd."""
+    from supa.db.session import db_session
+
+    with db_session() as session:
+        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
+        reservation.data_plane_state = DataPlaneStateMachine.AutoEnd.value
+        reservation.provision_state = ProvisionStateMachine.Provisioned.value
+        reservation.schedules.append(
+            Schedule(
+                version=1,
+                start_time=reservation.schedule.start_time,
+                end_time=NO_END_DATE,
+            )
+        )
+        reservation.p2p_criteria_list.append(p2p_criteria_from_p2_criteria(reservation.p2p_criteria))
+        reservation.version = reservation.version + 1
+
+
+@pytest.fixture
+def modified_end_time(connection_id: Column) -> None:
+    """Add Schedule with end time of 30 minutes in the future on connection set to Provisioned and Activated."""
+    from supa.db.session import db_session
+
+    with db_session() as session:
+        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
+        reservation.data_plane_state = DataPlaneStateMachine.Activated.value
+        reservation.provision_state = ProvisionStateMachine.Provisioned.value
+        reservation.schedules.append(
+            Schedule(
+                version=1,
+                start_time=reservation.schedule.start_time,
+                end_time=datetime.now(timezone.utc) + timedelta(minutes=30),
+            )
+        )
+        reservation.p2p_criteria_list.append(p2p_criteria_from_p2_criteria(reservation.p2p_criteria))
+        reservation.version = reservation.version + 1
+
+
+@pytest.fixture
+def modified_bandwidth(connection_id: Column) -> None:
+    """Add P2PCriteria with modified bandwidth on connection set to Provisioned and Activated."""
+    from supa.db.session import db_session
+
+    with db_session() as session:
+        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
+        reservation.data_plane_state = DataPlaneStateMachine.Activated.value
+        reservation.provision_state = ProvisionStateMachine.Provisioned.value
+        reservation.schedules.append(
+            Schedule(
+                version=1,
+                start_time=reservation.schedule.start_time,
+                end_time=reservation.schedule.end_time,
+            )
+        )
+        new_p2p_criteria = p2p_criteria_from_p2_criteria(reservation.p2p_criteria)
+        new_p2p_criteria.bandwidth = new_p2p_criteria.bandwidth + 10
+        reservation.p2p_criteria_list.append(new_p2p_criteria)
+        reservation.version = reservation.version + 1

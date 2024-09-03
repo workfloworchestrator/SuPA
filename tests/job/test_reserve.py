@@ -205,6 +205,93 @@ def test_reserve_commit_job_reserve_commit_confirmed(
     assert state_machine.is_reserve_start(connection_id)
 
 
+def test_reserve_commit_modified_start_time(
+    connection_id: UUID,
+    connection: None,
+    reserve_committing: None,
+    modified_start_time: None,
+    auto_start_job: None,
+    get_stub: None,
+    caplog: Any,
+) -> None:
+    """Test ReserveCommitJob to reschedule AutoStartJob when start time is modified.
+
+    Verify (see fake_servicer) that a ReserveCommitJob will
+    ......
+    """
+    reserve_commit_job = ReserveCommitJob(connection_id)
+    reserve_commit_job.__call__()
+    assert state_machine.is_reserve_start(connection_id)
+    assert "Reschedule auto start" in caplog.text
+
+
+def test_reserve_commit_modified_no_end_time(
+    connection_id: UUID,
+    connection: None,
+    reserve_committing: None,
+    modified_no_end_time: None,
+    auto_end_job: None,
+    get_stub: None,
+    caplog: Any,
+) -> None:
+    """Test ReserveCommitJob to reschedule AutoStartJob when start time is modified.
+
+    Verify (see fake_servicer) that a ReserveCommitJob will
+    transition reservation state machine to ReserveStart,
+    and transition data plane state machine from AutoEnd to Activated,
+    and that the previous auto end job is canceled.
+    """
+    reserve_commit_job = ReserveCommitJob(connection_id)
+    reserve_commit_job.__call__()
+    assert state_machine.is_reserve_start(connection_id)
+    assert state_machine.is_activated(connection_id)
+    assert "Cancel previous auto end" in caplog.text
+
+
+def test_reserve_commit_modified_set_end_time(
+    connection_id: UUID,
+    connection: None,
+    reserve_committing: None,
+    modified_end_time: None,
+    get_stub: None,
+    caplog: Any,
+) -> None:
+    """Test ReserveCommitJob to schedule AutoEndJob when end time is set on connection without end time.
+
+    Verify (see fake_servicer) that a ReserveCommitJob will
+    transition reservation state machine to ReserveStart,
+    and transition data plane state machine from Activated to AutoEnd,
+    and that a auto end job is scheduled.
+    """
+    reserve_commit_job = ReserveCommitJob(connection_id)
+    reserve_commit_job.__call__()
+    assert state_machine.is_reserve_start(connection_id)
+    assert state_machine.is_auto_end(connection_id)
+    assert "Schedule new auto end" in caplog.text
+
+
+def test_reserve_commit_modified_change_bandwidth(
+    connection_id: UUID,
+    connection: None,
+    reserve_committing: None,
+    modified_bandwidth: None,
+    get_stub: None,
+    caplog: Any,
+) -> None:
+    """Test ReserveCommitJob to call modify() on backend of activated connection without end time.
+
+    Verify (see fake_servicer) that a ReserveCommitJob will
+    transition reservation state machine to ReserveStart,
+    and that modify() is called on the backend.
+    """
+    reserve_commit_job = ReserveCommitJob(connection_id)
+    reserve_commit_job.__call__()
+    assert state_machine.is_reserve_start(connection_id)
+    assert state_machine.is_activated(connection_id)
+    assert "modify bandwidth on connection" in caplog.text
+    assert "Modify resources in NRM" in caplog.text
+
+
 def test_reserve_commit_job_recover(connection_id: UUID, reserve_committing: None, get_stub: None, caplog: Any) -> None:
     """Test ReserveCommitJob to recover reservations in state ReserveCommitting."""
     reserve_commit_job = ReserveCommitJob(connection_id)

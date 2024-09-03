@@ -524,6 +524,11 @@ class ReserveCommitJob(Job):
                             dpsm.current_state == DataPlaneStateMachine.Activated
                             or dpsm.current_state == DataPlaneStateMachine.AutoEnd
                         ):
+                            self.log.info(
+                                "modify bandwidth on connection",
+                                old_bandwidth=old_bandwidth,
+                                new_bandwidth=new_bandwidth,
+                            )
                             if circuit_id := backend.modify(**connection_to_dict(connection)):
                                 connection.circuit_id = circuit_id
 
@@ -555,7 +560,7 @@ class ReserveCommitJob(Job):
                 self.log.info("Cancel previous auto end")
                 scheduler.remove_job(job_id=AutoEndJob(self.connection_id).job_id)
             if schedule_auto_end:
-                self.log.info("Schedule auto end", job="AutoEndJob", end_time=new_end_time.isoformat())
+                self.log.info("Schedule new auto end", job="AutoEndJob", end_time=new_end_time.isoformat())
                 scheduler.add_job(job := AutoEndJob(self.connection_id), trigger=job.trigger(), id=job.job_id)
             register_result(request, ResultType.ReserveCommitConfirmed)
             self.log.debug("Sending message", method="ReserveCommitConfirmed", request_message=request)
