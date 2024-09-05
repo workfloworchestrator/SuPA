@@ -327,12 +327,32 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                     nsi_exception = NsiException(
                         ReservationNonExistent, str(connection_id), {Variable.CONNECTION_ID: str(connection_id)}
                     )
+                elif (
+                    reservation.reservation_state != ReservationStateMachine.ReserveStart.value
+                    or reservation.lifecycle_state != LifecycleStateMachine.Created.value
+                ):
+                    log.info(
+                        "Connection not in modifiable state",
+                        reservation_state=reservation.reservation_state,
+                        lifecycle_state=reservation.lifecycle_state,
+                    )
+                    nsi_exception = NsiException(
+                        InvalidTransition,
+                        str(connection_id),
+                        {
+                            Variable.CONNECTION_ID: str(connection_id),
+                            Variable.RESERVATION_STATE: reservation.reservation_state,
+                            Variable.LIFECYCLE_STATE: reservation.lifecycle_state,
+                        },
+                    )
                 else:
                     old_version = reservation.version
                     old_start_time = reservation.schedules[-1].start_time
-                    if pb_reserve_request.criteria.version:
+                    if pb_reserve_request.criteria.version != 0:
                         new_version = pb_reserve_request.criteria.version
                     else:
+                        # cannot distinguish between unset (defaults to 0) and set to 0,
+                        # in the latter case we wrongly treat it as unset as well
                         new_version = old_version + 1
                     new_start_time = as_utc_timestamp(pb_reserve_request.criteria.schedule.start_time)
                     new_end_time = as_utc_timestamp(pb_reserve_request.criteria.schedule.end_time)
@@ -458,6 +478,16 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         log = logger.bind(method="ReserveCommit", connection_id=str(connection_id))
         log.debug("Received message.", request_message=pb_reserve_commit_request)
 
+        try:
+            _validate_message_header(pb_reserve_commit_request.header)
+        except NsiException as nsi_exc:
+            reserve_commit_response = GenericAcknowledgment(
+                header=to_response_header(pb_reserve_commit_request.header),
+                service_exception=to_service_exception(nsi_exc),
+            )
+            log.debug("Sending response.", response_message=reserve_commit_response)
+            return reserve_commit_response
+
         from supa.db.session import db_session
 
         with db_session() as session:
@@ -543,6 +573,16 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         log = logger.bind(method="ReserveAbort", connection_id=str(connection_id))
         log.debug("Received message.", request_message=pb_reserve_abort_request)
 
+        try:
+            _validate_message_header(pb_reserve_abort_request.header)
+        except NsiException as nsi_exc:
+            reserve_abort_response = GenericAcknowledgment(
+                header=to_response_header(pb_reserve_abort_request.header),
+                service_exception=to_service_exception(nsi_exc),
+            )
+            log.debug("Sending response.", response_message=reserve_abort_response)
+            return reserve_abort_response
+
         from supa.db.session import db_session
 
         with db_session() as session:
@@ -612,6 +652,16 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         connection_id = UUID(pb_provision_request.connection_id)
         log = logger.bind(method="Provision", connection_id=str(connection_id))
         log.debug("Received message.", request_message=pb_provision_request)
+
+        try:
+            _validate_message_header(pb_provision_request.header)
+        except NsiException as nsi_exc:
+            provision_response = GenericAcknowledgment(
+                header=to_response_header(pb_provision_request.header),
+                service_exception=to_service_exception(nsi_exc),
+            )
+            log.debug("Sending response.", response_message=provision_response)
+            return provision_response
 
         from supa.db.session import db_session
 
@@ -716,6 +766,16 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         log = logger.bind(method="Release", connection_id=str(connection_id))
         log.debug("Received message.", request_message=pb_release_request)
 
+        try:
+            _validate_message_header(pb_release_request.header)
+        except NsiException as nsi_exc:
+            release_response = GenericAcknowledgment(
+                header=to_response_header(pb_release_request.header),
+                service_exception=to_service_exception(nsi_exc),
+            )
+            log.debug("Sending response.", response_message=release_response)
+            return release_response
+
         from supa.db.session import db_session
 
         with db_session() as session:
@@ -817,6 +877,16 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         connection_id = UUID(pb_terminate_request.connection_id)
         log = logger.bind(method="Terminate", connection_id=str(connection_id))
         log.debug("Received message.", request_message=pb_terminate_request)
+
+        try:
+            _validate_message_header(pb_terminate_request.header)
+        except NsiException as nsi_exc:
+            terminate_response = GenericAcknowledgment(
+                header=to_response_header(pb_terminate_request.header),
+                service_exception=to_service_exception(nsi_exc),
+            )
+            log.debug("Sending response.", response_message=terminate_response)
+            return terminate_response
 
         from supa.db.session import db_session
 
