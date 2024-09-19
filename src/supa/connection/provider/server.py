@@ -131,7 +131,7 @@ def _validate_schedule(pb_schedule: Schedule) -> None:
                 err_msg,
                 {Variable.END_TIME: end_time.isoformat()},
             )
-        if start_time != EPOCH and start_time and end_time <= start_time:
+        if end_time != EPOCH and end_time <= start_time:
             err_msg = "End time cannot come before start time."
             logger.info(
                 err_msg,
@@ -410,8 +410,8 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                 )
                 schedule = model.Schedule(
                     version=new_version,
-                    start_time=new_start_time,
-                    end_time=new_end_time,
+                    start_time=new_start_time if is_specified(new_start_time) else None,
+                    end_time=new_end_time if is_specified(new_end_time) else None,
                 )
                 p2p_criteria = model.P2PCriteria(
                     # connection_id=connection_id,
