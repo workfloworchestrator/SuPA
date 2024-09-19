@@ -308,6 +308,8 @@ class AutoStartJob(Job):
                     .filter(
                         Reservation.lifecycle_state == LifecycleStateMachine.Created.value,
                         Reservation.data_plane_state == DataPlaneStateMachine.AutoStart.value,
+                        Reservation.connection_id == Schedule.connection_id,
+                        Reservation.version == Schedule.version,
                         Schedule.end_time > current_timestamp(),
                     )
                     .all()
