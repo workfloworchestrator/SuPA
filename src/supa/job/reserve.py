@@ -485,6 +485,7 @@ class ReserveCommitJob(Job):
             cancel_auto_end = False
             schedule_auto_end = False
             try:
+                # always reserve commit (possible new values) to NRM, also in case of modify
                 if circuit_id := backend.reserve_commit(**connection_to_dict(connection)):
                     connection.circuit_id = circuit_id
                 if len(reservation.schedules) > 1:  # modify reservation
@@ -519,6 +520,7 @@ class ReserveCommitJob(Job):
                             dpsm.auto_end_request()
                             schedule_auto_end = True
                     # 3. if bandwidth has changed and data plane is active then call modify() on backend
+                    #    to allow NRM to change the bandwidth on the active connection in the network
                     if new_bandwidth != old_bandwidth:
                         if (
                             dpsm.current_state == DataPlaneStateMachine.Activated
