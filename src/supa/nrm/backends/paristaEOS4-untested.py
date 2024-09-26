@@ -109,7 +109,13 @@ class Backend(BaseBackend):
     def __init__(self) -> None:
         """Load properties from 'paristaEOS4.env'."""
         super(Backend, self).__init__()
-        self.backend_settings = BackendSettings(_env_file=(env_file := find_file("paristaEOS4.env")))
+        self.backend_settings = BackendSettings(
+            _env_file=(
+                env_file := find_file(
+                    "paristaEOS4.env",
+                )
+            )
+        )  # type: ignore[call-arg]
         self.log.info("Read backend properties", path=str(env_file))
 
     def _get_ssh_shell(self) -> None:

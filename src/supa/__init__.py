@@ -308,7 +308,7 @@ def resolve_database_file(database_file: Union[Path, str]) -> Path:
     return resolved_path
 
 
-settings = Settings(_env_file=resolve_env_file())
+settings = Settings(_env_file=resolve_env_file())  # type: ignore[call-arg]
 """Application wide settings.
 
 Initially this only has the settings,

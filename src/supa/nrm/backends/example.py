@@ -34,7 +34,7 @@ class BackendSettings(BaseSettings):
     target_port: int = 80
 
 
-backend_settings = BackendSettings(_env_file="src/supa/nrm/backends/example.env")
+backend_settings = BackendSettings(_env_file="src/supa/nrm/backends/example.env")  # type: ignore[call-arg]
 
 
 class Backend(BaseBackend):
