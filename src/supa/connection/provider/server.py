@@ -30,7 +30,6 @@ from supa.connection.error import (
 )
 from supa.connection.fsm import LifecycleStateMachine, ProvisionStateMachine, ReservationStateMachine
 from supa.db import model
-from supa.db.model import Request
 from supa.grpc_nsi import connection_provider_pb2_grpc
 from supa.grpc_nsi.connection_common_pb2 import GenericAcknowledgment, Header, Schedule
 from supa.grpc_nsi.connection_provider_pb2 import (
@@ -64,7 +63,7 @@ from supa.job.reserve import ReserveAbortJob, ReserveCommitJob, ReserveJob, Rese
 from supa.job.shared import Job, NsiException
 from supa.util.converter import to_response_header, to_service_exception
 from supa.util.nsi import parse_stp
-from supa.util.timestamp import as_utc_timestamp, current_timestamp, is_specified
+from supa.util.timestamp import EPOCH, as_utc_timestamp, current_timestamp, is_specified
 from supa.util.type import RequestType
 
 logger = structlog.get_logger(__name__)
@@ -124,7 +123,7 @@ def _validate_schedule(pb_schedule: Schedule) -> None:
     start_time = as_utc_timestamp(pb_schedule.start_time)
     end_time = as_utc_timestamp(pb_schedule.end_time)
     if pb_schedule.end_time:
-        if end_time <= current_timestamp():
+        if end_time != EPOCH and end_time <= current_timestamp():
             err_msg = "End time lies in the past."
             logger.info(err_msg, end_time=end_time.isoformat())
             raise NsiException(
@@ -132,7 +131,7 @@ def _validate_schedule(pb_schedule: Schedule) -> None:
                 err_msg,
                 {Variable.END_TIME: end_time.isoformat()},
             )
-        if start_time and end_time <= start_time:
+        if end_time != EPOCH and end_time <= start_time:
             err_msg = "End time cannot come before start time."
             logger.info(
                 err_msg,
@@ -169,7 +168,7 @@ def _register_request(
 
     with db_session() as session:
         session.add(
-            Request(
+            model.Request(
                 correlation_id=UUID(request.header.correlation_id),
                 connection_id=connection_id,
                 request_type=request_type.value,
@@ -229,6 +228,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             log.debug("Sending response.", response_message=reserve_response)
             return reserve_response
 
+        reservation: model.Reservation
         if not pb_reserve_request.connection_id:  # new reservation
             pb_header: Header = pb_reserve_request.header
             pb_path_trace: PathTrace = pb_header.path_trace
@@ -239,6 +239,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             end_time = as_utc_timestamp(pb_schedule.end_time)
 
             reservation = model.Reservation(
+                version=pb_criteria.version,
                 protocol_version=pb_header.protocol_version,
                 requester_nsa=pb_header.requester_nsa,
                 provider_nsa=pb_header.provider_nsa,
@@ -248,27 +249,35 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                 ),
                 global_reservation_id=pb_reserve_request.global_reservation_id,
                 description=pb_reserve_request.description if pb_reserve_request.description else None,
-                version=pb_criteria.version,
             )
-            if is_specified(start_time):
-                reservation.start_time = start_time
-            if is_specified(end_time):
-                reservation.end_time = end_time
-            reservation.bandwidth = pb_ptps.capacity
-            reservation.directionality = Directionality.Name(pb_ptps.directionality)
-            reservation.symmetric = pb_ptps.symmetric_path
 
+            reservation.schedules.append(
+                model.Schedule(
+                    version=pb_criteria.version,
+                    start_time=start_time if is_specified(start_time) else None,
+                    end_time=end_time if is_specified(end_time) else None,
+                )
+            )
+
+            # TODO: select service type specific table based on pb_criteria.service_type
             src_stp = parse_stp(pb_ptps.source_stp)
-            reservation.src_domain = src_stp.domain
-            reservation.src_topology = src_stp.topology
-            reservation.src_stp_id = src_stp.stp_id
-            reservation.src_vlans = str(src_stp.vlan_ranges)
-
             dst_stp = parse_stp(pb_ptps.dest_stp)
-            reservation.dst_domain = dst_stp.domain
-            reservation.dst_topology = dst_stp.topology
-            reservation.dst_stp_id = dst_stp.stp_id
-            reservation.dst_vlans = str(dst_stp.vlan_ranges)
+            reservation.p2p_criteria_list.append(
+                model.P2PCriteria(
+                    version=pb_criteria.version,
+                    bandwidth=pb_ptps.capacity,
+                    directionality=Directionality.Name(pb_ptps.directionality),
+                    symmetric=pb_ptps.symmetric_path,
+                    src_domain=src_stp.domain,
+                    src_topology=src_stp.topology,
+                    src_stp_id=src_stp.stp_id,
+                    src_vlans=str(src_stp.vlan_ranges),
+                    dst_domain=dst_stp.domain,
+                    dst_topology=dst_stp.topology,
+                    dst_stp_id=dst_stp.stp_id,
+                    dst_vlans=str(dst_stp.vlan_ranges),
+                )
+            )
 
             for k, v in pb_ptps.parameters.items():
                 reservation.parameters.append(model.Parameter(key=k, value=v))
@@ -298,9 +307,136 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                 connection_id = reservation.connection_id  # Can't reference it outside the session, hence new var.
 
             log = log.bind(connection_id=str(connection_id))
-        else:
-            log = log.bind(connection_id=pb_reserve_request.connection_id)
-            # TODO modify reservation (else clause)
+
+        else:  # modify reservation
+            connection_id = UUID(pb_reserve_request.connection_id)
+            log = log.bind(connection_id=str(connection_id))
+
+            from supa.db.session import db_session
+
+            with db_session() as session:
+                reservation = (
+                    session.query(model.Reservation)  # type: ignore[assignment]
+                    .filter(model.Reservation.connection_id == connection_id)
+                    .one_or_none()
+                )
+
+                nsi_exception: Union[NsiException, None] = None
+                if not reservation:
+                    log.info("Connection ID does not exist")
+                    nsi_exception = NsiException(
+                        ReservationNonExistent, str(connection_id), {Variable.CONNECTION_ID: str(connection_id)}
+                    )
+                elif (
+                    reservation.reservation_state != ReservationStateMachine.ReserveStart.value
+                    or reservation.lifecycle_state != LifecycleStateMachine.Created.value
+                ):
+                    log.info(
+                        "Connection not in modifiable state",
+                        reservation_state=reservation.reservation_state,
+                        lifecycle_state=reservation.lifecycle_state,
+                    )
+                    nsi_exception = NsiException(
+                        InvalidTransition,
+                        str(connection_id),
+                        {
+                            Variable.CONNECTION_ID: str(connection_id),
+                            Variable.RESERVATION_STATE: reservation.reservation_state,
+                            Variable.LIFECYCLE_STATE: reservation.lifecycle_state,
+                        },
+                    )
+                else:
+                    old_version = reservation.version
+                    old_start_time = reservation.schedules[-1].start_time
+                    if pb_reserve_request.criteria.version != 0:
+                        new_version = pb_reserve_request.criteria.version
+                    else:
+                        # cannot distinguish between unset (defaults to 0) and set to 0,
+                        # in the latter case we wrongly treat it as unset as well
+                        new_version = old_version + 1
+                    new_start_time = as_utc_timestamp(pb_reserve_request.criteria.schedule.start_time)
+                    new_end_time = as_utc_timestamp(pb_reserve_request.criteria.schedule.end_time)
+                    new_bandwidth = pb_reserve_request.criteria.ptps.capacity
+                    if old_version + 1 != new_version:
+                        log.info(
+                            "version may only be incremented by 1",
+                            old_version=old_version,
+                            new_version=new_version,
+                        )
+                        nsi_exception = NsiException(UnsupportedParameter, f"version={new_version}")
+                    elif (
+                        old_start_time < current_timestamp()
+                        and new_start_time > current_timestamp()
+                        and old_start_time != new_start_time
+                    ):
+                        log.info(
+                            "cannot change start time when reservation already started",
+                            old_start_time=old_start_time.isoformat(),
+                            new_start_time=new_start_time.isoformat(),
+                        )
+                        nsi_exception = NsiException(UnsupportedParameter, f"start_time={new_start_time.isoformat()}")
+                if nsi_exception:
+                    reserve_response = ReserveResponse(
+                        header=to_response_header(pb_reserve_request.header),
+                        service_exception=to_service_exception(nsi_exception, connection_id),
+                    )
+                    log.debug("Sending response.", response_message=reserve_response)
+                    return reserve_response  # return NSI Exception to requester
+
+                # now that the parameters are sane, process the modify request
+                try:
+                    rsm = ReservationStateMachine(reservation, state_field="reservation_state")
+                    rsm.reserve_request()
+                except TransitionNotAllowed as tna:
+                    log.info("Not scheduling ReserveJob", reason=str(tna))
+                    reserve_response = ReserveResponse(
+                        header=to_response_header(pb_reserve_request.header),
+                        service_exception=to_service_exception(
+                            NsiException(
+                                InvalidTransition,
+                                str(tna),
+                                {
+                                    Variable.CONNECTION_ID: str(connection_id),
+                                    Variable.RESERVATION_STATE: reservation.reservation_state,
+                                },
+                            ),
+                            connection_id,
+                        ),
+                    )
+                    return reserve_response
+
+                log.info(
+                    "modify reservation",
+                    version=new_version,
+                    start_time=new_start_time.isoformat(),
+                    end_time=new_end_time.isoformat(),
+                    bandwidth=new_bandwidth,
+                )
+                schedule = model.Schedule(
+                    version=new_version,
+                    start_time=new_start_time if is_specified(new_start_time) else None,
+                    end_time=new_end_time if is_specified(new_end_time) else None,
+                )
+                p2p_criteria = model.P2PCriteria(
+                    # connection_id=connection_id,
+                    version=new_version,
+                    bandwidth=new_bandwidth,
+                    directionality=reservation.p2p_criteria.directionality,
+                    symmetric=reservation.p2p_criteria.symmetric,
+                    src_domain=reservation.p2p_criteria.src_domain,
+                    src_topology=reservation.p2p_criteria.src_topology,
+                    src_stp_id=reservation.p2p_criteria.src_stp_id,
+                    src_vlans=reservation.p2p_criteria.src_vlans,
+                    src_selected_vlan=reservation.p2p_criteria.src_selected_vlan,
+                    dst_domain=reservation.p2p_criteria.dst_domain,
+                    dst_topology=reservation.p2p_criteria.dst_topology,
+                    dst_stp_id=reservation.p2p_criteria.dst_stp_id,
+                    dst_vlans=reservation.p2p_criteria.dst_vlans,
+                    dst_selected_vlan=reservation.p2p_criteria.dst_selected_vlan,
+                )
+                reservation.version = new_version
+                reservation.schedules.append(schedule)
+                reservation.p2p_criteria_list.append(p2p_criteria)
 
         from supa import scheduler
 
@@ -312,9 +448,6 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         reserve_response = ReserveResponse(
             header=to_response_header(pb_reserve_request.header), connection_id=str(connection_id)
         )
-        #
-        # TODO: add reservation version to timeout job so we do not accidentally timeout a modify
-        #
         log.info(
             "Schedule reserve timeout",
             job="ReserveTimeoutJob",
@@ -345,6 +478,16 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         connection_id = UUID(pb_reserve_commit_request.connection_id)
         log = logger.bind(method="ReserveCommit", connection_id=str(connection_id))
         log.debug("Received message.", request_message=pb_reserve_commit_request)
+
+        try:
+            _validate_message_header(pb_reserve_commit_request.header)
+        except NsiException as nsi_exc:
+            reserve_commit_response = GenericAcknowledgment(
+                header=to_response_header(pb_reserve_commit_request.header),
+                service_exception=to_service_exception(nsi_exc),
+            )
+            log.debug("Sending response.", response_message=reserve_commit_response)
+            return reserve_commit_response
 
         from supa.db.session import db_session
 
@@ -431,6 +574,16 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         log = logger.bind(method="ReserveAbort", connection_id=str(connection_id))
         log.debug("Received message.", request_message=pb_reserve_abort_request)
 
+        try:
+            _validate_message_header(pb_reserve_abort_request.header)
+        except NsiException as nsi_exc:
+            reserve_abort_response = GenericAcknowledgment(
+                header=to_response_header(pb_reserve_abort_request.header),
+                service_exception=to_service_exception(nsi_exc),
+            )
+            log.debug("Sending response.", response_message=reserve_abort_response)
+            return reserve_abort_response
+
         from supa.db.session import db_session
 
         with db_session() as session:
@@ -449,29 +602,43 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                     ),
                 )
             else:
-                try:
-                    rsm = ReservationStateMachine(reservation, state_field="reservation_state")
-                    rsm.reserve_abort_request()
-                except TransitionNotAllowed as tna:
-                    log.info("Not scheduling ReserveAbortJob", reason=str(tna))
+                if len(reservation.p2p_criteria_list) <= 1:
+                    log.info("Cannot abort an initial reserve request, abort only allowed on modify")
                     reserve_abort_response = GenericAcknowledgment(
                         header=to_response_header(pb_reserve_abort_request.header),
                         service_exception=to_service_exception(
                             NsiException(
                                 InvalidTransition,
-                                str(tna),
-                                {
-                                    Variable.CONNECTION_ID: str(connection_id),
-                                    Variable.RESERVATION_STATE: reservation.reservation_state,
-                                },
+                                "cannot abort an initial reserve request, abort only allowed on modify",
+                                {Variable.CONNECTION_ID: str(connection_id)},
                             ),
                             connection_id,
                         ),
                     )
                 else:
-                    reserve_abort_response = GenericAcknowledgment(
-                        header=to_response_header(pb_reserve_abort_request.header)
-                    )
+                    try:
+                        rsm = ReservationStateMachine(reservation, state_field="reservation_state")
+                        rsm.reserve_abort_request()
+                    except TransitionNotAllowed as tna:
+                        log.info("Not scheduling ReserveAbortJob", reason=str(tna))
+                        reserve_abort_response = GenericAcknowledgment(
+                            header=to_response_header(pb_reserve_abort_request.header),
+                            service_exception=to_service_exception(
+                                NsiException(
+                                    InvalidTransition,
+                                    str(tna),
+                                    {
+                                        Variable.CONNECTION_ID: str(connection_id),
+                                        Variable.RESERVATION_STATE: reservation.reservation_state,
+                                    },
+                                ),
+                                connection_id,
+                            ),
+                        )
+                    else:
+                        reserve_abort_response = GenericAcknowledgment(
+                            header=to_response_header(pb_reserve_abort_request.header)
+                        )
 
         if not reserve_abort_response.service_exception.connection_id:
             from supa import scheduler
@@ -500,6 +667,16 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         connection_id = UUID(pb_provision_request.connection_id)
         log = logger.bind(method="Provision", connection_id=str(connection_id))
         log.debug("Received message.", request_message=pb_provision_request)
+
+        try:
+            _validate_message_header(pb_provision_request.header)
+        except NsiException as nsi_exc:
+            provision_response = GenericAcknowledgment(
+                header=to_response_header(pb_provision_request.header),
+                service_exception=to_service_exception(nsi_exc),
+            )
+            log.debug("Sending response.", response_message=provision_response)
+            return provision_response
 
         from supa.db.session import db_session
 
@@ -534,11 +711,11 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                         connection_id,
                     ),
                 )
-            elif (current_time := current_timestamp()) > reservation.end_time:
+            elif (current_time := current_timestamp()) > reservation.schedule.end_time:
                 log.info(
                     "Cannot provision a reservation that is passed end time",
                     current_time=current_time.isoformat(),
-                    end_time=reservation.end_time.isoformat(),
+                    end_time=reservation.schedule.end_time.isoformat(),
                 )
                 provision_response = GenericAcknowledgment(
                     header=to_response_header(pb_provision_request.header),
@@ -604,6 +781,16 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         log = logger.bind(method="Release", connection_id=str(connection_id))
         log.debug("Received message.", request_message=pb_release_request)
 
+        try:
+            _validate_message_header(pb_release_request.header)
+        except NsiException as nsi_exc:
+            release_response = GenericAcknowledgment(
+                header=to_response_header(pb_release_request.header),
+                service_exception=to_service_exception(nsi_exc),
+            )
+            log.debug("Sending response.", response_message=release_response)
+            return release_response
+
         from supa.db.session import db_session
 
         with db_session() as session:
@@ -637,11 +824,11 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                         connection_id,
                     ),
                 )
-            elif (current_time := current_timestamp()) > reservation.end_time:
+            elif (current_time := current_timestamp()) > reservation.schedule.end_time:
                 log.info(
                     "Cannot release a reservation that is passed end time",
                     current_time=current_time.isoformat(),
-                    end_time=reservation.end_time.isoformat(),
+                    end_time=reservation.schedule.end_time.isoformat(),
                 )
                 release_response = GenericAcknowledgment(
                     header=to_response_header(pb_release_request.header),
@@ -705,6 +892,16 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         connection_id = UUID(pb_terminate_request.connection_id)
         log = logger.bind(method="Terminate", connection_id=str(connection_id))
         log.debug("Received message.", request_message=pb_terminate_request)
+
+        try:
+            _validate_message_header(pb_terminate_request.header)
+        except NsiException as nsi_exc:
+            terminate_response = GenericAcknowledgment(
+                header=to_response_header(pb_terminate_request.header),
+                service_exception=to_service_exception(nsi_exc),
+            )
+            log.debug("Sending response.", response_message=terminate_response)
+            return terminate_response
 
         from supa.db.session import db_session
 

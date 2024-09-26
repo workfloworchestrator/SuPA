@@ -12,9 +12,9 @@ autocommand==2.2.2
     # via jaraco-text
 bcrypt==4.2.0
     # via paramiko
-certifi==2024.7.4
+certifi==2024.8.30
     # via requests
-cffi==1.16.0
+cffi==1.17.1
     # via
     #   cryptography
     #   pynacl
@@ -28,95 +28,93 @@ click==8.1.7
     # via supa (setup.cfg)
 colorama==0.4.6
     # via supa (setup.cfg)
-cryptography==42.0.8
+cryptography==43.0.1
     # via paramiko
-grpcio==1.64.1
+grpcio==1.66.1
     # via
     #   grpcio-tools
     #   supa (setup.cfg)
-grpcio-tools==1.64.1
+grpcio-tools==1.66.1
     # via supa (setup.cfg)
 htmlgen==2.0.0
     # via supa (setup.cfg)
-idna==3.7
+idna==3.10
     # via requests
-inflect==7.3.1
-    # via jaraco-text
-jaraco-collections==5.0.1
+jaraco-collections==5.1.0
     # via cherrypy
-jaraco-context==5.3.0
+jaraco-context==6.0.1
     # via jaraco-text
-jaraco-functools==4.0.1
+jaraco-functools==4.0.2
     # via
     #   cheroot
     #   jaraco-text
     #   tempora
-jaraco-text==3.14.0
+jaraco-text==4.0.0
     # via jaraco-collections
-lxml==5.2.2
+lxml==5.3.0
     # via supa (setup.cfg)
 lxml-stubs==0.5.1
     # via supa (setup.cfg)
-more-itertools==10.2.0
+more-itertools==10.4.0
     # via
     #   cheroot
     #   cherrypy
-    #   inflect
     #   jaraco-functools
     #   jaraco-text
     #   supa (setup.cfg)
 mypy-protobuf==3.6.0
     # via supa (setup.cfg)
-paramiko==3.4.0
+paramiko==3.5.0
     # via supa (setup.cfg)
 portend==3.2.0
     # via cherrypy
-protobuf==5.27.2
+protobuf==5.27.5
     # via
     #   grpcio-tools
     #   mypy-protobuf
     #   supa (setup.cfg)
 pycparser==2.22
     # via cffi
-pydantic==2.8.2
+pydantic==2.9.2
     # via pydantic-settings
-pydantic-core==2.20.1
+pydantic-core==2.23.4
     # via pydantic
-pydantic-settings==2.3.4
+pydantic-settings==2.4.0
     # via supa (setup.cfg)
 pynacl==1.5.0
     # via paramiko
+python-dateutil==2.9.0.post0
+    # via tempora
 python-dotenv==1.0.1
     # via pydantic-settings
-python-statemachine==2.3.4
+python-statemachine==2.3.6
     # via supa (setup.cfg)
-pytz==2024.1
+pytz==2024.2
     # via apscheduler
 requests==2.32.3
     # via supa (setup.cfg)
 six==1.16.0
-    # via apscheduler
-sqlalchemy==2.0.31
+    # via
+    #   apscheduler
+    #   python-dateutil
+sqlalchemy==2.0.35
     # via supa (setup.cfg)
-structlog==24.2.0
+structlog==24.4.0
     # via supa (setup.cfg)
 tabulate==0.9.0
     # via supa (setup.cfg)
-tempora==5.6.0
+tempora==5.7.0
     # via portend
-typeguard==4.3.0
-    # via inflect
-types-protobuf==5.27.0.20240626
+types-protobuf==5.28.0.20240924
     # via mypy-protobuf
 typing-extensions==4.12.2
     # via
     #   pydantic
     #   pydantic-core
     #   sqlalchemy
-    #   typeguard
 tzlocal==5.2
     # via apscheduler
-urllib3==2.2.2
+urllib3==2.2.3
     # via requests
 zc-lockfile==3.0.post1
     # via cherrypy

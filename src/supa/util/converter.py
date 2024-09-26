@@ -11,13 +11,13 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 """Converter functions for converting data to and from Protobuf messages."""
-from typing import Optional
+from typing import List, Optional
 from uuid import UUID, uuid4
 
 from supa import const, settings
 from supa.connection.fsm import DataPlaneStateMachine
 from supa.db import model
-from supa.db.model import Reservation
+from supa.db.model import Parameter, Reservation
 from supa.grpc_nsi.connection_common_pb2 import (
     ConnectionStates,
     EventType,
@@ -103,7 +103,9 @@ def to_header(reservation: model.Reservation, *, add_path_segment: bool = False)
                 pb_segment = Segment()
                 pb_segment.id = settings.nsa_id
                 pb_segment.connection_id = str(reservation.connection_id)
-                pb_segment.stps.extend([reservation.src_stp(selected=True), reservation.dst_stp(selected=True)])
+                pb_segment.stps.extend(
+                    [reservation.p2p_criteria.src_stp(selected=True), reservation.p2p_criteria.dst_stp(selected=True)]
+                )
                 pb_path.append(pb_segment)
     return pb_header
 
@@ -156,47 +158,48 @@ def to_service_exception(nsi_exc: NsiException, connection_id: Optional[UUID] = 
     return pb_se
 
 
-def to_schedule(reservation: model.Reservation) -> Schedule:
+def to_schedule(schedule: model.Schedule) -> Schedule:
     """Create Protobuf ``Schedule`` out of DB stored reservation data.
 
     See Also: warning in :func:`to_header`
 
     Args:
-        reservation: DB model
+        schedule: DB model
 
     Returns:
-        A Schedule object.
+        A protobuf ``Schedule`` object.
     """
     pb_s = Schedule()
-    pb_s.start_time.FromDatetime(reservation.start_time)
-    if not reservation.end_time == NO_END_DATE:
-        pb_s.end_time.FromDatetime(reservation.end_time)
+    pb_s.start_time.FromDatetime(schedule.start_time)
+    if not schedule.end_time == NO_END_DATE:
+        pb_s.end_time.FromDatetime(schedule.end_time)
     return pb_s
 
 
-def to_p2p_service(reservation: model.Reservation) -> PointToPointService:
+def to_p2p_service(p2p_criteria: model.P2PCriteria, parameters: List[Parameter]) -> PointToPointService:
     """Create Protobuf ``PointToPointService`` out of DB stored reservation data.
 
     See Also: warning in :func:`to_header`
 
     Args:
-        reservation: DB Model
+        p2p_criteria: DB Model
+        parameters: List of per reservation parameters
 
     Returns:
-        A ``PointToPointService`` object.
+        A protobuf ``PointToPointService`` object.
     """
     pb_ptps = PointToPointService()
-    pb_ptps.capacity = reservation.bandwidth
-    pb_ptps.symmetric_path = reservation.symmetric
-    pb_ptps.source_stp = str(reservation.src_stp(selected=True))
-    pb_ptps.dest_stp = str(reservation.dst_stp(selected=True))
+    pb_ptps.capacity = p2p_criteria.bandwidth
+    pb_ptps.symmetric_path = p2p_criteria.symmetric
+    pb_ptps.source_stp = str(p2p_criteria.src_stp(selected=True))
+    pb_ptps.dest_stp = str(p2p_criteria.dst_stp(selected=True))
     # The initial version didn't have to support Explicit Routing Objects.
-    for param in reservation.parameters:
-        pb_ptps.parameters[param.key] = param.value
+    for param in parameters:
+        pb_ptps.parameters[param.key] = param.value  # type: ignore[assignment]
     return pb_ptps
 
 
-def to_confirm_criteria(reservation: model.Reservation) -> ReservationConfirmCriteria:
+def to_confirm_criteria(reservation: Reservation) -> ReservationConfirmCriteria:
     """Create Protobuf ``ReservationConfirmCriteria`` out of DB stored reservation data.
 
     Args:
@@ -207,9 +210,9 @@ def to_confirm_criteria(reservation: model.Reservation) -> ReservationConfirmCri
     """
     pb_rcc = ReservationConfirmCriteria()
     pb_rcc.version = reservation.version
-    pb_rcc.schedule.CopyFrom(to_schedule(reservation))
+    pb_rcc.schedule.CopyFrom(to_schedule(reservation.schedule))
     pb_rcc.serviceType = const.SERVICE_TYPE
-    pb_rcc.ptps.CopyFrom(to_p2p_service(reservation))
+    pb_rcc.ptps.CopyFrom(to_p2p_service(reservation.p2p_criteria, reservation.parameters))
     return pb_rcc
 
 
@@ -224,11 +227,11 @@ def to_criteria(reservation: model.Reservation) -> QueryResultCriteria:
     """
     pb_rsc = QueryResultCriteria()
     pb_rsc.version = reservation.version
-    pb_rsc.schedule.CopyFrom(to_schedule(reservation))
+    pb_rsc.schedule.CopyFrom(to_schedule(reservation.schedule))
     pb_rsc.service_type = const.SERVICE_TYPE
     # Leave empty as this is an uPA, and uPA's do not have children
     # pb_rsc.child
-    pb_rsc.ptps.CopyFrom(to_p2p_service(reservation))
+    pb_rsc.ptps.CopyFrom(to_p2p_service(reservation.p2p_criteria, reservation.parameters))
     return pb_rsc
 
 
