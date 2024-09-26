@@ -265,7 +265,7 @@ class ReserveJob(Job):
         and the associated port will be stored in {src|dst}_port_id on the job instance.
         """
         stp_resources_in_use = self._stp_resources_in_use(session)
-        self.log.info("stp resources in use", stp_resources_in_use=stp_resources_in_use)  # TODO: remove me
+        self.log.debug("stp resources in use", stp_resources_in_use=stp_resources_in_use)
         res_stp = getattr(reservation.p2p_criteria, f"{target}_stp_id")
         nsi_stp = str(getattr(reservation.p2p_criteria, f"{target}_stp")())  # <-- mind the func call
         domain = getattr(reservation.p2p_criteria, f"{target}_domain")
