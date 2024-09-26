@@ -54,7 +54,7 @@ class Backend(BaseBackend):
     def __init__(self) -> None:
         """Load properties from 'surf.env'."""
         super(Backend, self).__init__()
-        self.backend_settings = BackendSettings(_env_file=(env_file := find_file("surf.env")))
+        self.backend_settings = BackendSettings(_env_file=(env_file := find_file("surf.env")))  # type: ignore[call-arg]
         self.log.info("Read backend properties", path=str(env_file))
 
     def _retrieve_access_token(self) -> str:

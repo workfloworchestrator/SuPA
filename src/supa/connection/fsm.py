@@ -141,6 +141,7 @@ class DataPlaneStateMachine(SuPAStateMachine):
     activate_request = Deactivated.to(Activating) | AutoStart.to(Activating)
     activate_confirmed = Activating.to(Activated)
     auto_end_request = Activated.to(AutoEnd)
+    cancel_auto_end_request = AutoEnd.to(Activated)
     deactivate_request = Activated.to(Deactivating) | AutoEnd.to(Deactivating) | AutoStart.to(Deactivated)
     deactivate_confirm = Deactivating.to(Deactivated)
     activate_failed = Activating.to(ActivateFailed)

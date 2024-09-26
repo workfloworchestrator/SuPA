@@ -2,7 +2,7 @@ import time
 from concurrent import futures
 from datetime import datetime, timedelta, timezone
 from typing import Generator
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import grpc
 import pytest
@@ -17,10 +17,11 @@ from supa.connection.fsm import (
     ProvisionStateMachine,
     ReservationStateMachine,
 )
-from supa.db.model import Connection, Request, Reservation, Topology
+from supa.db.model import Connection, P2PCriteria, Request, Reservation, Schedule, Topology
 from supa.grpc_nsi import connection_provider_pb2_grpc
 from supa.job.dataplane import AutoEndJob, AutoStartJob
 from supa.job.reserve import ReserveTimeoutJob
+from supa.util.timestamp import NO_END_DATE
 from supa.util.type import RequestType
 
 
@@ -95,7 +96,7 @@ def add_stp_ids(init: Generator) -> None:
 
 
 @pytest.fixture()
-def connection_id() -> Column:
+def connection_id() -> Generator[UUID, None, None]:
     """Create new reservation in db and return connection ID."""
     from supa.db.session import db_session
 
@@ -109,21 +110,31 @@ def connection_id() -> Column:
             global_reservation_id="global reservation id",
             description="reservation 1",
             version=0,
-            start_time=datetime.now(timezone.utc) + timedelta(minutes=10),
-            end_time=datetime.now(timezone.utc) + timedelta(minutes=20),
-            bandwidth=10,
-            symmetric=True,
-            src_domain="example.domain:2001",
-            src_topology="topology",
-            src_stp_id="port1",
-            src_vlans="1783",
-            src_selected_vlan=1783,
-            dst_domain="example.domain:2001",
-            dst_topology="topology",
-            dst_stp_id="port2",
-            dst_vlans="1783",
-            dst_selected_vlan=1783,
             lifecycle_state="CREATED",
+        )
+        reservation.schedules.append(
+            Schedule(
+                version=0,
+                start_time=datetime.now(timezone.utc) + timedelta(minutes=10),
+                end_time=datetime.now(timezone.utc) + timedelta(minutes=20),
+            )
+        )
+        reservation.p2p_criteria_list.append(
+            P2PCriteria(
+                version=0,
+                bandwidth=10,
+                symmetric=True,
+                src_domain="example.domain:2001",
+                src_topology="topology",
+                src_stp_id="port1",
+                src_vlans="1783",
+                src_selected_vlan=1783,
+                dst_domain="example.domain:2001",
+                dst_topology="topology",
+                dst_stp_id="port2",
+                dst_vlans="1783",
+                dst_selected_vlan=1783,
+            )
         )
         session.add(reservation)
         session.flush()  # let db generate connection_id
@@ -139,12 +150,53 @@ def connection_id() -> Column:
         yield connection_id
 
         session.delete(session.query(Reservation).filter(Reservation.connection_id == connection_id).one())
-        # connection is deleted through cascade
+        # connection, schedule and p2p_criteria are deleted through cascade
+
+
+@pytest.fixture()
+def connection_id_modified(connection_id: UUID) -> None:
+    """Transform a connection ID into a modified connection ID."""
+    from supa.db.session import db_session
+
+    with db_session() as session:
+        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
+        reservation.version = 1
+        reservation.schedules.append(
+            Schedule(
+                version=1,
+                start_time=datetime.now(timezone.utc) + timedelta(minutes=20),
+                end_time=datetime.now(timezone.utc) + timedelta(minutes=30),
+            )
+        )
+        reservation.p2p_criteria_list.append(
+            P2PCriteria(
+                version=1,
+                bandwidth=20,
+                symmetric=True,
+                src_domain="example.domain:2001",
+                src_topology="topology",
+                src_stp_id="port1",
+                src_vlans="1783",
+                src_selected_vlan=1783,
+                dst_domain="example.domain:2001",
+                dst_topology="topology",
+                dst_stp_id="port2",
+                dst_vlans="1783",
+                dst_selected_vlan=1783,
+            )
+        )
+        request = Request(
+            connection_id=connection_id,
+            correlation_id=uuid4(),
+            request_type=RequestType.Reserve,  # should add specific request type
+            request_data=b"should add request message here",
+        )
+        session.add(request)
 
 
 @pytest.fixture
 def connection(connection_id: Column) -> None:
-    """Set reserve state machine of reservation identified by connection_id to state ReserveCommitting."""
+    """Add connection record for given connection_id."""
     from supa.db.session import db_session
 
     with db_session() as session:
@@ -154,9 +206,10 @@ def connection(connection_id: Column) -> None:
         src_port_id, dst_port_id = (
             session.query(src_topology.port_id, dst_topology.port_id)
             .filter(
-                Reservation.connection_id == connection_id,
-                Reservation.src_stp_id == src_topology.stp_id,
-                Reservation.dst_stp_id == dst_topology.stp_id,
+                P2PCriteria.connection_id == connection_id,
+                P2PCriteria.version == reservation.version,
+                P2PCriteria.src_stp_id == src_topology.stp_id,
+                P2PCriteria.dst_stp_id == dst_topology.stp_id,
             )
             .one()
         )
@@ -164,11 +217,21 @@ def connection(connection_id: Column) -> None:
             connection_id=connection_id,
             bandwidth=10,
             src_port_id=src_port_id,
-            src_vlan=reservation.src_selected_vlan,
+            src_vlan=reservation.p2p_criteria.src_selected_vlan,
             dst_port_id=dst_port_id,
-            dst_vlan=reservation.dst_selected_vlan,
+            dst_vlan=reservation.p2p_criteria.dst_selected_vlan,
         )
         session.add(connection)
+
+
+@pytest.fixture
+def connection_modified(connection_id: Column, connection: None) -> None:
+    """Add connection record for given connection_id."""
+    from supa.db.session import db_session
+
+    with db_session() as session:
+        connection_from_db = session.query(Connection).filter(Connection.connection_id == connection_id).one()
+        connection_from_db.bandwidth = 20
 
 
 @pytest.fixture()
@@ -186,7 +249,7 @@ def src_stp_id_equals_dst_stp_id(connection_id: Column) -> None:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        reservation.dst_stp_id = reservation.src_stp_id
+        reservation.p2p_criteria.dst_stp_id = reservation.p2p_criteria.src_stp_id
 
 
 @pytest.fixture
@@ -196,7 +259,7 @@ def unknown_stp_id(connection_id: Column) -> None:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        reservation.dst_stp_id = "unknown_stp"
+        reservation.p2p_criteria.dst_stp_id = "unknown_stp"
 
 
 @pytest.fixture
@@ -206,14 +269,14 @@ def disabled_stp(connection_id: Column) -> Generator:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        port = session.query(Topology).filter(Topology.stp_id == reservation.dst_stp_id).one_or_none()
+        port = session.query(Topology).filter(Topology.stp_id == reservation.p2p_criteria.dst_stp_id).one_or_none()
         port.enabled = False
 
     yield None
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        port = session.query(Topology).filter(Topology.stp_id == reservation.dst_stp_id).one_or_none()
+        port = session.query(Topology).filter(Topology.stp_id == reservation.p2p_criteria.dst_stp_id).one_or_none()
         port.enabled = True
 
 
@@ -224,7 +287,7 @@ def unknown_domain_stp_id(connection_id: Column) -> None:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        reservation.dst_domain = "unknown_domain"
+        reservation.p2p_criteria.dst_domain = "unknown_domain"
 
 
 @pytest.fixture
@@ -234,7 +297,7 @@ def unknown_topology_stp_id(connection_id: Column) -> None:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        reservation.dst_topology = "unknown_topology"
+        reservation.p2p_criteria.dst_topology = "unknown_topology"
 
 
 @pytest.fixture
@@ -244,7 +307,7 @@ def empty_vlans_stp_id(connection_id: Column) -> None:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        reservation.dst_vlans = ""
+        reservation.p2p_criteria.dst_vlans = ""
 
 
 @pytest.fixture
@@ -254,7 +317,7 @@ def to_much_bandwidth(connection_id: Column) -> None:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        reservation.bandwidth = 1000000000
+        reservation.p2p_criteria.bandwidth = 1000000000
 
 
 @pytest.fixture
@@ -264,7 +327,7 @@ def no_matching_vlan(connection_id: Column) -> None:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        reservation.dst_vlans = "3333"
+        reservation.p2p_criteria.dst_vlans = "3333"
 
 
 @pytest.fixture
@@ -274,7 +337,7 @@ def all_vlans_in_use(connection_id: Column) -> Generator:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        port = session.query(Topology).filter(Topology.stp_id == reservation.dst_stp_id).one_or_none()
+        port = session.query(Topology).filter(Topology.stp_id == reservation.p2p_criteria.dst_stp_id).one_or_none()
         original_vlans = port.vlans
         port.vlans = ""
 
@@ -282,7 +345,7 @@ def all_vlans_in_use(connection_id: Column) -> Generator:
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-        port = session.query(Topology).filter(Topology.stp_id == reservation.dst_stp_id).one_or_none()
+        port = session.query(Topology).filter(Topology.stp_id == reservation.p2p_criteria.dst_stp_id).one_or_none()
         port.vlans = original_vlans
 
 
@@ -484,6 +547,21 @@ def auto_end(connection_id: Column) -> Generator:
 
 
 @pytest.fixture
+def auto_end_job(connection_id: Column) -> Generator:
+    """Run AutoEndtJob for connection_id."""
+    from supa import scheduler
+
+    job_handle = scheduler.add_job(job := AutoEndJob(connection_id), trigger=job.trigger(), id=job.job_id)
+
+    yield None
+
+    try:
+        job_handle.remove()
+    except JobLookupError:
+        pass  # job already removed from job store
+
+
+@pytest.fixture
 def deactivating(connection_id: Column) -> None:
     """Set data plane state machine of reservation identified by connection_id to state Deactivating."""
     from supa.db.session import db_session
@@ -511,3 +589,124 @@ def flag_reservation_timeout(connection_id: Column) -> None:
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
         reservation.reservation_timeout = True
+
+
+@pytest.fixture
+def start_now(connection_id: Column) -> None:
+    """Set reservation start time to now."""
+    from supa.db.session import db_session
+
+    with db_session() as session:
+        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
+        reservation.schedule.start_time = datetime.now(timezone.utc)
+
+
+@pytest.fixture
+def no_end_time(connection_id: Column) -> None:
+    """Set reservation start time to now."""
+    from supa.db.session import db_session
+
+    with db_session() as session:
+        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
+        reservation.schedule.end_time = NO_END_DATE
+
+
+def p2p_criteria_from_p2_criteria(p2p_criteria: P2PCriteria) -> P2PCriteria:
+    """Create deepcopy of given P2PCriteria object with version set to 1."""
+    return P2PCriteria(
+        version=1,
+        bandwidth=p2p_criteria.bandwidth,
+        symmetric=p2p_criteria.symmetric,
+        src_domain=p2p_criteria.src_domain,
+        src_topology=p2p_criteria.src_topology,
+        src_stp_id=p2p_criteria.src_stp_id,
+        src_vlans=p2p_criteria.src_vlans,
+        src_selected_vlan=p2p_criteria.src_selected_vlan,
+        dst_domain=p2p_criteria.dst_domain,
+        dst_topology=p2p_criteria.dst_topology,
+        dst_stp_id=p2p_criteria.dst_stp_id,
+        dst_vlans=p2p_criteria.dst_vlans,
+        dst_selected_vlan=p2p_criteria.dst_selected_vlan,
+    )
+
+
+@pytest.fixture
+def modified_start_time(connection_id: Column) -> None:
+    """Add Schedule with modified start time on connection set to Provisioned and AutoStart."""
+    from supa.db.session import db_session
+
+    with db_session() as session:
+        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
+        reservation.data_plane_state = DataPlaneStateMachine.AutoStart.value
+        reservation.provision_state = ProvisionStateMachine.Provisioned.value
+        reservation.schedules.append(
+            Schedule(
+                version=1,
+                start_time=reservation.schedule.start_time + timedelta(minutes=1),
+                end_time=reservation.schedule.end_time,
+            )
+        )
+        reservation.p2p_criteria_list.append(p2p_criteria_from_p2_criteria(reservation.p2p_criteria))
+        reservation.version = reservation.version + 1
+
+
+@pytest.fixture
+def modified_no_end_time(connection_id: Column) -> None:
+    """Add Schedule with no end time on connection set to Provisioned and AutoEnd."""
+    from supa.db.session import db_session
+
+    with db_session() as session:
+        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
+        reservation.data_plane_state = DataPlaneStateMachine.AutoEnd.value
+        reservation.provision_state = ProvisionStateMachine.Provisioned.value
+        reservation.schedules.append(
+            Schedule(
+                version=1,
+                start_time=reservation.schedule.start_time,
+                end_time=NO_END_DATE,
+            )
+        )
+        reservation.p2p_criteria_list.append(p2p_criteria_from_p2_criteria(reservation.p2p_criteria))
+        reservation.version = reservation.version + 1
+
+
+@pytest.fixture
+def modified_end_time(connection_id: Column) -> None:
+    """Add Schedule with end time of 30 minutes in the future on connection set to Provisioned and Activated."""
+    from supa.db.session import db_session
+
+    with db_session() as session:
+        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
+        reservation.data_plane_state = DataPlaneStateMachine.Activated.value
+        reservation.provision_state = ProvisionStateMachine.Provisioned.value
+        reservation.schedules.append(
+            Schedule(
+                version=1,
+                start_time=reservation.schedule.start_time,
+                end_time=datetime.now(timezone.utc) + timedelta(minutes=30),
+            )
+        )
+        reservation.p2p_criteria_list.append(p2p_criteria_from_p2_criteria(reservation.p2p_criteria))
+        reservation.version = reservation.version + 1
+
+
+@pytest.fixture
+def modified_bandwidth(connection_id: Column) -> None:
+    """Add P2PCriteria with modified bandwidth on connection set to Provisioned and Activated."""
+    from supa.db.session import db_session
+
+    with db_session() as session:
+        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
+        reservation.data_plane_state = DataPlaneStateMachine.Activated.value
+        reservation.provision_state = ProvisionStateMachine.Provisioned.value
+        reservation.schedules.append(
+            Schedule(
+                version=1,
+                start_time=reservation.schedule.start_time,
+                end_time=reservation.schedule.end_time,
+            )
+        )
+        new_p2p_criteria = p2p_criteria_from_p2_criteria(reservation.p2p_criteria)
+        new_p2p_criteria.bandwidth = new_p2p_criteria.bandwidth + 10
+        reservation.p2p_criteria_list.append(new_p2p_criteria)
+        reservation.version = reservation.version + 1
