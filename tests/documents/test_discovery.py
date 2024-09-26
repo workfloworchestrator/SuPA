@@ -55,6 +55,8 @@ discovery = b"""<?xml version=\'1.0\' encoding=\'iso-8859-1\'?>
 class SimpleCPTest(helper.CPWebCase):
     """Simple Cherry Pie test server."""
 
+    helper.CPWebCase.interactive = False
+
     @staticmethod
     def setup_server() -> None:
         """Mount endpoint that needs to be tested."""
