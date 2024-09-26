@@ -448,9 +448,6 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         reserve_response = ReserveResponse(
             header=to_response_header(pb_reserve_request.header), connection_id=str(connection_id)
         )
-        #
-        # TODO: add reservation version to timeout job so we do not accidentally timeout a modify
-        #
         log.info(
             "Schedule reserve timeout",
             job="ReserveTimeoutJob",
