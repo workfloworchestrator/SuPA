@@ -364,7 +364,11 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                             new_version=new_version,
                         )
                         nsi_exception = NsiException(UnsupportedParameter, f"version={new_version}")
-                    elif old_start_time < current_timestamp() and old_start_time != new_start_time:
+                    elif (
+                        old_start_time < current_timestamp()
+                        and new_start_time > current_timestamp()
+                        and old_start_time != new_start_time
+                    ):
                         log.info(
                             "cannot change start time when reservation already started",
                             old_start_time=old_start_time.isoformat(),
