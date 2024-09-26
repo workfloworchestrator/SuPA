@@ -601,29 +601,43 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                     ),
                 )
             else:
-                try:
-                    rsm = ReservationStateMachine(reservation, state_field="reservation_state")
-                    rsm.reserve_abort_request()
-                except TransitionNotAllowed as tna:
-                    log.info("Not scheduling ReserveAbortJob", reason=str(tna))
+                if len(reservation.p2p_criteria_list) <= 1:
+                    log.info("Cannot abort an initial reserve request, abort only allowed on modify")
                     reserve_abort_response = GenericAcknowledgment(
                         header=to_response_header(pb_reserve_abort_request.header),
                         service_exception=to_service_exception(
                             NsiException(
                                 InvalidTransition,
-                                str(tna),
-                                {
-                                    Variable.CONNECTION_ID: str(connection_id),
-                                    Variable.RESERVATION_STATE: reservation.reservation_state,
-                                },
+                                "cannot abort an initial reserve request, abort only allowed on modify",
+                                {Variable.CONNECTION_ID: str(connection_id)},
                             ),
                             connection_id,
                         ),
                     )
                 else:
-                    reserve_abort_response = GenericAcknowledgment(
-                        header=to_response_header(pb_reserve_abort_request.header)
-                    )
+                    try:
+                        rsm = ReservationStateMachine(reservation, state_field="reservation_state")
+                        rsm.reserve_abort_request()
+                    except TransitionNotAllowed as tna:
+                        log.info("Not scheduling ReserveAbortJob", reason=str(tna))
+                        reserve_abort_response = GenericAcknowledgment(
+                            header=to_response_header(pb_reserve_abort_request.header),
+                            service_exception=to_service_exception(
+                                NsiException(
+                                    InvalidTransition,
+                                    str(tna),
+                                    {
+                                        Variable.CONNECTION_ID: str(connection_id),
+                                        Variable.RESERVATION_STATE: reservation.reservation_state,
+                                    },
+                                ),
+                                connection_id,
+                            ),
+                        )
+                    else:
+                        reserve_abort_response = GenericAcknowledgment(
+                            header=to_response_header(pb_reserve_abort_request.header)
+                        )
 
         if not reserve_abort_response.service_exception.connection_id:
             from supa import scheduler

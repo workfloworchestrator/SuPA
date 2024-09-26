@@ -83,6 +83,13 @@ def pb_reserve_request(
 
 
 @pytest.fixture()
+def pb_reserve_modify_request(pb_reserve_request: ReserveRequest, connection_id: UUID) -> ReserveRequest:
+    """Create protobuf reserve modify request with connection_id added to request."""
+    pb_reserve_request.connection_id = str(connection_id)
+    return pb_reserve_request
+
+
+@pytest.fixture()
 def pb_reserve_request_end_time_before_start_time(pb_reserve_request: ReserveRequest) -> ReserveRequest:
     """Modify schedule of reserve request so that end time is before start time."""
     pb_reserve_request.criteria.schedule.start_time.FromDatetime(datetime.now(timezone.utc) + timedelta(hours=2))
@@ -185,14 +192,14 @@ def test_reserve_request_end_time_in_past(pb_reserve_request_end_time_in_past: R
     assert "End time lies in the past" in caplog.text
 
 
-def test_reserve_modify(pb_reserve_request: ReserveRequest, connection_id: UUID, connection: None, caplog: Any) -> None:
+def test_reserve_modify(
+    pb_reserve_modify_request: ReserveRequest, connection_id: UUID, connection: None, caplog: Any
+) -> None:
     """Test the connection provider Reserve Modify happy path."""
     service = ConnectionProviderService()
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
-    request_correlation_id = pb_reserve_request.header.correlation_id
-    # add existing connection_id to reservation to mark this a modify request
-    pb_reserve_request.connection_id = str(connection_id)
-    reserve_response = service.Reserve(pb_reserve_request, mock_context)
+    request_correlation_id = pb_reserve_modify_request.header.correlation_id
+    reserve_response = service.Reserve(pb_reserve_modify_request, mock_context)
     assert request_correlation_id == reserve_response.header.correlation_id
     assert not reserve_response.header.reply_to
     assert reserve_response.connection_id == str(connection_id)
@@ -203,17 +210,15 @@ def test_reserve_modify(pb_reserve_request: ReserveRequest, connection_id: UUID,
 
 
 def test_reserve_modify_illegal_version(
-    pb_reserve_request: ReserveRequest, connection_id: UUID, connection: None, caplog: Any
+    pb_reserve_modify_request: ReserveRequest, connection_id: UUID, connection: None, caplog: Any
 ) -> None:
     """Test the connection provider Reserve Modify returns UnsupportedParameter exception on illegal version."""
     service = ConnectionProviderService()
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
-    request_correlation_id = pb_reserve_request.header.correlation_id
-    # add existing connection_id to reservation to mark this a modify request
-    pb_reserve_request.connection_id = str(connection_id)
+    request_correlation_id = pb_reserve_modify_request.header.correlation_id
     # criteria version may only be incremented by 1
-    pb_reserve_request.criteria.version = pb_reserve_request.criteria.version + 2
-    reserve_response = service.Reserve(pb_reserve_request, mock_context)
+    pb_reserve_modify_request.criteria.version = pb_reserve_modify_request.criteria.version + 2
+    reserve_response = service.Reserve(pb_reserve_modify_request, mock_context)
     assert request_correlation_id == reserve_response.header.correlation_id
     assert not reserve_response.header.reply_to
     assert not reserve_response.connection_id
@@ -224,16 +229,16 @@ def test_reserve_modify_illegal_version(
 
 
 def test_reserve_modify_unknown_connection_id(
-    pb_reserve_request: ReserveRequest, connection: None, caplog: Any
+    pb_reserve_modify_request: ReserveRequest, connection: None, caplog: Any
 ) -> None:
     """Test the connection provider Reserve returns ReservationNonExistent exception for unknown connection id."""
     service = ConnectionProviderService()
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
-    request_correlation_id = pb_reserve_request.header.correlation_id
+    request_correlation_id = pb_reserve_modify_request.header.correlation_id
     # add unknown connection_id to this modify request
     non_existing_connection_id = str(uuid4())
-    pb_reserve_request.connection_id = str(non_existing_connection_id)
-    reserve_response = service.Reserve(pb_reserve_request, mock_context)
+    pb_reserve_modify_request.connection_id = str(non_existing_connection_id)
+    reserve_response = service.Reserve(pb_reserve_modify_request, mock_context)
     assert request_correlation_id == reserve_response.header.correlation_id
     assert not reserve_response.header.reply_to
     assert not reserve_response.connection_id
@@ -246,17 +251,17 @@ def test_reserve_modify_unknown_connection_id(
 
 
 def test_reserve_modify_reservation_already_started(
-    pb_reserve_request: ReserveRequest, connection_id: UUID, start_now: None, connection: None, caplog: Any
+    pb_reserve_modify_request: ReserveRequest, connection_id: UUID, start_now: None, connection: None, caplog: Any
 ) -> None:
     """Test the connection provider Reserve returns UnsupportedParameter exception when already started."""
     service = ConnectionProviderService()
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
-    request_correlation_id = pb_reserve_request.header.correlation_id
-    # add existing connection_id to reservation to mark this a modify request
-    pb_reserve_request.connection_id = str(connection_id)
+    request_correlation_id = pb_reserve_modify_request.header.correlation_id
     # change start time to 1 minute in te future
-    pb_reserve_request.criteria.schedule.start_time.FromDatetime(datetime.now(timezone.utc) + timedelta(minutes=1))
-    reserve_response = service.Reserve(pb_reserve_request, mock_context)
+    pb_reserve_modify_request.criteria.schedule.start_time.FromDatetime(
+        datetime.now(timezone.utc) + timedelta(minutes=1)
+    )
+    reserve_response = service.Reserve(pb_reserve_modify_request, mock_context)
     assert request_correlation_id == reserve_response.header.correlation_id
     assert not reserve_response.header.reply_to
     assert not reserve_response.connection_id
@@ -267,15 +272,13 @@ def test_reserve_modify_reservation_already_started(
 
 
 def test_reserve_modify_invalid_transition(
-    pb_reserve_request: ReserveRequest, connection_id: UUID, reserve_held: None, connection: None, caplog: Any
+    pb_reserve_modify_request: ReserveRequest, connection_id: UUID, reserve_held: None, connection: None, caplog: Any
 ) -> None:
     """Test the connection provider Reserve Modify returns InvalidTransition exception when not in modifiable state."""
     service = ConnectionProviderService()
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
-    request_correlation_id = pb_reserve_request.header.correlation_id
-    # add existing connection_id to reservation to mark this a modify request
-    pb_reserve_request.connection_id = str(connection_id)
-    reserve_response = service.Reserve(pb_reserve_request, mock_context)
+    request_correlation_id = pb_reserve_modify_request.header.correlation_id
+    reserve_response = service.Reserve(pb_reserve_modify_request, mock_context)
     assert request_correlation_id == reserve_response.header.correlation_id
     assert not reserve_response.header.reply_to
     assert not reserve_response.connection_id
@@ -288,17 +291,15 @@ def test_reserve_modify_invalid_transition(
 
 
 def test_reserve_modify_unset_criteria_version(
-    pb_reserve_request: ReserveRequest, connection_id: UUID, connection: None, caplog: Any
+    pb_reserve_modify_request: ReserveRequest, connection_id: UUID, connection: None, caplog: Any
 ) -> None:
     """Test the connection provider Reserve Modify returns InvalidTransition exception when not in modifiable state."""
     service = ConnectionProviderService()
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
-    request_correlation_id = pb_reserve_request.header.correlation_id
-    # add existing connection_id to reservation to mark this a modify request
-    pb_reserve_request.connection_id = str(connection_id)
+    request_correlation_id = pb_reserve_modify_request.header.correlation_id
     # criteria version set to 0, is equivalent to unset (Python ProtoBuf is unable to distinguish)
-    pb_reserve_request.criteria.version = 0
-    reserve_response = service.Reserve(pb_reserve_request, mock_context)
+    pb_reserve_modify_request.criteria.version = 0
+    reserve_response = service.Reserve(pb_reserve_modify_request, mock_context)
     assert request_correlation_id == reserve_response.header.correlation_id
     assert not reserve_response.header.reply_to
     assert reserve_response.connection_id == str(connection_id)
@@ -377,7 +378,14 @@ def test_reserve_commit_timed_out(
     assert "Cannot commit a timed out reservation" in caplog.text
 
 
-def test_reserve_abort(pb_reserve_abort_request: GenericRequest, reserve_held: None, caplog: Any) -> None:
+def test_reserve_abort(
+    connection_id: UUID,
+    connection_id_modified: None,
+    connection: None,
+    pb_reserve_abort_request: GenericRequest,
+    reserve_held: None,
+    caplog: Any,
+) -> None:
     """Test the connection provider ReserveAbort happy path."""
     service = ConnectionProviderService()
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
@@ -406,8 +414,33 @@ def test_reserve_abort_random_connection_id(pb_reserve_abort_request: GenericReq
     assert "Connection ID does not exist" in caplog.text
 
 
+def test_reserve_abort_initial_reserve_request(
+    connection_id: UUID,
+    pb_reserve_abort_request: GenericRequest,
+    caplog: Any,
+) -> None:
+    """Test the connection provider ReserveAbort returns service exception when aborting initial reserve request."""
+    service = ConnectionProviderService()
+    mock_context = unittest.mock.create_autospec(spec=ServicerContext)
+    reserve_abort_response = service.ReserveAbort(pb_reserve_abort_request, mock_context)
+    assert pb_reserve_abort_request.header.correlation_id == reserve_abort_response.header.correlation_id
+    assert pb_reserve_abort_request.connection_id == reserve_abort_response.service_exception.connection_id
+    assert not reserve_abort_response.header.reply_to
+    assert reserve_abort_response.HasField("service_exception")
+    assert reserve_abort_response.service_exception.error_id == "00201"
+    assert len(reserve_abort_response.service_exception.variables) == 1
+    assert reserve_abort_response.service_exception.variables[0].type == "connectionId"
+    assert reserve_abort_response.service_exception.variables[0].value == pb_reserve_abort_request.connection_id
+    assert "Cannot abort an initial reserve request, abort only allowed on modify" in caplog.text
+
+
 def test_reserve_abort_invalid_transition(
-    pb_reserve_abort_request: GenericRequest, reserve_aborting: None, caplog: Any
+    connection_id: UUID,
+    connection_id_modified: None,
+    connection: None,
+    pb_reserve_abort_request: GenericRequest,
+    reserve_aborting: None,
+    caplog: Any,
 ) -> None:
     """Test the connection provider ReserveAbort returns service exception when in invalid state for request."""
     service = ConnectionProviderService()

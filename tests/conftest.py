@@ -153,6 +153,47 @@ def connection_id() -> Generator[UUID, None, None]:
         # connection, schedule and p2p_criteria are deleted through cascade
 
 
+@pytest.fixture()
+def connection_id_modified(connection_id: UUID) -> None:
+    """Transform a connection ID into a modified connection ID."""
+    from supa.db.session import db_session
+
+    with db_session() as session:
+        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
+        reservation.version = 1
+        reservation.schedules.append(
+            Schedule(
+                version=1,
+                start_time=datetime.now(timezone.utc) + timedelta(minutes=20),
+                end_time=datetime.now(timezone.utc) + timedelta(minutes=30),
+            )
+        )
+        reservation.p2p_criteria_list.append(
+            P2PCriteria(
+                version=1,
+                bandwidth=20,
+                symmetric=True,
+                src_domain="example.domain:2001",
+                src_topology="topology",
+                src_stp_id="port1",
+                src_vlans="1783",
+                src_selected_vlan=1783,
+                dst_domain="example.domain:2001",
+                dst_topology="topology",
+                dst_stp_id="port2",
+                dst_vlans="1783",
+                dst_selected_vlan=1783,
+            )
+        )
+        request = Request(
+            connection_id=connection_id,
+            correlation_id=uuid4(),
+            request_type=RequestType.Reserve,  # should add specific request type
+            request_data=b"should add request message here",
+        )
+        session.add(request)
+
+
 @pytest.fixture
 def connection(connection_id: Column) -> None:
     """Add connection record for given connection_id."""
@@ -181,6 +222,16 @@ def connection(connection_id: Column) -> None:
             dst_vlan=reservation.p2p_criteria.dst_selected_vlan,
         )
         session.add(connection)
+
+
+@pytest.fixture
+def connection_modified(connection_id: Column, connection: None) -> None:
+    """Add connection record for given connection_id."""
+    from supa.db.session import db_session
+
+    with db_session() as session:
+        connection_from_db = session.query(Connection).filter(Connection.connection_id == connection_id).one()
+        connection_from_db.bandwidth = 20
 
 
 @pytest.fixture()

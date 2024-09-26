@@ -4,6 +4,8 @@ from uuid import UUID
 
 import tests.shared.state_machine as state_machine
 
+from supa.db.model import Connection, Reservation
+from supa.db.session import db_session
 from supa.job.reserve import ReserveAbortJob, ReserveCommitJob, ReserveJob, ReserveTimeoutJob
 from supa.util.timestamp import current_timestamp
 
@@ -316,37 +318,39 @@ def test_reserve_commit_job_trigger(connection_id: UUID, caplog: Any) -> None:
     assert current_timestamp() - job_trigger.run_date < timedelta(seconds=5)  # more or less now
 
 
-#
-# TODO removed this check from ReserveAbortJob, what else should we check here?
-#
-# def test_reserve_abort_job_invalid_transition(caplog: Any, connection_id: UUID, reserve_held: None) -> None:
-#     """Test ReserveAbortJob to detect an invalid transition.
-#
-#     Verify that a ReserveAbortJob will detect an invalid transition
-#     when the reservation reserve state machine is not in state ReserveAborting.
-#     """
-#     reserve_abort_job = ReserveAbortJob(connection_id)
-#     caplog.clear()
-#     reserve_abort_job.__call__()
-#     assert "Cannot abort reservation" in caplog.text
-#
-#     # verify that reservation is still in state ReserveHeld
-#     with db_session() as session:
-#         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
-#         assert reservation.reservation_state == ReservationStateMachine.ReserveHeld.value
-
-
 def test_reserve_abort_job_reserve_abort_confirmed(
-    connection_id: UUID, connection: None, reserve_aborting: None, get_stub: None
+    connection_id: UUID,
+    connection_id_modified: None,
+    connection: None,
+    connection_modified: None,
+    reserve_aborting: None,
+    get_stub: None,
 ) -> None:
     """Test ReserveAbortJob to transition to ReserveStart.
 
     Verify that a ReserveAbortJob will transition the reserve state machine
-    to state ReserveStart when in state ReserveAborting.
+    to state ReserveStart when in state ReserveAborting. Also Check that
+    the return to the previous version of the reservation.
     """
+    with db_session() as session:
+        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
+        connection_from_db = session.query(Connection).filter(Connection.connection_id == connection_id).one()
+        assert len(reservation.p2p_criteria_list) == 2
+        assert len(reservation.schedules) == 2
+        assert reservation.version == 1
+        assert connection_from_db.bandwidth == reservation.p2p_criteria.bandwidth
+        assert connection_from_db.bandwidth == 20
     reserve_abort_job = ReserveAbortJob(connection_id)
     reserve_abort_job.__call__()
     assert state_machine.is_reserve_start(connection_id)
+    with db_session() as session:
+        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
+        connection_from_db = session.query(Connection).filter(Connection.connection_id == connection_id).one()
+        assert len(reservation.p2p_criteria_list) == 1
+        assert len(reservation.schedules) == 1
+        assert reservation.version == 0
+        assert connection_from_db.bandwidth == reservation.p2p_criteria.bandwidth
+        assert connection_from_db.bandwidth == 10
 
 
 def test_reserve_abort_job_recover(connection_id: UUID, reserve_aborting: None, get_stub: None, caplog: Any) -> None:

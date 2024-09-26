@@ -619,7 +619,7 @@ class ReserveAbortJob(Job):
 
         The reservation will be aborted and
         a ReserveAbortConfirmed message will be sent to the NSA/AG.
-        If the reservation state machine is not in the correct state for a ReserveCommit
+        If the reservation state machine is not in the correct state for a ReserveAbort
         an NSI error is returned leaving the state machine unchanged.
         """
         self.log.info("Reserve abort reservation")
@@ -659,7 +659,27 @@ class ReserveAbortJob(Job):
             else:
                 request = to_generic_confirmed_request(reservation)
                 reservation.reservation_timeout = False  # would probably be better to add reservation state to fsm
-                rsm.reserve_abort_confirmed()
+                # only allowed to abort a reserve modify request, e.q. there is more than one criteria version
+                if len(reservation.p2p_criteria_list) > 1:
+                    # 1. set connection.bandwidth to previous bandwidth
+                    connection.bandwidth = reservation.p2p_criteria_list[-2].bandwidth
+                    # 2. remove most recent version of criteria
+                    session.delete(reservation.p2p_criteria_list[-1])
+                    # 3. remove most recent version of schedule
+                    session.delete(reservation.schedules[-1])
+                    # 4. decrement reservation version with one
+                    reservation.version -= 1
+                    rsm.reserve_abort_confirmed()
+                else:  # the server should have prevented that this code is reached
+                    request = to_error_request(
+                        to_header(reservation),
+                        NsiException(
+                            GenericInternalError,
+                            "cannot abort an initial reserve request, should not have reached this code",
+                            {Variable.CONNECTION_ID: str(self.connection_id)},
+                        ),
+                        self.connection_id,
+                    )
 
         stub = requester.get_stub()
         if isinstance(request, GenericConfirmedRequest):
@@ -768,7 +788,7 @@ class ReserveTimeoutJob(Job):
                 )
             else:
                 #
-                # TODO: release reserved resources(?)
+                # TODO: release reserved resources in NRM(?)
                 #
                 self.log.debug("set reservation timeout to true in db")
                 request = _to_reserve_timeout_request(reservation)
