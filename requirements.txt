@@ -30,11 +30,11 @@ colorama==0.4.6
     # via supa (setup.cfg)
 cryptography==43.0.1
     # via paramiko
-grpcio==1.66.1
+grpcio==1.66.2
     # via
     #   grpcio-tools
     #   supa (setup.cfg)
-grpcio-tools==1.66.1
+grpcio-tools==1.66.2
     # via supa (setup.cfg)
 htmlgen==2.0.0
     # via supa (setup.cfg)
@@ -68,7 +68,7 @@ paramiko==3.5.0
     # via supa (setup.cfg)
 portend==3.2.0
     # via cherrypy
-protobuf==5.28.2
+protobuf==5.27.5
     # via
     #   grpcio-tools
     #   mypy-protobuf
