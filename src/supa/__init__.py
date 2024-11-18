@@ -213,6 +213,8 @@ class Settings(BaseSettings):
     nsa_longitude: str = "-159.996719"
     topology_name: str = "example.domain topology"
 
+    healthcheck_with_topology: bool = True
+
     @property
     def nsa_exposed_url(self) -> str:
         """Return URL that NSA is exposed on constructed from nsa_scheme, nsa_host and nsa_port."""
