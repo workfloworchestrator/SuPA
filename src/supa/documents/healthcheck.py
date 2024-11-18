@@ -17,6 +17,7 @@ from typing import Union
 import cherrypy
 from htmlgen import Document, Heading, Paragraph
 
+from supa import settings
 from supa.documents.topology import refresh_topology
 from supa.job.shared import NsiException
 
@@ -39,12 +40,13 @@ class HealthcheckEndpoint(object):
         """Index returns the generated healthcheck document."""
         document = Document("SuPA healthcheck")
         document.append_body(Heading(3, "SuPA healthcheck"))
-        if healthy_topology := _check_topology():
+        if not settings.healthcheck_with_topology:
+            document.append_body(Paragraph("NRM topology: IGNORE"))
+        elif _check_topology():
             document.append_body(Paragraph("NRM topology: OK"))
         else:
             document.append_body(Paragraph("NRM topology: FAIL"))
-
-        if not healthy_topology:
             cherrypy.response.status = 503
             cherrypy.response.headers["Retry-After"] = 60
+
         return bytes(str(document), "utf-8")
