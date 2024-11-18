@@ -19,7 +19,7 @@ from uuid import UUID
 from pydantic_settings import BaseSettings
 from requests import Response, get, post
 from requests.auth import HTTPBasicAuth
-from requests.exceptions import ConnectionError, HTTPError  # noqa: A004
+from requests.exceptions import ConnectionError, HTTPError, RequestException  # noqa: A004
 from structlog.stdlib import BoundLogger
 
 from supa.connection.error import GenericRmError
@@ -89,7 +89,11 @@ class Backend(BaseBackend):
         headers = {"Authorization": f"bearer {access_token}"}
         timeout = (self.backend_settings.connect_timeout, self.backend_settings.read_timeout)
         start = time.time()
-        response = get(url=url, headers=headers, timeout=timeout)
+        try:
+            response = get(url=url, headers=headers, timeout=timeout)
+        except RequestException as requests_exception:
+            self.log.warning("cannot get url", reason=str(requests_exception))
+            raise NsiException(GenericRmError, str(requests_exception)) from requests_exception
         self.log.debug("get url timer", url=url, seconds=time.time() - start)
         return response
 
@@ -183,11 +187,7 @@ class Backend(BaseBackend):
         return result.json()
 
     def _get_process_info(self, process_id: str) -> Any:
-        try:
-            process = self._get_url(f"{self.backend_settings.base_url}/api/processes/{process_id}")
-        except ConnectionError as con_err:
-            self.log.warning("cannot get process status", reason=str(con_err))
-            raise NsiException(GenericRmError, str(con_err)) from con_err
+        process = self._get_url(f"{self.backend_settings.base_url}/api/processes/{process_id}")
         self.log.debug("process status", process_status=process.json()["last_status"])
         return process.json()
 
