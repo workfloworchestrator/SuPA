@@ -35,6 +35,7 @@ The RSM and LSM MUST be instantiated as soon as the first Connection request is 
 The PSM MUST be instantiated as soon as the first version of the reservation is committed.
 
 """
+
 from typing import Any
 
 import structlog
@@ -57,7 +58,11 @@ class SuPAStateMachine(StateMachine):
     def on_enter_state(self, state: State) -> None:
         """Statemachine will call this function on every state transition."""
         if isinstance(state, State):
-            self.log.info("State transition", to_state=state.id, connection_id=str(self.model.connection_id))
+            self.log.info(
+                "State transition",
+                to_state=state.id,
+                connection_id=str(self.model.connection_id),  # type: ignore[union-attr]
+            )
 
 
 class ReservationStateMachine(SuPAStateMachine):
