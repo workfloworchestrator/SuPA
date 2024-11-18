@@ -213,7 +213,7 @@ class Settings(BaseSettings):
     nsa_longitude: str = "-159.996719"
     topology_name: str = "example.domain topology"
 
-    healthcheck_with_topology: bool = False
+    healthcheck_with_topology: bool = True
 
     @property
     def nsa_exposed_url(self) -> str:
