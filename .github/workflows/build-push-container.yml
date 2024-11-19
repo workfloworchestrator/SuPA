@@ -1,6 +1,9 @@
 name: Build and push container image
 
-on: push
+on:
+  push:
+    branches-ignore:
+      - 'dependabot/**'
 
 #on:
 #  release:
