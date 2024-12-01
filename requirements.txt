@@ -10,7 +10,7 @@ apscheduler==3.10.4
     # via supa (setup.cfg)
 autocommand==2.2.2
     # via jaraco-text
-bcrypt==4.2.0
+bcrypt==4.2.1
     # via paramiko
 certifi==2024.8.30
     # via requests
