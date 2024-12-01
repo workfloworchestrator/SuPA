@@ -6,7 +6,7 @@
 #
 annotated-types==0.7.0
     # via pydantic
-apscheduler==3.10.4
+apscheduler==3.11.0
     # via supa (setup.cfg)
 autocommand==2.2.2
     # via jaraco-text
