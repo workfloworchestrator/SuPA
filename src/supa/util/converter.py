@@ -15,7 +15,7 @@ from typing import List, Optional
 from uuid import UUID, uuid4
 
 from supa import const, settings
-from supa.connection.fsm import DataPlaneStateMachine
+from supa.connection.fsm import DataPlaneStateMachine, ReservationStateMachine
 from supa.db import model
 from supa.db.model import Parameter, Reservation
 from supa.grpc_nsi.connection_common_pb2 import (
@@ -128,7 +128,14 @@ def to_connection_states(reservation: model.Reservation, *, data_plane_active: b
         pb_cs.provision_state = ProvisionState.Value(reservation.provision_state)
     pb_cs.lifecycle_state = LifecycleState.Value(reservation.lifecycle_state)
     pb_cs.data_plane_status.active = data_plane_active
-    pb_cs.data_plane_status.version = reservation.version
+    # version should be the last committed version, but for an initial reservation there is no
+    # previous-committed version, but the version field cannot be empty, so in this case we add
+    # the current initial version (although this breaks the specification)
+    # check if this is an initial reservation or if the last reservation is committed, else use previous version
+    if len(reservation.schedules) == 1 or reservation.reservation_state == ReservationStateMachine.ReserveStart.value:
+        pb_cs.data_plane_status.version = reservation.version
+    else:
+        pb_cs.data_plane_status.version = reservation.schedules[-2].version
     pb_cs.data_plane_status.version_consistent = True  # always True for an uPA
     return pb_cs
 
@@ -216,23 +223,31 @@ def to_confirm_criteria(reservation: Reservation) -> ReservationConfirmCriteria:
     return pb_rcc
 
 
-def to_criteria(reservation: model.Reservation) -> QueryResultCriteria:
-    """Create Protobuf ``QueryResultCriteria`` out of DB stored reservation data.
+def to_criteria_list(reservation: model.Reservation) -> list[QueryResultCriteria]:
+    """Create list of Protobuf ``QueryResultCriteria`` out of DB stored reservation data.
 
     Args:
         reservation: DB Model
 
     Returns:
-        A ``QueryResultCriteria`` object.
+        A list of ``QueryResultCriteria`` objects.
     """
-    pb_rsc = QueryResultCriteria()
-    pb_rsc.version = reservation.version
-    pb_rsc.schedule.CopyFrom(to_schedule(reservation.schedule))
-    pb_rsc.service_type = const.SERVICE_TYPE
-    # Leave empty as this is an uPA, and uPA's do not have children
-    # pb_rsc.child
-    pb_rsc.ptps.CopyFrom(to_p2p_service(reservation.p2p_criteria, reservation.parameters))
-    return pb_rsc
+    criteria_list = []
+    if reservation.reservation_state == ReservationStateMachine.ReserveStart.value:
+        zipped_criteria = zip(reservation.schedules, reservation.p2p_criteria_list, strict=True)
+    else:  # skip not committed version, should be the last one in the list
+        zipped_criteria = zip(reservation.schedules[:-1], reservation.p2p_criteria_list[:-1], strict=True)
+    for schedule, p2p_criteria in zipped_criteria:
+        assert schedule.version == p2p_criteria.version  # both lists should be ordered by version
+        pb_rsc = QueryResultCriteria()
+        pb_rsc.version = schedule.version
+        pb_rsc.schedule.CopyFrom(to_schedule(schedule))
+        pb_rsc.service_type = const.SERVICE_TYPE
+        # Leave empty as this is an uPA, and uPA's do not have children
+        # pb_rsc.child
+        pb_rsc.ptps.CopyFrom(to_p2p_service(p2p_criteria, reservation.parameters))
+        criteria_list.append(pb_rsc)
+    return criteria_list
 
 
 def to_response_header(request_header: Header) -> Header:
