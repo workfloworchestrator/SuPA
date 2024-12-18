@@ -162,6 +162,7 @@ def pb_query_request(pb_header: Header, connection_id: Column) -> QueryRequest:
     pb_query_request = QueryRequest()
     pb_query_request.header.CopyFrom(pb_header)
     pb_query_request.connection_id.append(str(connection_id))
+    pb_query_request.global_reservation_id.append("global reservation id")
     return pb_query_request
 
 
