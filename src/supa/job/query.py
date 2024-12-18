@@ -21,7 +21,7 @@ from sqlalchemy import func, or_
 from structlog.stdlib import BoundLogger
 
 from supa.connection import requester
-from supa.connection.fsm import DataPlaneStateMachine, ReservationStateMachine
+from supa.connection.fsm import DataPlaneStateMachine
 from supa.db.model import Notification, Reservation, Result
 from supa.grpc_nsi.connection_common_pb2 import Header
 from supa.grpc_nsi.connection_provider_pb2 import QueryNotificationRequest, QueryRequest, QueryResultRequest
@@ -41,7 +41,7 @@ from supa.grpc_nsi.connection_requester_pb2 import (
     ResultResponse,
 )
 from supa.job.shared import Job
-from supa.util.converter import to_connection_states, to_criteria
+from supa.util.converter import to_connection_states, to_criteria_list
 from supa.util.timestamp import as_utc_timestamp
 from supa.util.type import NotificationType, ResultType
 
@@ -76,8 +76,6 @@ def create_query_confirmed_request(
         reservations: List[Reservation] = (
             session.query(Reservation)
             .filter(or_(*or_filter))
-            .filter(Reservation.reservation_state != ReservationStateMachine.ReserveChecking.value)
-            .filter(Reservation.reservation_state != ReservationStateMachine.ReserveFailed.value)
             .filter(Reservation.last_modified > as_utc_timestamp(pb_query_request.if_modified_since))
             .all()
         )
@@ -103,9 +101,7 @@ def create_query_confirmed_request(
                 query_result.global_reservation_id = reservation.global_reservation_id
             if reservation.description:
                 query_result.description = reservation.description
-            # TODO: when Modify Reservation is implemented, add all criteria
-            query_result.criteria.append(to_criteria(reservation))
-            # TODO: implement notification_id and result_id
+            query_result.criteria.extend(to_criteria_list(reservation))
             max_notification_id = session.query(
                 func.max(Notification.notification_id).filter(Notification.connection_id == reservation.connection_id)
             ).scalar()
