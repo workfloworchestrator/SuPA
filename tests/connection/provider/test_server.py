@@ -6,6 +6,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from google.protobuf.json_format import Parse
+from google.protobuf.timestamp_pb2 import Timestamp
 from grpc import ServicerContext
 from sqlalchemy import Column
 
@@ -13,7 +14,12 @@ from supa import const
 from supa.connection.provider.server import ConnectionProviderService
 from supa.db.model import Reservation
 from supa.grpc_nsi.connection_common_pb2 import Header, Schedule
-from supa.grpc_nsi.connection_provider_pb2 import GenericRequest, ReservationRequestCriteria, ReserveRequest
+from supa.grpc_nsi.connection_provider_pb2 import (
+    GenericRequest,
+    QueryRequest,
+    ReservationRequestCriteria,
+    ReserveRequest,
+)
 from supa.grpc_nsi.services_pb2 import PointToPointService
 from supa.util.timestamp import EPOCH
 
@@ -148,6 +154,16 @@ def pb_terminate_request(pb_header: Header, connection_id: Column) -> GenericReq
     pb_request.header.CopyFrom(pb_header)
     pb_request.connection_id = str(connection_id)
     return pb_request
+
+
+@pytest.fixture()
+def pb_query_request(pb_header: Header, connection_id: Column) -> QueryRequest:
+    """Create protobuf terminate request for connection_id."""
+    pb_query_request = QueryRequest()
+    pb_query_request.header.CopyFrom(pb_header)
+    pb_query_request.connection_id.append(str(connection_id))
+    pb_query_request.global_reservation_id.append("global reservation id")
+    return pb_query_request
 
 
 def test_reserve_request(pb_reserve_request: ReserveRequest, caplog: Any) -> None:
@@ -684,3 +700,26 @@ def test_terminate_invalid_transition(pb_terminate_request: GenericRequest, term
     assert terminate_response.service_exception.variables[1].type == "lifecycleState"
     assert terminate_response.service_exception.variables[1].value == "TERMINATED"
     assert "Not scheduling TerminateJob" in caplog.text
+
+
+def test_query_summary(pb_query_request: QueryRequest, caplog: Any) -> None:
+    """Test the connection provider QuerySummary returns the selected connection_id."""
+    service = ConnectionProviderService()
+    mock_context = unittest.mock.create_autospec(spec=ServicerContext)
+    query_response = service.QuerySummarySync(pb_query_request, mock_context)
+    assert len(query_response.reservation) == 1
+    reservation = query_response.reservation[0]
+    assert reservation.connection_id == pb_query_request.connection_id[0]
+    assert reservation.global_reservation_id == "global reservation id"
+    assert reservation.description == "reservation 1"
+    assert isinstance(reservation.criteria[0].schedule.start_time, Timestamp) is True
+    assert isinstance(reservation.criteria[0].schedule.end_time, Timestamp) is True
+    assert reservation.criteria[0].service_type == "http://services.ogf.org/nsi/2013/12/descriptions/EVTS.A-GOLE"
+    assert reservation.criteria[0].ptps.capacity == 10
+    assert reservation.criteria[0].ptps.symmetric_path is True
+    assert reservation.criteria[0].ptps.source_stp == "urn:ogf:network:example.domain:2001:topology:port1?vlan=1783"
+    assert reservation.criteria[0].ptps.dest_stp == "urn:ogf:network:example.domain:2001:topology:port2?vlan=1783"
+    assert reservation.requester_nsa == "urn:ogf:network:example.domain:2021:requester"
+    assert reservation.connection_states.data_plane_status.version_consistent is True
+    assert isinstance(query_response.last_modified, Timestamp) is True
+    assert "Query summary sync" in caplog.text
