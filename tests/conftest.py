@@ -21,7 +21,7 @@ from supa.db.model import Connection, P2PCriteria, Request, Reservation, Schedul
 from supa.grpc_nsi import connection_provider_pb2_grpc
 from supa.job.dataplane import AutoEndJob, AutoStartJob
 from supa.job.reserve import ReserveTimeoutJob
-from supa.util.timestamp import NO_END_DATE
+from supa.util.timestamp import NO_END_DATE, current_timestamp
 from supa.util.type import RequestType
 
 
@@ -111,6 +111,7 @@ def connection_id() -> Generator[UUID, None, None]:
             description="reservation 1",
             version=0,
             lifecycle_state="CREATED",
+            last_modified=current_timestamp(),
         )
         reservation.schedules.append(
             Schedule(
