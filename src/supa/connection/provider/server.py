@@ -973,6 +973,16 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         )
         log.debug("Received message.", request_message=pb_query_request)
 
+        try:
+            _validate_message_header(pb_query_request.header)
+        except NsiException as nsi_exc:
+            query_response = GenericAcknowledgment(
+                header=to_response_header(pb_query_request.header),
+                service_exception=to_service_exception(nsi_exc),
+            )
+            log.debug("Sending response.", response_message=query_response)
+            return query_response
+
         from supa import scheduler
 
         log.info("Schedule query summary", job="QuerySummaryJob")
@@ -1004,6 +1014,14 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         )
         log.debug("Received message.", request_message=pb_query_request)
         log.info("Query summary sync")
+
+        try:
+            _validate_message_header(pb_query_request.header)
+        except NsiException as nsi_exc:
+            log.info("QuerySummarySync failed.", reason=nsi_exc.text)
+            # TODO: should use interface:error, but we re-raise exception instead
+            raise nsi_exc
+
         _register_request(pb_query_request, RequestType.QuerySummarySync)
         request = create_query_confirmed_request(pb_query_request)
         log.debug("Sending response.", response_message=request)
@@ -1029,6 +1047,16 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             if_modified_since=as_utc_timestamp(pb_query_request.if_modified_since).isoformat(),
         )
         log.debug("Received message.", request_message=pb_query_request)
+
+        try:
+            _validate_message_header(pb_query_request.header)
+        except NsiException as nsi_exc:
+            query_response = GenericAcknowledgment(
+                header=to_response_header(pb_query_request.header),
+                service_exception=to_service_exception(nsi_exc),
+            )
+            log.debug("Sending response.", response_message=query_response)
+            return query_response
 
         from supa import scheduler
 
@@ -1066,6 +1094,16 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         )
         log.debug("Received message.", request_message=pb_query_notification_request)
 
+        try:
+            _validate_message_header(pb_query_notification_request.header)
+        except NsiException as nsi_exc:
+            response = GenericAcknowledgment(
+                header=to_response_header(pb_query_notification_request.header),
+                service_exception=to_service_exception(nsi_exc),
+            )
+            log.debug("Sending response.", response_message=response)
+            return response
+
         from supa import scheduler
 
         log.info("Schedule query notification", job="QueryNotificationJob")
@@ -1099,6 +1137,14 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         )
         log.debug("Received message.", request_message=pb_query_notification_request)
         log.info("Query notification sync")
+
+        try:
+            _validate_message_header(pb_query_notification_request.header)
+        except NsiException as nsi_exc:
+            log.info("QuerySummarySync failed.", reason=nsi_exc.text)
+            # TODO: should use interface:error, but we re-raise exception instead
+            raise nsi_exc
+
         _register_request(pb_query_notification_request, RequestType.QueryNotificationSync)
         request = create_query_notification_confirmed_request(pb_query_notification_request)
         log.debug("Sending response.", response_message=request)
@@ -1126,6 +1172,16 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             end_result_id=pb_query_result_request.end_result_id,
         )
         log.debug("Received message.", request_message=pb_query_result_request)
+
+        try:
+            _validate_message_header(pb_query_result_request.header)
+        except NsiException as nsi_exc:
+            response = GenericAcknowledgment(
+                header=to_response_header(pb_query_result_request.header),
+                service_exception=to_service_exception(nsi_exc),
+            )
+            log.debug("Sending response.", response_message=response)
+            return response
 
         from supa import scheduler
 
@@ -1160,6 +1216,14 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         )
         log.debug("Received message.", request_message=pb_query_result_request)
         log.info("Query result sync")
+
+        try:
+            _validate_message_header(pb_query_result_request.header)
+        except NsiException as nsi_exc:
+            log.info("QuerySummarySync failed.", reason=nsi_exc.text)
+            # TODO: should use interface:error, but we re-raise exception instead
+            raise nsi_exc
+
         _register_request(pb_query_result_request, RequestType.QueryResultSync)
         request = create_query_result_confirmed_request(pb_query_result_request)
         log.debug("Sending response.", response_message=request)
