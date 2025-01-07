@@ -18,19 +18,19 @@ cffi==1.17.1
     # via
     #   cryptography
     #   pynacl
-charset-normalizer==3.4.0
+charset-normalizer==3.4.1
     # via requests
 cheroot==10.0.1
     # via cherrypy
 cherrypy==18.10.0
     # via supa (setup.cfg)
-click==8.1.7
+click==8.1.8
     # via supa (setup.cfg)
 colorama==0.4.6
     # via supa (setup.cfg)
 cryptography==44.0.0
     # via paramiko
-grpcio==1.68.0
+grpcio==1.68.1
     # via
     #   grpcio-tools
     #   supa (setup.cfg)
@@ -87,7 +87,7 @@ python-dateutil==2.9.0.post0
     # via tempora
 python-dotenv==1.0.1
     # via pydantic-settings
-python-statemachine==2.4.0
+python-statemachine==2.5.0
     # via supa (setup.cfg)
 pytz==2024.2
     # via supa (setup.cfg)
