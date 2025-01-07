@@ -101,7 +101,7 @@ structlog==24.4.0
     # via supa (setup.cfg)
 tabulate==0.9.0
     # via supa (setup.cfg)
-tempora==5.7.0
+tempora==5.8.0
     # via portend
 types-protobuf==5.29.1.20241207
     # via mypy-protobuf
