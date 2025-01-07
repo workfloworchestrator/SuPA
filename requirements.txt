@@ -24,7 +24,7 @@ cheroot==10.0.1
     # via cherrypy
 cherrypy==18.10.0
     # via supa (setup.cfg)
-click==8.1.7
+click==8.1.8
     # via supa (setup.cfg)
 colorama==0.4.6
     # via supa (setup.cfg)
