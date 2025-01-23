@@ -68,14 +68,14 @@ paramiko==3.5.0
     # via supa (setup.cfg)
 portend==3.2.0
     # via cherrypy
-protobuf==5.29.2
+protobuf==5.29.3
     # via
     #   grpcio-tools
     #   mypy-protobuf
     #   supa (setup.cfg)
 pycparser==2.22
     # via cffi
-pydantic==2.10.4
+pydantic==2.10.5
     # via pydantic-settings
 pydantic-core==2.27.2
     # via pydantic
