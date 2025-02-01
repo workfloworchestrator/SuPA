@@ -12,7 +12,7 @@ autocommand==2.2.2
     # via jaraco-text
 bcrypt==4.2.1
     # via paramiko
-certifi==2024.12.14
+certifi==2025.1.31
     # via requests
 cffi==1.17.1
     # via
