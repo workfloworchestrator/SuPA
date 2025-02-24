@@ -28,7 +28,7 @@ click==8.1.8
     # via supa (setup.cfg)
 colorama==0.4.6
     # via supa (setup.cfg)
-cryptography==44.0.0
+cryptography==44.0.1
     # via paramiko
 grpcio==1.70.0
     # via
@@ -51,7 +51,7 @@ jaraco-functools==4.1.0
     #   tempora
 jaraco-text==4.0.0
     # via jaraco-collections
-lxml==5.3.0
+lxml==5.3.1
     # via supa (setup.cfg)
 lxml-stubs==0.5.1
     # via supa (setup.cfg)
@@ -64,7 +64,7 @@ more-itertools==10.6.0
     #   supa (setup.cfg)
 mypy-protobuf==3.6.0
     # via supa (setup.cfg)
-paramiko==3.5.0
+paramiko==3.5.1
     # via supa (setup.cfg)
 portend==3.2.0
     # via cherrypy
@@ -103,14 +103,14 @@ tabulate==0.9.0
     # via supa (setup.cfg)
 tempora==5.8.0
     # via portend
-types-protobuf==5.29.1.20241207
+types-protobuf==5.29.1.20250208
     # via mypy-protobuf
 typing-extensions==4.12.2
     # via
     #   pydantic
     #   pydantic-core
     #   sqlalchemy
-tzlocal==5.2
+tzlocal==5.3
     # via apscheduler
 urllib3==2.3.0
     # via requests
