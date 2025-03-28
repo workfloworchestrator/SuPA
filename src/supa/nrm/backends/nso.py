@@ -16,7 +16,10 @@ from typing import Any, List
 from uuid import UUID
 
 from pydantic_settings import BaseSettings
+from sqlalchemy import select
 
+from supa.db.model import Connection
+from supa.db.session import db_session
 from supa.nrm.backend import STP, BaseBackend
 from supa.util.find import find_file
 from supa.util.nso import HTTPBasicAuth, NSOClient
@@ -91,7 +94,19 @@ class Backend(BaseBackend):
             payload=payload,
         )
 
-        return circuit_id
+    def _get_next_circuit_id(self) -> str:
+        self.log.info("Get next circuit_id from SuPA DB")
+
+        with db_session() as session:
+            ids = session.execute(select(Connection.circuit_id).filter(Connection.circuit_id != None)).scalars().all()
+
+        if ids:
+            ids.sort(key=lambda x: int(x.split("_")[-1]))
+            last_id = ids[-1]
+            next_id = int(last_id.split("_")[-1]) + 1
+            return f"NSI_L2VPN_{next_id}"
+        else:
+            return "NSI_L2VPN_10000"
 
     def _service_delete(self, circuit_id: str) -> None:
         self.log.info("Delete service in NSO")
@@ -141,7 +156,8 @@ class Backend(BaseBackend):
             dst_vlan=dst_vlan,
             circuit_id=circuit_id,
         )
-        circuit_id = f"NSI_L2VPN_{randint(1000, 9999)}"
+        circuit_id = self._get_next_circuit_id()
+        self.log.info("Setting circuit_id", circuit_id=circuit_id)
         self._service_create(circuit_id, src_port_id, src_vlan, dst_port_id, dst_vlan, bandwidth)
         return circuit_id
 
