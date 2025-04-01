@@ -110,7 +110,7 @@ typing-extensions==4.12.2
     #   pydantic
     #   pydantic-core
     #   sqlalchemy
-tzlocal==5.3
+tzlocal==5.3.1
     # via apscheduler
 urllib3==2.3.0
     # via requests
