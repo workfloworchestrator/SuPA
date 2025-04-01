@@ -89,7 +89,7 @@ python-dotenv==1.0.1
     # via pydantic-settings
 python-statemachine==2.5.0
     # via supa (setup.cfg)
-pytz==2025.1
+pytz==2025.2
     # via supa (setup.cfg)
 requests==2.32.3
     # via supa (setup.cfg)
