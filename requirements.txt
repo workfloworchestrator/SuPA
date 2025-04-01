@@ -95,7 +95,7 @@ requests==2.32.3
     # via supa (setup.cfg)
 six==1.17.0
     # via python-dateutil
-sqlalchemy==2.0.38
+sqlalchemy==2.0.40
     # via supa (setup.cfg)
 structlog==25.1.0
     # via supa (setup.cfg)
