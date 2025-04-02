@@ -150,8 +150,8 @@ def db_session() -> Iterator[scoped_session]:
         session = Session()
         yield session  # type: ignore
         session.commit()
-    except BaseException:
-        logger.error("An exception occurred while doing DB work. Rolling back.")
+    except BaseException as exc:
+        logger.error("An exception occurred while doing DB work. Rolling back.", reason=str(exc))
         if session is not None:
             session.rollback()
         raise
