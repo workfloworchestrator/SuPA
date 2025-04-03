@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import random
 from datetime import timedelta
-from typing import Dict, List, NamedTuple, Type, Union
+from typing import Dict, List, NamedTuple, Type
 from uuid import UUID
 
 import structlog
@@ -55,13 +55,7 @@ from supa.db.model import (
     Topology,
     connection_to_dict,
 )
-from supa.grpc_nsi.connection_requester_pb2 import (
-    ErrorRequest,
-    GenericConfirmedRequest,
-    GenericFailedRequest,
-    ReserveConfirmedRequest,
-    ReserveTimeoutRequest,
-)
+from supa.grpc_nsi.connection_requester_pb2 import ReserveConfirmedRequest, ReserveTimeoutRequest
 from supa.job.dataplane import AutoEndJob, AutoStartJob
 from supa.job.shared import Job, NsiException, register_notification, register_result
 from supa.util.bandwidth import format_bandwidth
@@ -128,6 +122,8 @@ class ReserveJob(Job):
         self.connection_id = connection_id
         self.src_port_id: str = ""
         self.dst_port_id: str = ""
+        self.src_selected_vlan: int = 0
+        self.dst_selected_vlan: int = 0
 
     def _stp_resources_in_use(self, session: scoped_session) -> Dict[str, StpResources]:
         """Calculate STP resources in use for active reservations that overlap with ours.
@@ -261,8 +257,8 @@ class ReserveJob(Job):
 
         Target can be either "src" or "dst".
         When the STP is valid and a VLAN is available
-        the corresponding {src|dst}_selected_vlan will be set on the reservation.p2p_criteria
-        and the associated port will be stored in {src|dst}_port_id on the job instance.
+        the corresponding {src|dst}_selected_vlan will be set on the the job instance
+        and the associated port {src|dst}_port_id will also be set on  on the job instance.
         """
         stp_resources_in_use = self._stp_resources_in_use(session)
         self.log.debug("stp resources in use", stp_resources_in_use=stp_resources_in_use)
@@ -307,8 +303,9 @@ class ReserveJob(Job):
                 {var: nsi_stp},
             )
         selected_vlan = random.choice(list(candidate_vlans))
-        setattr(reservation.p2p_criteria, f"{target}_selected_vlan", selected_vlan)
-        # remember port id, will be stored as part of Connection below
+        # selected vlan will be stored on reservation p2p criteria below
+        setattr(self, f"{target}_selected_vlan", selected_vlan)
+        # port id will be stored on connection below
         setattr(self, f"{target}_port_id", stp.port_id)
 
     def __call__(self) -> None:
@@ -323,7 +320,8 @@ class ReserveJob(Job):
 
         self.log.info("Reserve reservation")
 
-        request = Union[ReserveConfirmedRequest, GenericFailedRequest]
+        # process reservation request
+        nsi_exception: NsiException | None = None
         with db_session() as session:
             reservation: Reservation = (
                 session.query(Reservation)
@@ -339,7 +337,6 @@ class ReserveJob(Job):
             )
             assert reservation.version == reservation.schedule.version  # assert versions on references are the same
             assert reservation.version == reservation.p2p_criteria.version  # TODO: refactor into unit test(s)
-            rsm = ReservationStateMachine(reservation, state_field="reservation_state")
 
             try:
                 if reservation.p2p_criteria.src_stp_id == reservation.p2p_criteria.dst_stp_id:
@@ -361,15 +358,52 @@ class ReserveJob(Job):
                     # Dynamic attribute lookups as we want to use the same code for
                     # both src and dst STP's
                     self._process_stp(target, var, reservation, session)
+                reservation.p2p_criteria.src_selected_vlan = self.src_selected_vlan
+                reservation.p2p_criteria.dst_selected_vlan = self.dst_selected_vlan
+                self.bandwidth = reservation.p2p_criteria.bandwidth
+            except NsiException as nsi_exc:
+                nsi_exception = nsi_exc
 
+        # call backend
+        circuit_id = None
+        if not nsi_exception:
+            try:
                 circuit_id = backend.reserve(
-                    connection_id=reservation.connection_id,
-                    bandwidth=reservation.p2p_criteria.bandwidth,
+                    connection_id=self.connection_id,
+                    bandwidth=self.bandwidth,
                     src_port_id=self.src_port_id,
-                    src_vlan=reservation.p2p_criteria.src_selected_vlan,
+                    src_vlan=self.src_selected_vlan,
                     dst_port_id=self.dst_port_id,
-                    dst_vlan=reservation.p2p_criteria.dst_selected_vlan,
+                    dst_vlan=self.dst_selected_vlan,
                 )
+            except NsiException as nsi_exc:
+                nsi_exception = nsi_exc
+            except Exception as exc:
+                self.log.exception("Unexpected error occurred.", reason=str(exc))
+                nsi_exception = NsiException(
+                    GenericInternalError,
+                    str(exc),
+                    {
+                        Variable.CONNECTION_ID: str(self.connection_id),
+                    },
+                )
+
+        # update reservation and connection state in the database, stop reserve timeout job if necessary
+        with db_session() as session:
+            reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
+            rsm = ReservationStateMachine(reservation, state_field="reservation_state")
+            if nsi_exception:  # reserve failed
+                from supa import scheduler
+
+                self.log.info("Reservation failed.", reason=str(nsi_exception))
+                rsm.reserve_failed()
+                failed_request = to_generic_failed_request(reservation, nsi_exception)
+                self.log.info("Cancel reserve timeout")
+                scheduler.remove_job(job_id=ReserveTimeoutJob(self.connection_id).job_id)
+                register_result(failed_request, ResultType.ReserveFailed)
+            else:  # reserve successful
+                rsm.reserve_confirmed()
+                confirmed_request = _to_reserve_confirmed_request(reservation)
                 if len(reservation.schedules) == 1:  # new reservation
                     session.add(
                         Connection(
@@ -385,37 +419,18 @@ class ReserveJob(Job):
                 else:  # modify reservation
                     connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
                     connection.bandwidth = reservation.p2p_criteria.bandwidth
-                    if circuit_id:
-                        connection.circuit_id = circuit_id
+                if circuit_id:
+                    connection.circuit_id = circuit_id
+                register_result(confirmed_request, ResultType.ReserveConfirmed)
 
-            except NsiException as nsi_exc:
-                # FIXME: should we rollback the reservation version and remove the latest schedule and p2p_criteria?
-                self.log.info("Reservation failed.", reason=nsi_exc.text)
-                request = to_generic_failed_request(reservation, nsi_exc)  # type: ignore[misc]
-                rsm.reserve_failed()
-            except Exception as exc:
-                self.log.exception("Unexpected error occurred.", reason=str(exc))
-                nsi_exc = NsiException(GenericInternalError, str(exc))  # type: ignore[misc]
-                request = to_generic_failed_request(reservation, nsi_exc)  # type: ignore[misc]
-                rsm.reserve_failed()
-            else:
-                request = _to_reserve_confirmed_request(reservation)  # type: ignore[misc]
-                rsm.reserve_confirmed()
-
+        # send result to requester, done outside the database session because communication can throw exception
         stub = requester.get_stub()
-        if isinstance(request, ReserveConfirmedRequest):
-            register_result(request, ResultType.ReserveConfirmed)
-            self.log.debug("Sending message.", method="ReserveConfirmed", request_message=request)
-            stub.ReserveConfirmed(request)
-        else:
-            # for some reason the isinstance() above triggers a unreachable below, but this code is definitely reachable
-            from supa import scheduler  # type: ignore[unreachable]
-
-            self.log.info("Cancel reserve timeout")
-            scheduler.remove_job(job_id=ReserveTimeoutJob(self.connection_id).job_id)
-            register_result(request, ResultType.ReserveFailed)
-            self.log.debug("Sending message.", method="ReserveFailed", request_message=request)
-            stub.ReserveFailed(request)
+        if nsi_exception:  # reserve failed
+            self.log.debug("Sending message.", method="ReserveFailed", message=failed_request)
+            stub.ReserveFailed(failed_request)
+        else:  # reserve successful
+            self.log.debug("Sending message.", method="ReserveConfirmed", message=confirmed_request)
+            stub.ReserveConfirmed(confirmed_request)
 
     @classmethod
     def recover(cls: Type[ReserveJob]) -> List[Job]:
@@ -469,34 +484,68 @@ class ReserveCommitJob(Job):
         If the reservation state machine is not in the correct state for a ReserveCommit
         an NSI error is returned leaving the state machine unchanged.
         """
+        self.log.info("Reserve commit reservation")
+
         from supa.db.session import db_session
         from supa.nrm.backend import backend
 
-        self.log.info("Reserve commit reservation")
+        # call backend
+        nsi_exception: NsiException | None = None
+        circuit_id = None
+        with db_session() as session:
+            reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
+            connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
+            dpsm = DataPlaneStateMachine(reservation, state_field="data_plane_state")
+            backend_args = connection_to_dict(connection)
+            new_bandwidth = reservation.p2p_criteria.bandwidth
+            if len(reservation.schedules) > 1:  # modify reservation
+                old_bandwidth = reservation.p2p_criteria_list[-2].bandwidth
+                data_plane_active = (
+                    dpsm.current_state == DataPlaneStateMachine.Activated
+                    or dpsm.current_state == DataPlaneStateMachine.AutoEnd
+                )
+            else:
+                old_bandwidth = new_bandwidth
 
-        request: Union[GenericConfirmedRequest, GenericFailedRequest]
+        # call backend
+        try:
+            # always reserve commit (possible new values) to NRM, also in case of modify
+            circuit_id = backend.reserve_commit(**backend_args)
+            # 1. if bandwidth has changed and data plane is active then call modify() on backend
+            #    to allow NRM to change the bandwidth on the active connection in the network
+            if new_bandwidth != old_bandwidth and data_plane_active:
+                self.log.info("modify bandwidth on connection", old=old_bandwidth, new=new_bandwidth)
+                if modify_circuit_id := backend.modify(**backend_args):
+                    circuit_id = modify_circuit_id
+        except NsiException as nsi_exc:
+            nsi_exception = nsi_exc
+        except Exception as exc:
+            self.log.exception("Unexpected error occurred.", reason=str(exc))
+            nsi_exception = NsiException(GenericInternalError, str(exc))
+
+        # update reservation and connection state in the database, start and stop jobs if necessary
         with db_session() as session:
             reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
             connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
             rsm = ReservationStateMachine(reservation, state_field="reservation_state")
-            psm = ProvisionStateMachine(reservation, state_field="provision_state")
             dpsm = DataPlaneStateMachine(reservation, state_field="data_plane_state")
-            reschedule_auto_start = False
-            cancel_auto_end = False
-            schedule_auto_end = False
-            try:
-                # always reserve commit (possible new values) to NRM, also in case of modify
-                if circuit_id := backend.reserve_commit(**connection_to_dict(connection)):
-                    connection.circuit_id = circuit_id
+            # for modify psm will be the existing state machine, otherwise a new one is created
+            psm = ProvisionStateMachine(reservation, state_field="provision_state")
+            if nsi_exception:  # reserve commit on backend failed
+                self.log.info("Reserve commit failed.", reason=str(nsi_exception))
+                rsm.reserve_commit_failed()
+                failed_request = to_generic_failed_request(reservation, nsi_exception)
+                register_result(failed_request, ResultType.ReserveCommitFailed)
+            else:  # reserve commit on backend successful
+                from supa import scheduler
+
                 if len(reservation.schedules) > 1:  # modify reservation
                     old_start_time = reservation.schedules[-2].start_time
                     old_end_time = reservation.schedules[-2].end_time
-                    old_bandwidth = reservation.p2p_criteria_list[-2].bandwidth
                     new_start_time = reservation.schedule.start_time
                     new_end_time = reservation.schedule.end_time
-                    new_bandwidth = reservation.p2p_criteria.bandwidth
                     job: Job
-                    # 1. if start time has changed:
+                    # 2. if start time has changed:
                     #    - start time was not reached yet, this is checked in ConnectionProviderService.Reserve
                     #    - if the reservation was not provisioned then let ProvisionJob take care of everything
                     #    - if the reservation was provisioned then reschedule a AutoStartJob with new start time
@@ -505,8 +554,16 @@ class ReserveCommitJob(Job):
                         and psm.current_state == ProvisionStateMachine.Provisioned
                         and dpsm.current_state == DataPlaneStateMachine.AutoStart
                     ):
-                        reschedule_auto_start = True
-                    # 2. if end time has changed and the reservation was provisioned:
+                        self.log.info(
+                            "Reschedule auto start", job="AutoStartJob", start_time=new_start_time.isoformat()
+                        )
+                        scheduler.remove_job(job_id=AutoStartJob(self.connection_id).job_id)
+                        scheduler.add_job(
+                            job := AutoStartJob(self.connection_id),
+                            trigger=DateTrigger(run_date=new_start_time),
+                            id=job.job_id,
+                        )
+                    # 3. if end time has changed and the reservation was provisioned:
                     #    - if there is an AutoEndJob then either:
                     #      - if end time changed to NO_END_DATE then remove AutoEndJob
                     #      - otherwise reschedule AutoEndJob
@@ -515,62 +572,30 @@ class ReserveCommitJob(Job):
                     if new_end_time != old_end_time and psm.current_state == ProvisionStateMachine.Provisioned:
                         if dpsm.current_state == DataPlaneStateMachine.AutoEnd:
                             dpsm.cancel_auto_end_request()
-                            cancel_auto_end = True
+                            self.log.info("Cancel previous auto end")
+                            scheduler.remove_job(job_id=AutoEndJob(self.connection_id).job_id)
                         if dpsm.current_state == DataPlaneStateMachine.Activated and new_end_time != NO_END_DATE:
                             dpsm.auto_end_request()
-                            schedule_auto_end = True
-                    # 3. if bandwidth has changed and data plane is active then call modify() on backend
-                    #    to allow NRM to change the bandwidth on the active connection in the network
-                    if new_bandwidth != old_bandwidth:
-                        if (
-                            dpsm.current_state == DataPlaneStateMachine.Activated
-                            or dpsm.current_state == DataPlaneStateMachine.AutoEnd
-                        ):
-                            self.log.info(
-                                "modify bandwidth on connection",
-                                old_bandwidth=old_bandwidth,
-                                new_bandwidth=new_bandwidth,
+                            self.log.info("Schedule new auto end", job="AutoEndJob", end_time=new_end_time.isoformat())
+                            scheduler.add_job(
+                                job := AutoEndJob(self.connection_id),
+                                trigger=DateTrigger(run_date=new_end_time),
+                                id=job.job_id,
                             )
-                            if circuit_id := backend.modify(**connection_to_dict(connection)):
-                                connection.circuit_id = circuit_id
-
-            except NsiException as nsi_exc:
-                self.log.info("Reserve commit failed.", reason=nsi_exc.text)
-                request = to_generic_failed_request(reservation, nsi_exc)
-                rsm.reserve_commit_failed()
-            except Exception as exc:
-                self.log.exception("Unexpected error occurred.", reason=str(exc))
-                nsi_exc = NsiException(GenericInternalError, str(exc))  # type: ignore[misc]
-                request = to_generic_failed_request(reservation, nsi_exc)  # type: ignore[misc]
-                rsm.reserve_commit_failed()
-            else:
-                request = to_generic_confirmed_request(reservation)
-                # create new psm just before the reserveCommitConfirmed,
-                # this will set initial provision_state on reservation
-                psm = ProvisionStateMachine(reservation, state_field="provision_state")  # noqa: F841
                 rsm.reserve_commit_confirmed()
+                confirmed_request = to_generic_confirmed_request(reservation)
+                if circuit_id:
+                    connection.circuit_id = circuit_id
+                register_result(confirmed_request, ResultType.ReserveCommitConfirmed)
 
+        # send result to requester, done outside the database session because communication can throw exception
         stub = requester.get_stub()
-        if isinstance(request, GenericConfirmedRequest):
-            from supa import scheduler
-
-            if reschedule_auto_start:
-                self.log.info("Reschedule auto start", job="AutoStartJob", start_time=new_start_time.isoformat())
-                scheduler.remove_job(job_id=AutoStartJob(self.connection_id).job_id)
-                scheduler.add_job(job := AutoStartJob(self.connection_id), trigger=job.trigger(), id=job.job_id)
-            if cancel_auto_end:
-                self.log.info("Cancel previous auto end")
-                scheduler.remove_job(job_id=AutoEndJob(self.connection_id).job_id)
-            if schedule_auto_end:
-                self.log.info("Schedule new auto end", job="AutoEndJob", end_time=new_end_time.isoformat())
-                scheduler.add_job(job := AutoEndJob(self.connection_id), trigger=job.trigger(), id=job.job_id)
-            register_result(request, ResultType.ReserveCommitConfirmed)
-            self.log.debug("Sending message", method="ReserveCommitConfirmed", request_message=request)
-            stub.ReserveCommitConfirmed(request)
-        else:
-            register_result(request, ResultType.ReserveCommitFailed)
-            self.log.debug("Sending message.", method="ReserveCommitFailed", request_message=request)
-            stub.ReserveCommitFailed(request)
+        if nsi_exception:  # reserve commit on backend failed
+            self.log.debug("Sending message.", method="ReserveCommitFailed", message=failed_request)
+            stub.ReserveCommitFailed(failed_request)
+        else:  # reserve commit on backend successful
+            self.log.debug("Sending message", method="ReserveCommitConfirmed", message=confirmed_request)
+            stub.ReserveCommitConfirmed(confirmed_request)
 
     @classmethod
     def recover(cls: Type[ReserveCommitJob]) -> List[Job]:
@@ -627,37 +652,33 @@ class ReserveAbortJob(Job):
         from supa.db.session import db_session
         from supa.nrm.backend import backend
 
-        request: Union[GenericConfirmedRequest, ErrorRequest]
+        # call backend
+        nsi_exception: NsiException | None = None
+        circuit_id = None
+        with db_session() as session:
+            connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
+            backend_args = connection_to_dict(connection)
+        try:
+            circuit_id = backend.reserve_abort(**backend_args)
+        except NsiException as nsi_exc:
+            nsi_exception = nsi_exc
+        except Exception as exc:
+            self.log.exception("Unexpected error occurred.", reason=str(exc))
+            nsi_exception = NsiException(
+                GenericInternalError, str(exc), {Variable.CONNECTION_ID: str(self.connection_id)}
+            )
+
+        # update reservation and connection state in the database
         with db_session() as session:
             reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
             connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
             rsm = ReservationStateMachine(reservation, state_field="reservation_state")
-            try:
-                if circuit_id := backend.reserve_abort(**connection_to_dict(connection)):
-                    connection.circuit_id = circuit_id
-            except NsiException as nsi_exc:
-                self.log.info("Reserve abort failed.", reason=nsi_exc.text)
-                request = to_error_request(
-                    to_header(reservation),
-                    nsi_exc,
-                    self.connection_id,
-                )
-            except Exception as exc:
-                self.log.exception("Unexpected error occurred.", reason=str(exc))
-                request = to_error_request(
-                    to_header(reservation),
-                    NsiException(
-                        GenericInternalError,
-                        str(exc),
-                        {
-                            Variable.RESERVATION_STATE: reservation.reservation_state,
-                            Variable.CONNECTION_ID: str(self.connection_id),
-                        },
-                    ),
-                    self.connection_id,
-                )
-            else:
-                request = to_generic_confirmed_request(reservation)
+            if nsi_exception:  # reserve abort on backend failed
+                self.log.info("Reserve abort failed.", reason=str(nsi_exception))
+                error_request = to_error_request(to_header(reservation), nsi_exception, self.connection_id)
+                register_result(error_request, ResultType.Error)
+            else:  # reserve abort on backend successful
+                confirmed_request = to_generic_confirmed_request(reservation)
                 reservation.reservation_timeout = False  # would probably be better to add reservation state to fsm
                 # only allowed to abort a reserve modify request, e.q. there is more than one criteria version
                 if len(reservation.p2p_criteria_list) > 1:
@@ -671,25 +692,19 @@ class ReserveAbortJob(Job):
                     reservation.version -= 1
                     rsm.reserve_abort_confirmed()
                 else:  # the server should have prevented that this code is reached
-                    request = to_error_request(
-                        to_header(reservation),
-                        NsiException(
-                            GenericInternalError,
-                            "cannot abort an initial reserve request, should not have reached this code",
-                            {Variable.CONNECTION_ID: str(self.connection_id)},
-                        ),
-                        self.connection_id,
-                    )
+                    self.log.error("cannot abort an initial reserve request, should not have reached this code")
+                if circuit_id:
+                    connection.circuit_id = circuit_id
+                register_result(confirmed_request, ResultType.ReserveAbortConfirmed)
 
+        # send result to requester, done outside the database session because communication can throw exception
         stub = requester.get_stub()
-        if isinstance(request, GenericConfirmedRequest):
-            register_result(request, ResultType.ReserveAbortConfirmed)
-            self.log.debug("Sending message", method="ReserveAbortConfirmed", request_message=request)
-            stub.ReserveAbortConfirmed(request)
-        else:
-            register_result(request, ResultType.Error)
-            self.log.debug("Sending message", method="Error", request_message=request)
-            stub.Error(request)
+        if nsi_exception:  # reserve abort failed
+            self.log.debug("Sending message", method="Error", message=error_request)
+            stub.Error(error_request)
+        else:  # reserve abort successful
+            self.log.debug("Sending message", method="ReserveAbortConfirmed", message=confirmed_request)
+            stub.ReserveAbortConfirmed(confirmed_request)
 
     @classmethod
     def recover(cls: Type[ReserveAbortJob]) -> List[Job]:
@@ -747,62 +762,59 @@ class ReserveTimeoutJob(Job):
         from supa.db.session import db_session
         from supa.nrm.backend import backend
 
-        request: Union[ReserveTimeoutRequest, ErrorRequest]
+        # call backend
+        nsi_exception: NsiException | None = None
+        circuit_id = None
         with db_session() as session:
             reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
             connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
+            backend_args = connection_to_dict(connection)
             rsm = ReservationStateMachine(reservation, state_field="reservation_state")
             try:
                 rsm.reserve_timeout_notification()
-                if circuit_id := backend.reserve_timeout(**connection_to_dict(connection)):
-                    connection.circuit_id = circuit_id
             except TransitionNotAllowed as tna:
                 # Reservation is already in another state turning this into a no-op.
-                self.log.info(
-                    "Reserve timeout failed",
-                    reason=str(tna),
-                    state=rsm.current_state.id,
-                    connection_id=str(self.connection_id),
-                )
+                self.log.warning("Reserve timeout failed", reason=str(tna), state=rsm.current_state.id)
                 return
-            except NsiException as nsi_exc:
-                self.log.info("Reserve timeout failed.", reason=nsi_exc.text)
-                request = to_error_request(
-                    to_header(reservation),
-                    nsi_exc,
-                    self.connection_id,
-                )
-            except Exception as exc:
-                self.log.exception("Unexpected error occurred.", reason=str(exc))
-                request = to_error_request(
-                    to_header(reservation),
-                    NsiException(
-                        GenericInternalError,
-                        str(exc),
-                        {
-                            Variable.RESERVATION_STATE: reservation.reservation_state,
-                            Variable.CONNECTION_ID: str(self.connection_id),
-                        },
-                    ),
-                    self.connection_id,
-                )
-            else:
-                #
-                # TODO: release reserved resources in NRM(?)
-                #
-                self.log.debug("set reservation timeout to true in db")
-                request = _to_reserve_timeout_request(reservation)
-                reservation.reservation_timeout = True
+        try:
+            circuit_id = backend.reserve_timeout(**backend_args)
+        except NsiException as nsi_exc:
+            nsi_exception = nsi_exc
+        except Exception as exc:
+            self.log.exception("Unexpected error occurred.", reason=str(exc))
+            nsi_exception = NsiException(
+                GenericInternalError,
+                str(exc),
+                {
+                    Variable.RESERVATION_STATE: reservation.reservation_state,
+                    Variable.CONNECTION_ID: str(self.connection_id),
+                },
+            )
 
+        # update reservation and connection state in the database
+        with db_session() as session:
+            reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
+            connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
+            if nsi_exception:  # reserve timeout on backend failed
+                self.log.info("Reserve timeout failed.", reason=str(nsi_exception))
+                error_request = to_error_request(to_header(reservation), nsi_exception, self.connection_id)
+                register_result(error_request, ResultType.Error)
+            else:  # reserve timeout on backend successful
+                self.log.debug("set reservation timeout to true in db")
+                timeout_request = _to_reserve_timeout_request(reservation)
+                if circuit_id:
+                    connection.circuit_id = circuit_id
+                reservation.reservation_timeout = True
+                register_notification(timeout_request, NotificationType.ReserveTimeout)
+
+        # send result to requester, done outside the database session because communication can throw exception
         stub = requester.get_stub()
-        if isinstance(request, ReserveTimeoutRequest):
-            register_notification(request, NotificationType.ReserveTimeout)
-            self.log.debug("Sending message", method="ReserveTimeout", request_message=request)
-            stub.ReserveTimeout(request)
-        else:
-            register_result(request, ResultType.Error)
-            self.log.debug("Sending message", method="Error", request_message=request)
-            stub.Error(request)
+        if nsi_exception:  # reserve timeout on backend failed
+            self.log.debug("Sending message", method="Error", message=error_request)
+            stub.Error(error_request)
+        else:  # reserve timeout on backend successful
+            self.log.debug("Sending message", method="ReserveTimeout", message=timeout_request)
+            stub.ReserveTimeout(timeout_request)
 
     @classmethod
     def recover(cls: Type[ReserveTimeoutJob]) -> List[Job]:

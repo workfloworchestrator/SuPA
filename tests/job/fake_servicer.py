@@ -8,7 +8,7 @@ from supa.connection.fsm import (
     ReservationStateMachine,
 )
 from supa.db.model import Request, Reservation, Topology
-from supa.grpc_nsi.connection_common_pb2 import RESERVE_CHECKING, GenericAcknowledgment
+from supa.grpc_nsi.connection_common_pb2 import RESERVE_FAILED, GenericAcknowledgment
 from supa.grpc_nsi.connection_requester_pb2 import (
     DataPlaneStateChangeRequest,
     ErrorRequest,
@@ -45,7 +45,7 @@ class Servicer(ConnectionRequesterServicer):
         assert request.connection_id
         assert request.HasField("service_exception")
         assert request.HasField("connection_states")
-        assert request.connection_states.reservation_state == RESERVE_CHECKING
+        assert request.connection_states.reservation_state == RESERVE_FAILED
 
         test_hit_count = 0
         with db_session() as session:

@@ -267,7 +267,7 @@ class QuerySummaryJob(Job):
         self.log.info("Query summary")
         request = create_query_confirmed_request(self.pb_query_request)
         stub = requester.get_stub()
-        self.log.debug("Sending message", method="QuerySummaryConfirmed", request_message=request)
+        self.log.debug("Sending message", method="QuerySummaryConfirmed", message=request)
         stub.QuerySummaryConfirmed(request)
 
     @classmethod
@@ -338,7 +338,7 @@ class QueryRecursiveJob(Job):
         self.log.info("Query recursive")
         request = create_query_confirmed_request(self.pb_query_request)
         stub = requester.get_stub()
-        self.log.debug("Sending message", method="QueryRecursiveConfirmed", request_message=request)
+        self.log.debug("Sending message", method="QueryRecursiveConfirmed", message=request)
         stub.QueryRecursiveConfirmed(request)
 
     @classmethod
@@ -412,7 +412,7 @@ class QueryNotificationJob(Job):
         self.log.info("Query notification")
         request = create_query_notification_confirmed_request(self.pb_query_notification_request)
         stub = requester.get_stub()
-        self.log.debug("Sending message", method="QueryNotificationConfirmed", request_message=request)
+        self.log.debug("Sending message", method="QueryNotificationConfirmed", message=request)
         stub.QueryNotificationConfirmed(request)
 
     @classmethod
@@ -486,7 +486,7 @@ class QueryResultJob(Job):
         self.log.info("Query result")
         request = create_query_result_confirmed_request(self.pb_query_result_request)
         stub = requester.get_stub()
-        self.log.debug("Sending message", method="QueryResultConfirmed", request_message=request)
+        self.log.debug("Sending message", method="QueryResultConfirmed", message=request)
         stub.QueryResultConfirmed(request)
 
     @classmethod

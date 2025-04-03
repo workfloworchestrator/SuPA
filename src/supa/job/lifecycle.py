@@ -12,7 +12,7 @@
 #  limitations under the License.
 from __future__ import annotations
 
-from typing import List, Type, Union
+from typing import List, Type
 from uuid import UUID
 
 import structlog
@@ -25,7 +25,6 @@ from supa.connection import requester
 from supa.connection.error import GenericInternalError, Variable
 from supa.connection.fsm import DataPlaneStateMachine, LifecycleStateMachine
 from supa.db.model import Connection, Reservation, connection_to_dict
-from supa.grpc_nsi.connection_requester_pb2 import ErrorRequest, GenericConfirmedRequest
 from supa.job.dataplane import AutoEndJob, AutoStartJob, DeactivateJob
 from supa.job.shared import Job, NsiException, register_result
 from supa.util.converter import to_error_request, to_generic_confirmed_request, to_header
@@ -61,45 +60,46 @@ class TerminateJob(Job):
         from supa.db.session import db_session
         from supa.nrm.backend import backend
 
-        request: Union[GenericConfirmedRequest, ErrorRequest]
+        # call backend
+        nsi_exception: NsiException | None = None
+        circuit_id = None
+        with db_session() as session:
+            connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one_or_none()
+            connection_present = connection is not None
+            if connection_present:
+                backend_args = connection_to_dict(connection)  # type: ignore[arg-type]
+        try:
+            # skip call to the NRM when Terminate is executed before a connection was registered
+            if connection_present:
+                circuit_id = backend.terminate(**backend_args)
+        except NsiException as nsi_exc:
+            nsi_exception = nsi_exc
+        except Exception as exc:
+            self.log.exception("Unexpected error occurred.", reason=str(exc))
+            nsi_exception = NsiException(
+                GenericInternalError,
+                str(exc),
+                {
+                    Variable.CONNECTION_ID: str(self.connection_id),
+                },
+            )
+
+        # update reservation and connection state in the database
+        from supa import scheduler
+
         with db_session() as session:
             reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
             connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one_or_none()
             lsm = LifecycleStateMachine(reservation, state_field="lifecycle_state")
             dpsm = DataPlaneStateMachine(reservation, state_field="data_plane_state")
-            try:
-                # skip call to the NRM when Terminate is executed before a connection was registered
-                if connection:
-                    if circuit_id := backend.terminate(**connection_to_dict(connection)):
-                        connection.circuit_id = circuit_id
-            except NsiException as nsi_exc:
-                self.log.info("Terminate failed.", reason=nsi_exc.text)
-                request = to_error_request(
-                    to_header(reservation),
-                    nsi_exc,
-                    self.connection_id,
-                )
-            except Exception as exc:
-                self.log.exception("Unexpected error occurred.", reason=str(exc))
-                request = to_error_request(
-                    to_header(reservation),
-                    NsiException(
-                        GenericInternalError,
-                        str(exc),
-                        {
-                            Variable.LIFECYCLE_STATE: reservation.lifecycle_state,
-                            Variable.CONNECTION_ID: str(self.connection_id),
-                        },
-                    ),
-                    self.connection_id,
-                )
-            else:
+            if nsi_exception:  # terminate failed
+                self.log.info("Terminate failed.", reason=str(nsi_exception))
+                error_request = to_error_request(to_header(reservation), nsi_exception, self.connection_id)
+            else:  # terminate successful
                 # the NRM successfully terminated the reservation,
                 # cancel the AutoStartJob or AutoEndJob,
                 # and schedule a DeactivateJob if the data plane is active
                 # TODO if reservation still pending cancel timeout job
-                from supa import scheduler
-
                 previous_data_plane_state = reservation.data_plane_state
                 try:
                     dpsm.deactivate_request()
@@ -113,24 +113,27 @@ class TerminateJob(Job):
                         if previous_data_plane_state == DataPlaneStateMachine.AutoEnd.value:
                             self.log.info("Cancel auto end")
                             scheduler.remove_job(job_id=AutoEndJob(self.connection_id).job_id)
-                request = to_generic_confirmed_request(reservation)
+                confirmed_request = to_generic_confirmed_request(reservation)
                 lsm.terminate_confirmed()
+                if circuit_id:
+                    connection.circuit_id = circuit_id  # type: ignore[union-attr]
 
+        # send result to requester, done outside the database session because communication can throw exception
         stub = requester.get_stub()
-        if isinstance(request, GenericConfirmedRequest):
+        if nsi_exception:  # terminate failed
+            register_result(error_request, ResultType.Error)
+            self.log.debug("Sending message", method="Error", message=error_request)
+            stub.Error(error_request)
+        else:  # terminate successful
             if (
                 previous_data_plane_state == DataPlaneStateMachine.AutoEnd.value
                 or previous_data_plane_state == DataPlaneStateMachine.Activated.value
             ):
                 self.log.info("Schedule deactivate", job="DeactivateJob")
                 scheduler.add_job(job := DeactivateJob(self.connection_id), trigger=job.trigger(), id=job.job_id)
-            register_result(request, ResultType.TerminateConfirmed)
-            self.log.debug("Sending message", method="TerminateConfirmed", request_message=request)
-            stub.TerminateConfirmed(request)
-        else:
-            register_result(request, ResultType.Error)
-            self.log.debug("Sending message", method="Error", request_message=request)
-            stub.Error(request)
+            register_result(confirmed_request, ResultType.TerminateConfirmed)
+            self.log.debug("Sending message", method="TerminateConfirmed", message=confirmed_request)
+            stub.TerminateConfirmed(confirmed_request)
 
     @classmethod
     def recover(cls: Type[TerminateJob]) -> List[Job]:

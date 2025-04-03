@@ -12,7 +12,7 @@
 #  limitations under the License.
 from __future__ import annotations
 
-from typing import List, Type, Union
+from typing import List, Type
 from uuid import UUID
 
 import structlog
@@ -24,7 +24,6 @@ from supa.connection import requester
 from supa.connection.error import GenericInternalError, Variable
 from supa.connection.fsm import DataPlaneStateMachine, LifecycleStateMachine
 from supa.db.model import Connection, Reservation, Schedule, connection_to_dict
-from supa.grpc_nsi.connection_requester_pb2 import DataPlaneStateChangeRequest, ErrorEventRequest
 from supa.job.shared import Job, NsiException, register_notification
 from supa.util.converter import to_activate_failed_event, to_data_plane_state_change_request, to_deactivate_failed_event
 from supa.util.timestamp import NO_END_DATE, current_timestamp
@@ -61,51 +60,57 @@ class ActivateJob(Job):
         from supa.db.session import db_session
         from supa.nrm.backend import backend
 
-        request: Union[DataPlaneStateChangeRequest, ErrorEventRequest]
+        # call backend
+        nsi_exception: NsiException | None = None
+        circuit_id = None
+        with db_session() as session:
+            connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
+            backend_args = connection_to_dict(connection)
+        try:
+            circuit_id = backend.activate(**backend_args)
+        except NsiException as nsi_exc:
+            nsi_exception = nsi_exc
+        except Exception as exc:
+            self.log.exception("Unexpected error occurred", reason=str(exc))
+            nsi_exception = NsiException(
+                GenericInternalError,
+                str(exc),
+                {
+                    Variable.CONNECTION_ID: str(self.connection_id),
+                },
+            )
+
+        # update reservation and connection state in the database, start auto end job if necessary
         with db_session() as session:
             reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
             connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
             dpsm = DataPlaneStateMachine(reservation, state_field="data_plane_state")
-            try:
-                if circuit_id := backend.activate(**connection_to_dict(connection)):
-                    connection.circuit_id = circuit_id
-            except NsiException as nsi_exc:
+            if nsi_exception:  # activate on backend failed
+                self.log.info("Data plane activation failed", reason=str(nsi_exception))
                 dpsm.activate_failed()
-                self.log.info("Data plane activation failed", reason=nsi_exc.text)
-                request = to_activate_failed_event(reservation, nsi_exc)
-            except Exception as exc:
-                dpsm.activate_failed()
-                self.log.exception("Unexpected error occurred", reason=str(exc))
-                request = to_activate_failed_event(
-                    reservation,
-                    NsiException(
-                        GenericInternalError,
-                        str(exc),
-                        {
-                            Variable.CONNECTION_ID: str(self.connection_id),
-                        },
-                    ),
-                )
-            else:
+                event = to_activate_failed_event(reservation, nsi_exception)
+                register_notification(event, NotificationType.ErrorEvent)
+            else:  # activate on backend successful
                 dpsm.activate_confirmed()
-                request = to_data_plane_state_change_request(reservation)
-                if auto_end_job := ((end_time := reservation.schedule.end_time) != NO_END_DATE):
+                data_plane_state_change = to_data_plane_state_change_request(reservation)
+                if circuit_id:
+                    connection.circuit_id = circuit_id
+                if (end_time := reservation.schedule.end_time) != NO_END_DATE:
+                    from supa import scheduler
+
                     dpsm.auto_end_request()
+                    self.log.info("Schedule auto end", job="AutoEndJob", end_time=end_time.isoformat())
+                    scheduler.add_job(job := AutoEndJob(self.connection_id), trigger=job.trigger(), id=job.job_id)
+                register_notification(data_plane_state_change, NotificationType.DataPlaneStateChange)
 
+        # send result to requester, done outside the database session because communication can throw exception
         stub = requester.get_stub()
-        if isinstance(request, DataPlaneStateChangeRequest):
-            if auto_end_job:
-                from supa import scheduler
-
-                self.log.info("Schedule auto end", job="AutoEndJob", end_time=end_time.isoformat())
-                scheduler.add_job(job := AutoEndJob(self.connection_id), trigger=job.trigger(), id=job.job_id)
-            register_notification(request, NotificationType.DataPlaneStateChange)
-            self.log.debug("Sending message", method="DataPlaneStateChange", request_message=request)
-            stub.DataPlaneStateChange(request)
-        else:
-            register_notification(request, NotificationType.ErrorEvent)
-            self.log.debug("Sending message", method="ErrorEvent", request_message=request)
-            stub.ErrorEvent(request)
+        if nsi_exception:  # activate on backend failed
+            self.log.debug("Sending message", method="ErrorEvent", message=event)
+            stub.ErrorEvent(event)
+        else:  # activate on backend successful
+            self.log.debug("Sending message", method="DataPlaneStateChange", message=data_plane_state_change)
+            stub.DataPlaneStateChange(data_plane_state_change)
 
     @classmethod
     def recover(cls: Type[ActivateJob]) -> List[Job]:
@@ -174,49 +179,51 @@ class DeactivateJob(Job):
         from supa.db.session import db_session
         from supa.nrm.backend import backend
 
-        request: Union[DataPlaneStateChangeRequest, ErrorEventRequest]
+        # call backend
+        nsi_exception: NsiException | None = None
+        circuit_id = None
+        with db_session() as session:
+            connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
+            backend_args = connection_to_dict(connection)
+        try:
+            circuit_id = backend.deactivate(**backend_args)
+        except NsiException as nsi_exc:
+            nsi_exception = nsi_exc
+        except Exception as exc:
+            self.log.exception("Unexpected error occurred", reason=str(exc))
+            nsi_exception = NsiException(
+                GenericInternalError,
+                str(exc),
+                {
+                    Variable.CONNECTION_ID: str(self.connection_id),
+                },
+            )
+
+        # update reservation and connection state in the database
         with db_session() as session:
             reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
             connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
             dpsm = DataPlaneStateMachine(reservation, state_field="data_plane_state")
-            # lsm = LifecycleStateMachine(reservation, state_field="lifecycle_state")
-            # # when past end time register a lifecycle end time event
-            # if reservation.end_time <= current_timestamp():
-            #     lsm.endtime_event()
-            #     dpsm.deactivate_request()
-            try:
-                if circuit_id := backend.deactivate(**connection_to_dict(connection)):
-                    connection.circuit_id = circuit_id
-            except NsiException as nsi_exc:
+            if nsi_exception:  # deactivate on backend failed
+                self.log.info("Data plane deactivation failed", reason=str(nsi_exception))
                 dpsm.deactivate_failed()
-                self.log.info("Data plane deactivation failed", reason=nsi_exc.text)
-                request = to_deactivate_failed_event(reservation, nsi_exc)
-            except Exception as exc:
-                dpsm.deactivate_failed()
-                self.log.exception("Unexpected error occurred", reason=str(exc))
-                request = to_deactivate_failed_event(
-                    reservation,
-                    NsiException(
-                        GenericInternalError,
-                        str(exc),
-                        {
-                            Variable.CONNECTION_ID: str(self.connection_id),
-                        },
-                    ),
-                )
-            else:
+                event = to_deactivate_failed_event(reservation, nsi_exception)
+                register_notification(event, NotificationType.ErrorEvent)
+            else:  # deactivate on backend successful
                 dpsm.deactivate_confirm()
-                request = to_data_plane_state_change_request(reservation)
+                data_plane_state_change = to_data_plane_state_change_request(reservation)
+                if circuit_id:
+                    connection.circuit_id = circuit_id
+                register_notification(data_plane_state_change, NotificationType.DataPlaneStateChange)
 
+        # send result to requester, done outside the database session because communication can throw exception
         stub = requester.get_stub()
-        if isinstance(request, DataPlaneStateChangeRequest):
-            register_notification(request, NotificationType.DataPlaneStateChange)
-            self.log.debug("Sending message", method="DataPlaneStateChange", request_message=request)
-            stub.DataPlaneStateChange(request)
-        else:
-            register_notification(request, NotificationType.ErrorEvent)
-            self.log.debug("Sending message", method="ErrorEvent", request_message=request)
-            stub.ErrorEvent(request)
+        if nsi_exception:  # activate on backend failed
+            self.log.debug("Sending message", method="ErrorEvent", message=event)
+            stub.ErrorEvent(event)
+        else:  # activate on backend successful
+            self.log.debug("Sending message", method="DataPlaneStateChange", message=data_plane_state_change)
+            stub.DataPlaneStateChange(data_plane_state_change)
 
     @classmethod
     def recover(cls: Type[DeactivateJob]) -> List[Job]:
