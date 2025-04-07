@@ -121,8 +121,8 @@ class TerminateJob(Job):
         # send result to requester, done outside the database session because communication can throw exception
         stub = requester.get_stub()
         if nsi_exception:  # terminate failed
-            register_result(error_request, ResultType.Error)
             self.log.debug("Sending message", method="Error", message=error_request)
+            register_result(error_request, ResultType.Error)
             stub.Error(error_request)
         else:  # terminate successful
             if (
@@ -131,8 +131,8 @@ class TerminateJob(Job):
             ):
                 self.log.info("Schedule deactivate", job="DeactivateJob")
                 scheduler.add_job(job := DeactivateJob(self.connection_id), trigger=job.trigger(), id=job.job_id)
-            register_result(confirmed_request, ResultType.TerminateConfirmed)
             self.log.debug("Sending message", method="TerminateConfirmed", message=confirmed_request)
+            register_result(confirmed_request, ResultType.TerminateConfirmed)
             stub.TerminateConfirmed(confirmed_request)
 
     @classmethod

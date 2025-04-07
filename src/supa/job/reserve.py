@@ -400,7 +400,6 @@ class ReserveJob(Job):
                 failed_request = to_generic_failed_request(reservation, nsi_exception)
                 self.log.info("Cancel reserve timeout")
                 scheduler.remove_job(job_id=ReserveTimeoutJob(self.connection_id).job_id)
-                register_result(failed_request, ResultType.ReserveFailed)
             else:  # reserve successful
                 rsm.reserve_confirmed()
                 confirmed_request = _to_reserve_confirmed_request(reservation)
@@ -421,15 +420,16 @@ class ReserveJob(Job):
                     connection.bandwidth = reservation.p2p_criteria.bandwidth
                 if circuit_id:
                     connection.circuit_id = circuit_id
-                register_result(confirmed_request, ResultType.ReserveConfirmed)
 
         # send result to requester, done outside the database session because communication can throw exception
         stub = requester.get_stub()
         if nsi_exception:  # reserve failed
             self.log.debug("Sending message.", method="ReserveFailed", message=failed_request)
+            register_result(failed_request, ResultType.ReserveFailed)
             stub.ReserveFailed(failed_request)
         else:  # reserve successful
             self.log.debug("Sending message.", method="ReserveConfirmed", message=confirmed_request)
+            register_result(confirmed_request, ResultType.ReserveConfirmed)
             stub.ReserveConfirmed(confirmed_request)
 
     @classmethod
@@ -535,7 +535,6 @@ class ReserveCommitJob(Job):
                 self.log.info("Reserve commit failed.", reason=str(nsi_exception))
                 rsm.reserve_commit_failed()
                 failed_request = to_generic_failed_request(reservation, nsi_exception)
-                register_result(failed_request, ResultType.ReserveCommitFailed)
             else:  # reserve commit on backend successful
                 from supa import scheduler
 
@@ -586,15 +585,16 @@ class ReserveCommitJob(Job):
                 confirmed_request = to_generic_confirmed_request(reservation)
                 if circuit_id:
                     connection.circuit_id = circuit_id
-                register_result(confirmed_request, ResultType.ReserveCommitConfirmed)
 
         # send result to requester, done outside the database session because communication can throw exception
         stub = requester.get_stub()
         if nsi_exception:  # reserve commit on backend failed
             self.log.debug("Sending message.", method="ReserveCommitFailed", message=failed_request)
+            register_result(failed_request, ResultType.ReserveCommitFailed)
             stub.ReserveCommitFailed(failed_request)
         else:  # reserve commit on backend successful
             self.log.debug("Sending message", method="ReserveCommitConfirmed", message=confirmed_request)
+            register_result(confirmed_request, ResultType.ReserveCommitConfirmed)
             stub.ReserveCommitConfirmed(confirmed_request)
 
     @classmethod
@@ -676,7 +676,6 @@ class ReserveAbortJob(Job):
             if nsi_exception:  # reserve abort on backend failed
                 self.log.info("Reserve abort failed.", reason=str(nsi_exception))
                 error_request = to_error_request(to_header(reservation), nsi_exception, self.connection_id)
-                register_result(error_request, ResultType.Error)
             else:  # reserve abort on backend successful
                 confirmed_request = to_generic_confirmed_request(reservation)
                 reservation.reservation_timeout = False  # would probably be better to add reservation state to fsm
@@ -695,15 +694,16 @@ class ReserveAbortJob(Job):
                     self.log.error("cannot abort an initial reserve request, should not have reached this code")
                 if circuit_id:
                     connection.circuit_id = circuit_id
-                register_result(confirmed_request, ResultType.ReserveAbortConfirmed)
 
         # send result to requester, done outside the database session because communication can throw exception
         stub = requester.get_stub()
         if nsi_exception:  # reserve abort failed
             self.log.debug("Sending message", method="Error", message=error_request)
+            register_result(error_request, ResultType.Error)
             stub.Error(error_request)
         else:  # reserve abort successful
             self.log.debug("Sending message", method="ReserveAbortConfirmed", message=confirmed_request)
+            register_result(confirmed_request, ResultType.ReserveAbortConfirmed)
             stub.ReserveAbortConfirmed(confirmed_request)
 
     @classmethod
@@ -798,22 +798,22 @@ class ReserveTimeoutJob(Job):
             if nsi_exception:  # reserve timeout on backend failed
                 self.log.info("Reserve timeout failed.", reason=str(nsi_exception))
                 error_request = to_error_request(to_header(reservation), nsi_exception, self.connection_id)
-                register_result(error_request, ResultType.Error)
             else:  # reserve timeout on backend successful
                 self.log.debug("set reservation timeout to true in db")
                 timeout_request = _to_reserve_timeout_request(reservation)
                 if circuit_id:
                     connection.circuit_id = circuit_id
                 reservation.reservation_timeout = True
-                register_notification(timeout_request, NotificationType.ReserveTimeout)
 
         # send result to requester, done outside the database session because communication can throw exception
         stub = requester.get_stub()
         if nsi_exception:  # reserve timeout on backend failed
             self.log.debug("Sending message", method="Error", message=error_request)
+            register_result(error_request, ResultType.Error)
             stub.Error(error_request)
         else:  # reserve timeout on backend successful
             self.log.debug("Sending message", method="ReserveTimeout", message=timeout_request)
+            register_notification(timeout_request, NotificationType.ReserveTimeout)
             stub.ReserveTimeout(timeout_request)
 
     @classmethod

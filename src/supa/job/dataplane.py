@@ -89,7 +89,6 @@ class ActivateJob(Job):
                 self.log.info("Data plane activation failed", reason=str(nsi_exception))
                 dpsm.activate_failed()
                 event = to_activate_failed_event(reservation, nsi_exception)
-                register_notification(event, NotificationType.ErrorEvent)
             else:  # activate on backend successful
                 dpsm.activate_confirmed()
                 data_plane_state_change = to_data_plane_state_change_request(reservation)
@@ -101,15 +100,16 @@ class ActivateJob(Job):
                     dpsm.auto_end_request()
                     self.log.info("Schedule auto end", job="AutoEndJob", end_time=end_time.isoformat())
                     scheduler.add_job(job := AutoEndJob(self.connection_id), trigger=job.trigger(), id=job.job_id)
-                register_notification(data_plane_state_change, NotificationType.DataPlaneStateChange)
 
         # send result to requester, done outside the database session because communication can throw exception
         stub = requester.get_stub()
         if nsi_exception:  # activate on backend failed
             self.log.debug("Sending message", method="ErrorEvent", message=event)
+            register_notification(event, NotificationType.ErrorEvent)
             stub.ErrorEvent(event)
         else:  # activate on backend successful
             self.log.debug("Sending message", method="DataPlaneStateChange", message=data_plane_state_change)
+            register_notification(data_plane_state_change, NotificationType.DataPlaneStateChange)
             stub.DataPlaneStateChange(data_plane_state_change)
 
     @classmethod
@@ -208,21 +208,21 @@ class DeactivateJob(Job):
                 self.log.info("Data plane deactivation failed", reason=str(nsi_exception))
                 dpsm.deactivate_failed()
                 event = to_deactivate_failed_event(reservation, nsi_exception)
-                register_notification(event, NotificationType.ErrorEvent)
             else:  # deactivate on backend successful
                 dpsm.deactivate_confirm()
                 data_plane_state_change = to_data_plane_state_change_request(reservation)
                 if circuit_id:
                     connection.circuit_id = circuit_id
-                register_notification(data_plane_state_change, NotificationType.DataPlaneStateChange)
 
         # send result to requester, done outside the database session because communication can throw exception
         stub = requester.get_stub()
         if nsi_exception:  # activate on backend failed
             self.log.debug("Sending message", method="ErrorEvent", message=event)
+            register_notification(event, NotificationType.ErrorEvent)
             stub.ErrorEvent(event)
         else:  # activate on backend successful
             self.log.debug("Sending message", method="DataPlaneStateChange", message=data_plane_state_change)
+            register_notification(data_plane_state_change, NotificationType.DataPlaneStateChange)
             stub.DataPlaneStateChange(data_plane_state_change)
 
     @classmethod
