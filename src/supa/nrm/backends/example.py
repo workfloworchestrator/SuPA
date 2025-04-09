@@ -143,6 +143,26 @@ class Backend(BaseBackend):
     # ) -> None:
     #     """Deactivate resources in NRM."""
     #
+    # def health_check(
+    #     self,
+    #     connection_id: UUID,
+    #     bandwidth: int,
+    #     src_port_id: str,
+    #     src_vlan: int,
+    #     dst_port_id: str,
+    #     dst_vlan: int,
+    #     circuit_id: str,
+    # ) -> bool:
+    #     """Check if the connection/circuit is healthy in NRM.
+    #
+    #     Be careful with declaring a connection not healthy,
+    #     this will cause the connection lifecycle statemachine to transition to failed,
+    #     which is an unrecoverable state.
+    #     Return True if connection is still active in NRM,
+    #     and False if for whatever reason the connection is NOT active anymore in NRM,
+    #     raise an exception to signal failure while determining the status of the connection.
+    #     """
+    #
     # def terminate(
     #     self,
     #     connection_id: UUID,
