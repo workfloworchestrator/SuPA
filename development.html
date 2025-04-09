@@ -1,20 +1,21 @@
+
+
 <!DOCTYPE html>
-<html class="writer-html5" lang="en" >
+<html class="writer-html5" lang="en" data-content_root="./">
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Development &mdash; SuPA  documentation</title>
-      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
-      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
-  <!--[if lt IE 9]>
-    <script src="_static/js/html5shiv.min.js"></script>
-  <![endif]-->
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
   
-        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
-        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
-        <script src="_static/doctools.js"></script>
-        <script src="_static/sphinx_highlight.js"></script>
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -94,9 +95,9 @@
            <div itemprop="articleBody">
              
   <section id="development">
-<h1>Development<a class="headerlink" href="#development" title="Permalink to this heading"></a></h1>
+<h1>Development<a class="headerlink" href="#development" title="Link to this heading"></a></h1>
 <section id="install-development-environment">
-<h2>Install development environment<a class="headerlink" href="#install-development-environment" title="Permalink to this heading"></a></h2>
+<h2>Install development environment<a class="headerlink" href="#install-development-environment" title="Link to this heading"></a></h2>
 <p>Install development environment:</p>
 <div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">pip install -e &#39;.[dev]&#39;</span>
 </pre></div>
@@ -148,7 +149,7 @@ From the root of the repository execute:</p>
 the resulting artifacts end up in <code class="docutils literal notranslate"><span class="pre">build/sphinx/html</span></code>
 instead of <code class="docutils literal notranslate"><span class="pre">docs/_build/html</span></code>.</p>
 <section id="tips">
-<h3>Tips<a class="headerlink" href="#tips" title="Permalink to this heading"></a></h3>
+<h3>Tips<a class="headerlink" href="#tips" title="Link to this heading"></a></h3>
 <p>Pre-built packages for <code class="docutils literal notranslate"><span class="pre">grpcio</span></code> and <code class="docutils literal notranslate"><span class="pre">grpcio-tools</span></code> might not be available for all platforms.
 Meaning that these packages will be built when <code class="docutils literal notranslate"><span class="pre">pip</span></code> installs SuPA.
 As these packages use a lot of C++ code,
@@ -188,7 +189,7 @@ With <code class="docutils literal notranslate"><span class="pre">ccache</span><
 </section>
 </section>
 <section id="some-rules">
-<h2>Some rules<a class="headerlink" href="#some-rules" title="Permalink to this heading"></a></h2>
+<h2>Some rules<a class="headerlink" href="#some-rules" title="Link to this heading"></a></h2>
 <ul class="simple">
 <li><p>Use type annotations for all non-generated code</p></li>
 <li><p>All public functions should have <a class="reference external" href="https://www.sphinx-doc.org/en/master/usage/extensions/example_google.html">Google Style Docstrings</a></p></li>
@@ -207,7 +208,7 @@ and an update to <code class="docutils literal notranslate"><span class="pre">CH
 </ul>
 </section>
 <section id="importing-new-protobuf-grpc-definitions">
-<h2>Importing new protobuf/gRPC definitions<a class="headerlink" href="#importing-new-protobuf-grpc-definitions" title="Permalink to this heading"></a></h2>
+<h2>Importing new protobuf/gRPC definitions<a class="headerlink" href="#importing-new-protobuf-grpc-definitions" title="Link to this heading"></a></h2>
 <p>When new NSI protobuf/gRPC definitions are imported into the <code class="docutils literal notranslate"><span class="pre">protos</span></code> directory
 one should (re)generated the corresponding Python code for it:</p>
 <div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">% </span>python<span class="w"> </span>setup.py<span class="w"> </span>clean<span class="w"> </span>gen_code
@@ -222,7 +223,7 @@ and prepended by the <code class="docutils literal notranslate"><span class="pre
 </div>
 </section>
 <section id="pycharm">
-<h2>PyCharm<a class="headerlink" href="#pycharm" title="Permalink to this heading"></a></h2>
+<h2>PyCharm<a class="headerlink" href="#pycharm" title="Link to this heading"></a></h2>
 <p>Included is a shell script <code class="docutils literal notranslate"><span class="pre">fmt_code.sh</span></code>
 that can easily run <code class="docutils literal notranslate"><span class="pre">black</span></code> and <code class="docutils literal notranslate"><span class="pre">isort</span></code> in succession from within PyCharm.
 There are two options to use this script:</p>
@@ -261,7 +262,7 @@ Configuring as a file watcher should be very similar.</p>
 the Git pre-commit hook will notcomplain about the layout of your code.</p>
 </section>
 <section id="documentation">
-<h2>Documentation<a class="headerlink" href="#documentation" title="Permalink to this heading"></a></h2>
+<h2>Documentation<a class="headerlink" href="#documentation" title="Link to this heading"></a></h2>
 <p>SuPA’s documentation is written using <a class="reference external" href="https://www.sphinx-doc.org">Sphinx</a>.
 To generate and read it,
 run:</p>
@@ -290,13 +291,13 @@ try <code class="docutils literal notranslate"><span class="pre">gmake</span></c
 See also the relevant note in <a class="reference internal" href="installation.html"><span class="doc">Installation</span></a>.</p>
 </div>
 <section id="semantic-line-breaks">
-<h3>Semantic Line Breaks<a class="headerlink" href="#semantic-line-breaks" title="Permalink to this heading"></a></h3>
+<h3>Semantic Line Breaks<a class="headerlink" href="#semantic-line-breaks" title="Link to this heading"></a></h3>
 <p>This documentation is written using <a class="reference external" href="https://sembr.org/">Semantic Line Breaks</a>.
 This allows for better diff generation
 compared to documentation where lines are wrapped purely based on line length.</p>
 </section>
 <section id="api-documentation">
-<h3>API Documentation<a class="headerlink" href="#api-documentation" title="Permalink to this heading"></a></h3>
+<h3>API Documentation<a class="headerlink" href="#api-documentation" title="Link to this heading"></a></h3>
 <p>Be sure to document all modules,
 classes,
 methods
@@ -309,9 +310,9 @@ by carefully inserting the appropriate
 directives in <a class="reference internal" href="api.html"><span class="doc">API</span></a></p>
 </section>
 <section id="build-while-editting">
-<h3>Build while Editting<a class="headerlink" href="#build-while-editting" title="Permalink to this heading"></a></h3>
+<h3>Build while Editting<a class="headerlink" href="#build-while-editting" title="Link to this heading"></a></h3>
 <p>You might have wondered what the line:</p>
-<div class="highlight-rst notranslate"><div class="highlight"><pre><span></span><span class="cp">.. vim:noswapfile:nobackup:nowritebackup:</span>
+<div class="highlight-rst notranslate"><div class="highlight"><pre><span></span><span class="c">.. vim:noswapfile:nobackup:nowritebackup:</span>
 </pre></div>
 </div>
 <p>at the top of each reStructuredText file does.

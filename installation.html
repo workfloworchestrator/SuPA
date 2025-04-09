@@ -1,20 +1,21 @@
+
+
 <!DOCTYPE html>
-<html class="writer-html5" lang="en" >
+<html class="writer-html5" lang="en" data-content_root="./">
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Installation &mdash; SuPA  documentation</title>
-      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
-      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
-  <!--[if lt IE 9]>
-    <script src="_static/js/html5shiv.min.js"></script>
-  <![endif]-->
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
   
-        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
-        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
-        <script src="_static/doctools.js"></script>
-        <script src="_static/sphinx_highlight.js"></script>
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -93,7 +94,7 @@
            <div itemprop="articleBody">
              
   <section id="installation">
-<h1>Installation<a class="headerlink" href="#installation" title="Permalink to this heading"></a></h1>
+<h1>Installation<a class="headerlink" href="#installation" title="Link to this heading"></a></h1>
 <p>The installation instructions assume that SuPA is installed together with PolyNSI.
 Both applications are available as source code on GitHub,
 or as prebuilt container through the GitHub Container Registry.
@@ -107,16 +108,17 @@ There are several methods to install and run the application:</p>
 </ul>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>SuPA was developed using Python 3.8.
-Compatibility with other Python versions is untested.</p>
+<p>SuPA has been tested with Python 3.11 and 3.12.
+Compatibility with earlier Python versions will brake in the future or is already broken.
+Compatibility with later Python versions is untested.</p>
 <p>PolyNSI was developed using Java 11 and Maven 3.8.5.
 Compatibility with other Java and Maven versions is untested.
 It is assumed that a suitable versions of Java and Maven are already installed.</p>
 </div>
 <section id="github">
-<h2>GitHub<a class="headerlink" href="#github" title="Permalink to this heading"></a></h2>
+<h2>GitHub<a class="headerlink" href="#github" title="Link to this heading"></a></h2>
 <section id="supa">
-<h3>SuPA<a class="headerlink" href="#supa" title="Permalink to this heading"></a></h3>
+<h3>SuPA<a class="headerlink" href="#supa" title="Link to this heading"></a></h3>
 <p><span class="target" id="clone-the-supa-source-code-repository-from-github">Clone the SuPA source code repository from GitHub</span>,
 and checkout the desired branch or version,
 for example version 0.2.0:</p>
@@ -127,8 +129,8 @@ for example version 0.2.0:</p>
 </div>
 <p>There are multiple ways to add an virtual Python environment, and you can choose
 whatever suits you best. This example uses the standard <code class="docutils literal notranslate"><span class="pre">venv</span></code> module and assumes
-that Python version 3.8 is already installed using your local package manager:</p>
-<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">python3.8 -m venv venv</span>
+that Python version 3.12 is already installed using your local package manager:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">python3.12 -m venv venv</span>
 <span class="go">source venv/bin/activate</span>
 </pre></div>
 </div>
@@ -149,7 +151,7 @@ it is probably a good idea to have <code class="docutils literal notranslate"><s
 </div>
 </section>
 <section id="polynsi">
-<h3>PolyNSI<a class="headerlink" href="#polynsi" title="Permalink to this heading"></a></h3>
+<h3>PolyNSI<a class="headerlink" href="#polynsi" title="Link to this heading"></a></h3>
 <p><span class="target" id="clone-the-polynsi-source-code-repository-from-github">Clone the PolyNSI source code repository from GitHub</span>,
 and checkout the desired branch or version,
 for example version 0.2.0:</p>
@@ -165,7 +167,7 @@ for example version 0.2.0:</p>
 </section>
 </section>
 <section id="docker-compose">
-<h2>Docker compose<a class="headerlink" href="#docker-compose" title="Permalink to this heading"></a></h2>
+<h2>Docker compose<a class="headerlink" href="#docker-compose" title="Link to this heading"></a></h2>
 <p><a class="reference internal" href="#clone-the-supa-source-code-repository-from-github">Clone the SuPA source code repository from GitHub</a>.
 The <cite>docker</cite> folder contains the following:</p>
 <div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">docker</span>
@@ -192,12 +194,12 @@ By default the latest prebuilt SuPA and PolyNSI containers from the GitHub conta
 </div>
 </section>
 <section id="helm-chart">
-<h2>Helm chart<a class="headerlink" href="#helm-chart" title="Permalink to this heading"></a></h2>
+<h2>Helm chart<a class="headerlink" href="#helm-chart" title="Link to this heading"></a></h2>
 <p>Both SuPA and PolyNSI have <a class="reference external" href="https://helm.sh/">Helm</a> charts
 to easily deploy to Kubernetes.
 Please refer to the supplied <code class="docutils literal notranslate"><span class="pre">values.yaml</span></code> files for Helm configuration details.</p>
 <section id="id1">
-<h3>SuPA<a class="headerlink" href="#id1" title="Permalink to this heading"></a></h3>
+<h3>SuPA<a class="headerlink" href="#id1" title="Link to this heading"></a></h3>
 <p><a class="reference internal" href="#clone-the-supa-source-code-repository-from-github">Clone the SuPA source code repository from GitHub</a>.
 The <cite>chart</cite> folder contains contains a Helm chart to deploy SuPA to a Kubernetes cluster:</p>
 <div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">kubectl create namespace nsi</span>
@@ -206,7 +208,7 @@ The <cite>chart</cite> folder contains contains a Helm chart to deploy SuPA to a
 </div>
 </section>
 <section id="id2">
-<h3>PolyNSI<a class="headerlink" href="#id2" title="Permalink to this heading"></a></h3>
+<h3>PolyNSI<a class="headerlink" href="#id2" title="Link to this heading"></a></h3>
 <p><a class="reference internal" href="#clone-the-polynsi-source-code-repository-from-github">Clone the PolyNSI source code repository from GitHub</a>.
 The <cite>chart</cite> folder contains contains a Helm chart to deploy PolyNSI to a Kubernetes cluster:</p>
 <div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">helm upgrade --namespace nsi --install polynsi chart</span>
@@ -215,7 +217,7 @@ The <cite>chart</cite> folder contains contains a Helm chart to deploy PolyNSI t
 </section>
 </section>
 <section id="nsi-node-helm-super-chart">
-<h2>nsi-node Helm super chart<a class="headerlink" href="#nsi-node-helm-super-chart" title="Permalink to this heading"></a></h2>
+<h2>nsi-node Helm super chart<a class="headerlink" href="#nsi-node-helm-super-chart" title="Link to this heading"></a></h2>
 <p>Both SuPA and PolyNSI can also be deployed by the nsi-node super chart,
 that can also be used to deploy other pieces of the NSI stack for a more complete deployment.
 Please refer to the documentation in the <a class="reference external" href="https://github.com/BandwidthOnDemand/nsi-node">nsi-node</a> GitHub repository.</p>

@@ -1,20 +1,21 @@
+
+
 <!DOCTYPE html>
-<html class="writer-html5" lang="en" >
+<html class="writer-html5" lang="en" data-content_root="./">
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Backend &mdash; SuPA  documentation</title>
-      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
-      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
-  <!--[if lt IE 9]>
-    <script src="_static/js/html5shiv.min.js"></script>
-  <![endif]-->
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
   
-        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
-        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
-        <script src="_static/doctools.js"></script>
-        <script src="_static/sphinx_highlight.js"></script>
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -79,7 +80,7 @@
            <div itemprop="articleBody">
              
   <section id="backend">
-<h1>Backend<a class="headerlink" href="#backend" title="Permalink to this heading"></a></h1>
+<h1>Backend<a class="headerlink" href="#backend" title="Link to this heading"></a></h1>
 <p>SuPA uses a plugable backend interface to communicate with different NRMs or network elements.
 Please refer to the API documentation on <a class="reference internal" href="api.html#supa-nrm-backend"><span class="std std-ref">supa.nrm.backend</span></a> for more details.
 At a minimum the <code class="docutils literal notranslate"><span class="pre">activate()</span></code> and <code class="docutils literal notranslate"><span class="pre">deactivate()</span></code> methods of the backend should be implemented,
@@ -88,7 +89,15 @@ If the backend interfaces to a NRM that also can reserve network resource,
 any of the other backend methods,
 that match the NSI primitives,
 like <code class="docutils literal notranslate"><span class="pre">reserve()</span></code> and <code class="docutils literal notranslate"><span class="pre">reserve_commit()</span></code>,
-can be implemented.</p>
+can be implemented.
+Finally,
+the <code class="docutils literal notranslate"><span class="pre">health_check()</span></code> can be implemented,
+this method will check if the connection is still healthy in the NRM.
+Be careful with declaring a connection not healthy,
+this will cause the connection lifecycle statemachine to transition to failed,
+which is an unrecoverable state.
+The health check interval is controlled by the <cite>backend_health_check_interval</cite> setting,
+and defaults to 60 seconds.</p>
 <p>Backends are just regular Python modules.
 The name of the module to be used as backend can be specified with the <code class="docutils literal notranslate"><span class="pre">backend</span></code> configuration option,
 without the <code class="docutils literal notranslate"><span class="pre">.py</span></code> file extention of course.

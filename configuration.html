@@ -1,20 +1,21 @@
+
+
 <!DOCTYPE html>
-<html class="writer-html5" lang="en" >
+<html class="writer-html5" lang="en" data-content_root="./">
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Configuration &mdash; SuPA  documentation</title>
-      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
-      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
-  <!--[if lt IE 9]>
-    <script src="_static/js/html5shiv.min.js"></script>
-  <![endif]-->
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
   
-        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
-        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
-        <script src="_static/doctools.js"></script>
-        <script src="_static/sphinx_highlight.js"></script>
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -107,9 +108,9 @@
            <div itemprop="articleBody">
              
   <section id="configuration">
-<h1>Configuration<a class="headerlink" href="#configuration" title="Permalink to this heading"></a></h1>
+<h1>Configuration<a class="headerlink" href="#configuration" title="Link to this heading"></a></h1>
 <section id="overview">
-<h2>Overview<a class="headerlink" href="#overview" title="Permalink to this heading"></a></h2>
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h2>
 <p>The SuPA NSI gRPC interface is not (yet) standardised,
 and there are not many NSI NSA out there that implement that interface,
 that is why SuPA is usually deployed with the transparent NSI SOAP to gRPC proxy PolyNSI,
@@ -127,7 +128,7 @@ then you have to put it behind a proxy that supports that,
 or deploy SuPA as part of the <a class="reference external" href="https://github.com/BandwidthOnDemand/nsi-node">nsi-node</a> super chart that uses an Envoy proxy for that reason.</p>
 </section>
 <section id="running">
-<h2>Running<a class="headerlink" href="#running" title="Permalink to this heading"></a></h2>
+<h2>Running<a class="headerlink" href="#running" title="Link to this heading"></a></h2>
 <p>Running SuPA is done by means of the <code class="docutils literal notranslate"><span class="pre">supa</span></code> command line utility.
 When run without any options it displays help info.
 Exactly as it would when run with the <code class="docutils literal notranslate"><span class="pre">-h</span></code> or <code class="docutils literal notranslate"><span class="pre">--help</span></code> options.
@@ -145,7 +146,7 @@ For instance:</p>
 </div>
 </section>
 <section id="configuration-file">
-<h2>Configuration File<a class="headerlink" href="#configuration-file" title="Permalink to this heading"></a></h2>
+<h2>Configuration File<a class="headerlink" href="#configuration-file" title="Link to this heading"></a></h2>
 <p>In addition to subcommand options,
 <code class="docutils literal notranslate"><span class="pre">supa</span></code> can be configured by means of a configurations file <code class="docutils literal notranslate"><span class="pre">supa.env</span></code>.
 Where this configuration file should live is dependent on how <code class="docutils literal notranslate"><span class="pre">supa</span></code> was installed
@@ -160,7 +161,7 @@ stating from what location it read or attempted to read <code class="docutils li
 anything configurable in <code class="docutils literal notranslate"><span class="pre">supa.env</span></code> can be specified on the command with options supplied to the subcommands.</p>
 </section>
 <section id="environment-variables">
-<h2>Environment Variables<a class="headerlink" href="#environment-variables" title="Permalink to this heading"></a></h2>
+<h2>Environment Variables<a class="headerlink" href="#environment-variables" title="Link to this heading"></a></h2>
 <p>In addition to <code class="docutils literal notranslate"><span class="pre">supa.env</span></code> and command line options,
 <code class="docutils literal notranslate"><span class="pre">supa</span></code> will also honor settings by means of environment variables.
 Regarding precedence:
@@ -193,9 +194,9 @@ it helps to have something that can be executed by copy and pasting.</p>
 </div>
 </section>
 <section id="options">
-<h2>options<a class="headerlink" href="#options" title="Permalink to this heading"></a></h2>
+<h2>options<a class="headerlink" href="#options" title="Link to this heading"></a></h2>
 <section id="global">
-<h3>Global<a class="headerlink" href="#global" title="Permalink to this heading"></a></h3>
+<h3>Global<a class="headerlink" href="#global" title="Link to this heading"></a></h3>
 <p>The following global options are available:</p>
 <blockquote>
 <div><dl class="option-list">
@@ -210,7 +211,7 @@ CRITICAL)  [default: INFO]</p>
 </div></blockquote>
 </section>
 <section id="subcommand-serve">
-<h3>Subcommand serve<a class="headerlink" href="#subcommand-serve" title="Permalink to this heading"></a></h3>
+<h3>Subcommand serve<a class="headerlink" href="#subcommand-serve" title="Link to this heading"></a></h3>
 <p>The <code class="docutils literal notranslate"><span class="pre">serve</span></code> subcommand is used to start SuPA in server mode.
 The following configuration options,
 through command line options,
@@ -324,11 +325,20 @@ last change.  [default: 19700101T000000Z]</p>
 <dd><p>Number of seconds before fetching topology
 from backend again.  [default: 60]</p>
 </dd>
+<dt><kbd><span class="option">--healthcheck-with-topology</span></kbd></dt>
+<dd><p>SuPA health check with call to
+Backend.topology() to assess NRM health.</p>
+</dd>
+<dt><kbd><span class="option">--backend-health-check-interval <var>INTEGER</var></span></kbd></dt>
+<dd><p>The interval between health checks of all
+active connections in the NRM.  [default:
+60]</p>
+</dd>
 </dl>
 </div></blockquote>
 </section>
 <section id="subcommand-stp">
-<h3>Subcommand stp<a class="headerlink" href="#subcommand-stp" title="Permalink to this heading"></a></h3>
+<h3>Subcommand stp<a class="headerlink" href="#subcommand-stp" title="Link to this heading"></a></h3>
 <p>Normally the topology interface of the backend is used to automatically keep the STP administration up to date,
 see the section on backends for more information.
 This can be disabled by starting supa as follows: <code class="docutils literal notranslate"><span class="pre">supa</span> <span class="pre">serve</span> <span class="pre">--manual-topology</span></code>,
@@ -341,7 +351,7 @@ but is not exposed in the topology document anymore.</p>
 it can only be disabled to prevent it to be exposed in the topology document.</p>
 </div>
 <section id="add">
-<h4>add<a class="headerlink" href="#add" title="Permalink to this heading"></a></h4>
+<h4>add<a class="headerlink" href="#add" title="Link to this heading"></a></h4>
 <p>The <code class="docutils literal notranslate"><span class="pre">stp</span> <span class="pre">add</span></code> subcommand accepts the following options:</p>
 <blockquote>
 <div><dl class="option-list">
@@ -372,7 +382,7 @@ it can only be disabled to prevent it to be exposed in the topology document.</p
 </div></blockquote>
 </section>
 <section id="modify">
-<h4>modify<a class="headerlink" href="#modify" title="Permalink to this heading"></a></h4>
+<h4>modify<a class="headerlink" href="#modify" title="Link to this heading"></a></h4>
 <p>The <code class="docutils literal notranslate"><span class="pre">stp</span> <span class="pre">modify</span></code> subcommand accepts the following options:</p>
 <blockquote>
 <div><dl class="option-list">
@@ -401,7 +411,7 @@ it can only be disabled to prevent it to be exposed in the topology document.</p
 </div></blockquote>
 </section>
 <section id="delete">
-<h4>delete<a class="headerlink" href="#delete" title="Permalink to this heading"></a></h4>
+<h4>delete<a class="headerlink" href="#delete" title="Link to this heading"></a></h4>
 <p>The <code class="docutils literal notranslate"><span class="pre">stp</span> <span class="pre">delete</span></code> subcommand accepts the following options:</p>
 <blockquote>
 <div><dl class="option-list">
@@ -412,7 +422,7 @@ it can only be disabled to prevent it to be exposed in the topology document.</p
 </div></blockquote>
 </section>
 <section id="enable">
-<h4>enable<a class="headerlink" href="#enable" title="Permalink to this heading"></a></h4>
+<h4>enable<a class="headerlink" href="#enable" title="Link to this heading"></a></h4>
 <p>The <code class="docutils literal notranslate"><span class="pre">stp</span> <span class="pre">enable</span></code> subcommand accepts the following options:</p>
 <blockquote>
 <div><dl class="option-list">
@@ -423,7 +433,7 @@ it can only be disabled to prevent it to be exposed in the topology document.</p
 </div></blockquote>
 </section>
 <section id="disable">
-<h4>disable<a class="headerlink" href="#disable" title="Permalink to this heading"></a></h4>
+<h4>disable<a class="headerlink" href="#disable" title="Link to this heading"></a></h4>
 <p>The <code class="docutils literal notranslate"><span class="pre">stp</span> <span class="pre">disable</span></code> subcommand accepts the following options:</p>
 <blockquote>
 <div><dl class="option-list">
@@ -434,7 +444,7 @@ it can only be disabled to prevent it to be exposed in the topology document.</p
 </div></blockquote>
 </section>
 <section id="list">
-<h4>list<a class="headerlink" href="#list" title="Permalink to this heading"></a></h4>
+<h4>list<a class="headerlink" href="#list" title="Link to this heading"></a></h4>
 <p>The <code class="docutils literal notranslate"><span class="pre">stp</span> <span class="pre">list</span></code> subcommand accepts the following options:</p>
 <blockquote>
 <div><dl class="simple">
@@ -445,9 +455,9 @@ it can only be disabled to prevent it to be exposed in the topology document.</p
 </section>
 </section>
 <section id="subcommand-reservation">
-<h3>Subcommand reservation<a class="headerlink" href="#subcommand-reservation" title="Permalink to this heading"></a></h3>
+<h3>Subcommand reservation<a class="headerlink" href="#subcommand-reservation" title="Link to this heading"></a></h3>
 <section id="id1">
-<h4>list<a class="headerlink" href="#id1" title="Permalink to this heading"></a></h4>
+<h4>list<a class="headerlink" href="#id1" title="Link to this heading"></a></h4>
 <p>The <code class="docutils literal notranslate"><span class="pre">reservation</span> <span class="pre">list</span></code> subcommand accepts the following options:</p>
 <blockquote>
 <div><dl class="simple">
@@ -461,9 +471,9 @@ all]</p>
 </section>
 </section>
 <section id="subcommand-connection">
-<h3>Subcommand connection<a class="headerlink" href="#subcommand-connection" title="Permalink to this heading"></a></h3>
+<h3>Subcommand connection<a class="headerlink" href="#subcommand-connection" title="Link to this heading"></a></h3>
 <section id="id2">
-<h4>list<a class="headerlink" href="#id2" title="Permalink to this heading"></a></h4>
+<h4>list<a class="headerlink" href="#id2" title="Link to this heading"></a></h4>
 <p>The <code class="docutils literal notranslate"><span class="pre">connection</span> <span class="pre">list</span></code> subcommand accepts the following options:</p>
 <blockquote>
 <div><dl class="simple">

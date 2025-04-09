@@ -174,6 +174,13 @@ are available:
                                   [default: example.domain topology]
   --topology-freshness INTEGER    Number of seconds before fetching topology
                                   from backend again.  [default: 60]
+  --healthcheck-with-topology     SuPA health check with call to
+                                  Backend.topology() to assess NRM health.
+  --backend-health-check-interval INTEGER
+                                  The interval between health checks of all
+                                  active connections in the NRM.  [default:
+                                  60]
+
 
 Subcommand stp
 ..............
