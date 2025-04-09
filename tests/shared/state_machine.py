@@ -181,6 +181,15 @@ def is_deactivate_failed(connection_id: UUID) -> Any:
         return DataPlaneStateMachine(reservation, state_field="data_plane_state").DeactivateFailed.is_active
 
 
+def is_unhealthy(connection_id: UUID) -> Any:
+    """Test if data plane state machine is in state Unhealthy."""
+    from supa.db.session import db_session
+
+    with db_session() as session:
+        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
+        return DataPlaneStateMachine(reservation, state_field="data_plane_state").Unhealthy.is_active
+
+
 def is_created(connection_id: UUID) -> Any:
     """Test if lifecycle state machine is in state Created."""
     from supa.db.session import db_session

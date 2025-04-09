@@ -13,6 +13,14 @@ any of the other backend methods,
 that match the NSI primitives,
 like ``reserve()`` and ``reserve_commit()``,
 can be implemented.
+Finally,
+the ``health_check()`` can be implemented,
+this method will check if the connection is still healthy in the NRM.
+Be careful with declaring a connection not healthy,
+this will cause the connection lifecycle statemachine to transition to failed,
+which is an unrecoverable state.
+The health check interval is controlled by the `backend_health_check_interval` setting,
+and defaults to 60 seconds.
 
 
 Backends are just regular Python modules.

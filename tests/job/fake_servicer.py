@@ -1,6 +1,8 @@
 from typing import Any
 from uuid import UUID
 
+from tests.shared import state_machine
+
 from supa.connection.fsm import (
     DataPlaneStateMachine,
     LifecycleStateMachine,
@@ -8,7 +10,7 @@ from supa.connection.fsm import (
     ReservationStateMachine,
 )
 from supa.db.model import Request, Reservation, Topology
-from supa.grpc_nsi.connection_common_pb2 import RESERVE_FAILED, GenericAcknowledgment
+from supa.grpc_nsi.connection_common_pb2 import RESERVE_FAILED, EventType, GenericAcknowledgment
 from supa.grpc_nsi.connection_requester_pb2 import (
     DataPlaneStateChangeRequest,
     ErrorRequest,
@@ -298,6 +300,40 @@ class Servicer(ConnectionRequesterServicer):
                 assert not request.data_plane_status.active
                 assert request.data_plane_status.version_consistent
 
+        assert test_hit_count == 1
+
+        return GenericAcknowledgment(header=request.header)
+
+    def ErrorEvent(self, request: ErrorRequest, context: Any) -> GenericAcknowledgment:
+        """Fake ErrorEvent to return mocked GenericAcknowledgment."""
+        assert request.HasField("service_exception")
+        assert request.HasField("notification")
+
+        connection_id = UUID(request.notification.connection_id)
+        test_hit_count = 0
+        # test_health_check_job_unhealthy_activated
+        if (
+            state_machine.is_reserve_start(connection_id)
+            and state_machine.is_provisioned(connection_id)
+            and state_machine.is_unhealthy(connection_id)
+            and state_machine.is_failed(connection_id)
+        ):
+            test_hit_count += 1
+            assert request.event == EventType.FORCED_END
+            assert request.originating_connection_id == request.notification.connection_id
+            assert request.originating_nsa == "urn:ogf:network:example.domain:2021:provider"
+            assert request.additional_info[0].type == "connectionId"
+            assert request.additional_info[0].namespace == "http://schemas.ogf.org/nsi/2013/12/connection/types"
+            assert request.additional_info[0].value == request.notification.connection_id
+            assert request.service_exception.error_id == "00700"
+            assert len(request.service_exception.variables) == 1
+            assert request.service_exception.variables[0].type == "connectionId"
+            assert (
+                request.service_exception.variables[0].namespace
+                == "http://schemas.ogf.org/nsi/2013/12/connection/types"
+            )
+            assert request.service_exception.variables[0].value == request.notification.connection_id
+            assert "Unexpected failure of connection" in request.service_exception.text
         assert test_hit_count == 1
 
         return GenericAcknowledgment(header=request.header)

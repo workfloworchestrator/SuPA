@@ -57,12 +57,8 @@ class SuPAStateMachine(StateMachine):
 
     def on_enter_state(self, state: State) -> None:
         """Statemachine will call this function on every state transition."""
-        if isinstance(state, State):
-            self.log.info(
-                "State transition",
-                to_state=state.id,
-                connection_id=str(self.model.connection_id),  # type: ignore[union-attr]
-            )
+        if isinstance(state, State) and hasattr(self.model, "connection_id"):
+            self.log.info("State transition", to_state=state.id, connection_id=str(self.model.connection_id))
 
 
 class ReservationStateMachine(SuPAStateMachine):
@@ -141,6 +137,7 @@ class DataPlaneStateMachine(SuPAStateMachine):
     Deactivating = State("Deactivating", "DEACTIVATING")
     ActivateFailed = State("ActivateFailed", "ACTIVATE_FAILED", final=True)
     DeactivateFailed = State("DeactivateFailed", "DEACTIVATE_FAILED", final=True)
+    Unhealthy = State("Unhealthy", "UNHEALTHY", final=True)
 
     auto_start_request = Deactivated.to(AutoStart)
     activate_request = Deactivated.to(Activating) | AutoStart.to(Activating)
@@ -151,6 +148,7 @@ class DataPlaneStateMachine(SuPAStateMachine):
     deactivate_confirm = Deactivating.to(Deactivated)
     activate_failed = Activating.to(ActivateFailed)
     deactivate_failed = Deactivating.to(DeactivateFailed)
+    not_healthy = Activated.to(Unhealthy)
 
 
 if __name__ == "__main__":  # pragma: no cover
@@ -174,7 +172,7 @@ if __name__ == "__main__":  # pragma: no cover
         dg = Digraph(name=name, comment=name)
         for s in fsm.states:
             for t in s.transitions:
-                dg.edge(t.source.value, t.destinations[0].value, label=t.identifier)
+                dg.edge(t.source.value, t.target.value, label=t.event)
         dg.render(filename=name, directory=output_path, cleanup=True, format="png")
 
     plot_fsm(ReservationStateMachine(), "ReservationStateMachine")

@@ -105,7 +105,7 @@ def connection_id() -> Generator[UUID, None, None]:
             protocol_version="application/vnd.ogf.nsi.cs.v2.provider+soap",
             requester_nsa="urn:ogf:network:example.domain:2021:requester",
             provider_nsa="urn:ogf:network:example.domain:2021:provider",
-            reply_to=None,
+            reply_to="http://127.0.0.1/does_not_exist",
             session_security_attributes=None,
             global_reservation_id="global reservation id",
             description="reservation 1",

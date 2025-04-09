@@ -282,6 +282,18 @@ def cli() -> None:
     type=int,
     help="Number of seconds before fetching topology from backend again.",
 )
+@click.option(
+    "--healthcheck-with-topology",
+    default=settings.healthcheck_with_topology,
+    is_flag=True,
+    help="SuPA health check with call to Backend.topology() to assess NRM health.",
+)
+@click.option(
+    "--backend-health-check-interval",
+    default=settings.backend_health_check_interval,
+    type=int,
+    help="The interval between health checks of all active connections in the NRM.",
+)
 @common_options  # type: ignore
 def serve(
     grpc_server_max_workers: int,
@@ -311,6 +323,8 @@ def serve(
     nsa_longitude: str,
     topology_name: str,
     topology_freshness: int,
+    healthcheck_with_topology: bool,
+    backend_health_check_interval: int,
 ) -> None:
     """Start the gRPC server and listen for incoming requests."""
     # Command-line options take precedence.
@@ -341,6 +355,8 @@ def serve(
     settings.nsa_longitude = nsa_longitude
     settings.topology_name = topology_name
     settings.topology_freshness = topology_freshness
+    settings.healthcheck_with_topology = healthcheck_with_topology
+    settings.backend_health_check_interval = backend_health_check_interval
 
     init_app()
 

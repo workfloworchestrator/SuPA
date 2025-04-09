@@ -213,7 +213,9 @@ class Settings(BaseSettings):
     nsa_longitude: str = "-159.996719"
     topology_name: str = "example.domain topology"
 
-    healthcheck_with_topology: bool = True
+    healthcheck_with_topology: bool = False
+
+    backend_health_check_interval: int = 60
 
     @property
     def nsa_exposed_url(self) -> str:
@@ -490,6 +492,10 @@ def init_app(with_scheduler: bool = True) -> None:
         logging.getLogger("apscheduler").setLevel(logging.CRITICAL)
         scheduler.add_listener(_job_error_event_listener, EVENT_JOB_ERROR)
         scheduler.start()
+
+        from supa.job.lifecycle import HealthCheckJob
+
+        scheduler.add_job(job := HealthCheckJob(), trigger=job.trigger(), id=job.job_id, coalesce=True)
 
 
 def recover_jobs() -> None:

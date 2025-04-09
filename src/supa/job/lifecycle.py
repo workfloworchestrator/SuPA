@@ -12,23 +12,27 @@
 #  limitations under the License.
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import List, Type
 from uuid import UUID
 
 import structlog
 from apscheduler.triggers.date import DateTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 from more_itertools import flatten
 from statemachine.exceptions import TransitionNotAllowed
 from structlog.stdlib import BoundLogger
 
+from supa import settings
 from supa.connection import requester
-from supa.connection.error import GenericInternalError, Variable
+from supa.connection.error import GenericInternalError, GenericServiceError, Variable
 from supa.connection.fsm import DataPlaneStateMachine, LifecycleStateMachine
 from supa.db.model import Connection, Reservation, connection_to_dict
 from supa.job.dataplane import AutoEndJob, AutoStartJob, DeactivateJob
-from supa.job.shared import Job, NsiException, register_result
-from supa.util.converter import to_error_request, to_generic_confirmed_request, to_header
-from supa.util.type import ResultType
+from supa.job.shared import Job, NsiException, register_notification, register_result
+from supa.util.converter import to_error_request, to_forced_end_event, to_generic_confirmed_request, to_header
+from supa.util.timestamp import current_timestamp
+from supa.util.type import NotificationType, ResultType
 
 logger = structlog.get_logger(__name__)
 
@@ -160,3 +164,117 @@ class TerminateJob(Job):
     def trigger(self) -> DateTrigger:
         """Trigger for TerminateJob's."""
         return DateTrigger(run_date=None)  # Run immediately
+
+
+class HealthCheckJob(Job):
+    """Check the health in NRM of all active circuits."""
+
+    log: BoundLogger
+
+    def __init__(self) -> None:
+        """Initialize the HealthCheckJob."""
+        self.log = logger.bind(job=self.__class__.__name__)
+
+    def __call__(self) -> None:
+        """Check the health in NRM of all active connections.
+
+        For all active connections in the database,
+        call the health_check method on the backend that will return the current connection health status,
+        when a connection is not healthy anymore,
+        sent a forcedEnd errorEvent to the NSA/AG.
+        """
+        self.log.debug("Connection health check")
+
+        from supa.db.session import db_session
+        from supa.nrm.backend import backend
+
+        # call backend
+        with db_session() as session:
+            session.expire_on_commit = False  # type: ignore[attr-defined] # to use `connections` outside the session
+            connections = (
+                session.query(Connection)
+                .filter(
+                    (Connection.connection_id == Reservation.connection_id)
+                    & (
+                        (Reservation.data_plane_state == DataPlaneStateMachine.Activated.value)
+                        | (Reservation.data_plane_state == DataPlaneStateMachine.AutoEnd.value)
+                    )
+                )
+                .all()
+            )
+        # check health of every active connection by calling health_check on backend
+        for connection in connections:
+            nsi_exception: NsiException | None = None
+            healthy: bool = True
+            try:
+                healthy = backend.health_check(**connection_to_dict(connection))
+            except NsiException as nsi_exc:
+                nsi_exception = nsi_exc
+            except Exception as exc:
+                self.log.exception("Unexpected error occurred.", reason=str(exc))
+                nsi_exception = NsiException(
+                    GenericInternalError,
+                    str(exc),
+                    {
+                        Variable.CONNECTION_ID: str(connection.connection_id),
+                    },
+                )
+            # when connection is not healthy anymore, transition to failed and send forcedEnd errorEvent
+            if nsi_exception:
+                self.log.warning(
+                    "Error getting connection health from NRM",
+                    connection_id=str(connection.connection_id),
+                    reason=str(nsi_exception),
+                )
+            elif not healthy:
+                with db_session() as session:
+                    reservation = (
+                        session.query(Reservation).filter(Reservation.connection_id == connection.connection_id).one()
+                    )
+                    lsm = LifecycleStateMachine(reservation, state_field="lifecycle_state")
+                    lsm.forced_end_notification()
+                    dpsm = DataPlaneStateMachine(reservation, state_field="data_plane_state")
+                    dpsm.not_healthy()
+                    event = to_forced_end_event(
+                        reservation,
+                        NsiException(
+                            GenericServiceError,
+                            "Unexpected failure of connection in NRM.",
+                            {
+                                Variable.CONNECTION_ID: str(connection.connection_id),
+                            },
+                        ),
+                    )
+                # send errorEvent to requester
+                stub = requester.get_stub()
+                self.log.debug("Sending message", method="Error", message=event)
+                register_notification(event, NotificationType.ErrorEvent)
+                stub.ErrorEvent(event)
+
+    @classmethod
+    def recover(cls: Type[HealthCheckJob]) -> List[Job]:
+        """Recover HealthCheckJob's.
+
+        Health check is job is only started once at startup,
+        return an empy list in case somebody tries to recover HealthCheckJob's.
+
+        Returns:
+            Always returns an empy list of jobs to recover.
+        """
+        return []
+
+    def trigger(self) -> IntervalTrigger:
+        """Trigger for HealthCheckJob."""
+        return IntervalTrigger(
+            seconds=settings.backend_health_check_interval,
+            start_date=current_timestamp() + timedelta(seconds=settings.backend_health_check_interval),
+        )
+
+    @property
+    def job_id(self) -> str:
+        """Uniq name for job instances.
+
+        Only one HealthCheckJob will be scheduled,
+        therefor a static name is returned.
+        """
+        return self.__class__.__name__

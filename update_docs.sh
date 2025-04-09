@@ -18,7 +18,7 @@ git checkout master docs/_build/html
 mv ./docs/_build/html/* ./
 rm -rf ./docs
 git add -A
-git commit -m "publishing updated docs..."
+git commit -m "publish updated docs"
 git push origin gh-pages --force
 ## switch back
 git checkout master
