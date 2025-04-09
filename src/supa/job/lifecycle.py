@@ -234,7 +234,7 @@ class HealthCheckJob(Job):
                     lsm = LifecycleStateMachine(reservation, state_field="lifecycle_state")
                     lsm.forced_end_notification()
                     dpsm = DataPlaneStateMachine(reservation, state_field="data_plane_state")
-                    dpsm.not_healthy()
+                    dpsm.unhealthy()
                     event = to_forced_end_event(
                         reservation,
                         NsiException(

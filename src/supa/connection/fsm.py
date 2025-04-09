@@ -148,7 +148,7 @@ class DataPlaneStateMachine(SuPAStateMachine):
     deactivate_confirm = Deactivating.to(Deactivated)
     activate_failed = Activating.to(ActivateFailed)
     deactivate_failed = Deactivating.to(DeactivateFailed)
-    not_healthy = Activated.to(Unhealthy)
+    unhealthy = Activated.to(Unhealthy) | AutoEnd.to(Unhealthy)
 
 
 if __name__ == "__main__":  # pragma: no cover
