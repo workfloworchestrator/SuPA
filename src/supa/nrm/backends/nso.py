@@ -11,10 +11,11 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-from random import randint
 from typing import Any, List
 from uuid import UUID
 
+from httpx import BasicAuth
+from nso_client import NSOClient
 from pydantic_settings import BaseSettings
 from sqlalchemy import select
 
@@ -22,7 +23,6 @@ from supa.db.model import Connection
 from supa.db.session import db_session
 from supa.nrm.backend import STP, BaseBackend
 from supa.util.find import find_file
-from supa.util.nso import HTTPBasicAuth, NSOClient
 
 
 class BackendSettings(BaseSettings):
@@ -35,6 +35,8 @@ class BackendSettings(BaseSettings):
     nso_username: str
     nso_password: str
     nso_verify_ssl: bool
+    nso_circuit_id_prefix: str = "NSI_L2VPN_"
+    nso_circuit_id_start: int = 10000
 
 
 class Backend(BaseBackend):
@@ -51,12 +53,12 @@ class Backend(BaseBackend):
         self.log.info("Read backend properties", path=str(env_file))
 
         self.nso = NSOClient(
-            base_url=self.backend_settings.nso_url,
-            auth=HTTPBasicAuth(
+            nso_url=self.backend_settings.nso_url,
+            auth=BasicAuth(
                 self.backend_settings.nso_username,
                 self.backend_settings.nso_password,
             ),
-            verify_ssl=self.backend_settings.nso_verify_ssl,
+            verify=self.backend_settings.nso_verify_ssl,
             logger=self.log,
         )
 
@@ -98,15 +100,17 @@ class Backend(BaseBackend):
         self.log.info("Get next circuit_id from SuPA DB")
 
         with db_session() as session:
-            ids = session.execute(select(Connection.circuit_id).filter(Connection.circuit_id != None)).scalars().all()
+            ids = (
+                session.execute(select(Connection.circuit_id).filter(Connection.circuit_id.isnot(None))).scalars().all()
+            )
 
         if ids:
-            ids.sort(key=lambda x: int(x.split("_")[-1]))
+            ids.sort(key=lambda x: int(x.split("_")[-1]))  # type: ignore[attr-defined]
             last_id = ids[-1]
-            next_id = int(last_id.split("_")[-1]) + 1
-            return f"NSI_L2VPN_{next_id}"
+            next_id = int(last_id.split("_")[-1]) + 1  # type: ignore[union-attr]
+            return f"{self.backend_settings.nso_circuit_id_prefix}{next_id}"
         else:
-            return "NSI_L2VPN_10000"
+            return f"{self.backend_settings.nso_circuit_id_prefix}{self.backend_settings.nso_circuit_id_start}"
 
     def _service_delete(self, circuit_id: str) -> None:
         self.log.info("Delete service in NSO")
