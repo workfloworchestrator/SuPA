@@ -222,6 +222,27 @@ class Backend(BaseBackend):
                 raise NsiException(GenericRmError, str(http_err)) from http_err
         return nsi_stp_subscriptions.json()
 
+    def _is_healthy(self, circuit_id: str) -> bool:
+        subscription_search = self._get_url(
+            f"{self.backend_settings.base_url}/api/subscriptions/search?query=subscription_id:{circuit_id}"
+        )
+        if subscription_search.status_code != 200:
+            try:
+                subscription_search.raise_for_status()
+            except HTTPError as http_err:
+                raise NsiException(GenericRmError, str(http_err)) from http_err
+        subscriptions = subscription_search.json()
+        if len(subscriptions) != 1:
+            raise NsiException(GenericRmError, "cannot find subscription in NRM")
+        if subscriptions[0]["subscription_id"] != circuit_id:  # cannot happen, but we are paranoid
+            raise NsiException(GenericRmError, "subscription_id does not match circuit_id")
+        if subscriptions[0]["status"] == "terminated":  # definitely not active in NRM anymore
+            self.log.warning("unhealthy")
+            return False
+        else:
+            self.log.debug("healthy")
+            return True
+
     def _get_topology(self) -> List[STP]:
         self.log.debug("get topology from NRM")
         ports: List[STP] = []
@@ -290,6 +311,20 @@ class Backend(BaseBackend):
         self.log = self.log.bind(primitive="deactivate", subscription_id=circuit_id, connection_id=str(connection_id))
         process = self._workflow_terminate(circuit_id)
         self._wait_for_completion(process["id"])
+
+    def health_check(
+        self,
+        connection_id: UUID,
+        bandwidth: int,
+        src_port_id: str,
+        src_vlan: int,
+        dst_port_id: str,
+        dst_vlan: int,
+        circuit_id: str,
+    ) -> bool:
+        """Check if the connection/circuit is healthy in NRM."""
+        self.log = self.log.bind(primitve="health_check", subscription_id=circuit_id, connection_id=str(connection_id))
+        return self._is_healthy(circuit_id)
 
     def topology(self) -> List[STP]:
         """Get exposed topology from NRM."""
