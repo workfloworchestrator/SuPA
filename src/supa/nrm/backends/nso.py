@@ -15,7 +15,7 @@ from typing import Any, List
 from uuid import UUID
 
 from httpx import BasicAuth
-from nso_client import NSOClient
+from nso_client import NSOClient, YangData
 from pydantic_settings import BaseSettings
 from sqlalchemy import select
 
@@ -73,7 +73,7 @@ class Backend(BaseBackend):
     ) -> Any:
         self.log.info("Create service in NSO")
 
-        payload = {
+        payload: YangData = {
             "nsi-circuit:nsi-circuit": [
                 {
                     "circuit-id": circuit_id,

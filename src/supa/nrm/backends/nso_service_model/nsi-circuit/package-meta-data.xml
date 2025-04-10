@@ -1,0 +1,29 @@
+<ncs-package xmlns="http://tail-f.com/ns/ncs-packages">
+  <name>nsi-circuit</name>
+  <package-version>1.0</package-version>
+  <description>NSI Circuit</description>
+  <ncs-min-version>5.5</ncs-min-version>
+
+  <component>
+    <name>main</name>
+    <application>
+      <python-class-name>nsi-circuit.main.Main</python-class-name>
+    </application>
+  </component>
+
+  <!--
+  <component>
+    <name>upgrade</name>
+    <upgrade>
+      <python-class-name>nsi.upgrade.Upgrade</python-class-name>
+    </upgrade>
+  </component>
+  -->
+
+  <!--
+    Example required package
+  <required-package>
+    <name>common</name>
+  </required-package>
+  -->
+</ncs-package>
