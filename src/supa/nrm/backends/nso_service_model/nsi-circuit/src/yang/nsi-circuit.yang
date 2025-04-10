@@ -1,0 +1,180 @@
+module nsi-circuit {
+
+  namespace "https://internet2.edu/yang/nsi-circuit";
+  prefix nsi-circuit;
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import tailf-common {
+    prefix tailf;
+  }
+  import tailf-ncs {
+    prefix ncs;
+  }
+
+  import common {
+    prefix i2c;
+  }
+  import pdp {
+    prefix pdp;
+  }
+  augment /ncs:services {
+    uses nsi-circuit-top;
+  }
+
+  augment /i2c:workflow {
+    uses get-nsi-stp-action;
+  }
+
+  augment /ncs:services/pdp:pdp {
+    uses nsi-metadata;
+  }
+
+  // Top-level service
+  grouping nsi-circuit-top {
+    list nsi-circuit {
+      tailf:info "NSI circuit service model";
+      tailf:cli-allow-wildcard;
+      // Map YANG elements to NSI primitives
+      key circuit-id;
+      leaf circuit-id {
+        type string;
+        tailf:cli-allow-range;
+      }
+
+      uses ncs:service-data;
+      ncs:servicepoint nsi-servicepoint;
+
+      leaf admin-state {
+        tailf:info "Admin-state of the service";
+        mandatory true;
+        type enumeration {
+          enum no-config {
+            tailf:info "Enter NSO service configuration, but do not push any config to device";
+          }
+          enum in-service {
+            tailf:info "Normal operations";
+          }
+        }
+      }
+
+      container src-port-id {
+        tailf:info "Source port_id and VLAN";
+        leaf interface {
+          // local implementation
+          tailf:info "PDP to attach service to";
+          type leafref {
+            path "/ncs:services/pdp:pdp/pdp:name";
+          }
+        }
+        leaf vlan-id {
+          mandatory true;
+          type uint16 {
+            range "1..4094";
+          }
+        }
+      }
+
+      container dst-port-id {
+        tailf:info "Source port_id and VLAN";
+        leaf interface {
+          // local implementation
+          tailf:info "PDP to attach service to";
+          type leafref {
+            path "/ncs:services/pdp:pdp/pdp:name";
+          }
+        }
+        leaf vlan-id {
+          mandatory true;
+          type uint16 {
+            range "1..4094";
+          }
+        }
+      }
+
+      leaf bandwidth {
+        tailf:info "Requested service bandwidth in Mbps";
+        type uint32;
+      }
+
+    }
+  }
+
+  grouping get-nsi-stp-action {
+    tailf:action get-nsi-stp {
+      tailf:info "Get NSI STPs";
+      tailf:actionpoint get-nsi-stp-action;
+      output {
+        list stp-list {
+          key stp-id;
+          leaf stp-id {
+            type string;
+          }
+          leaf port-id {
+            type string;
+          }
+          leaf description {
+            type string;
+          }
+          leaf is-alias {
+            type string;
+          }
+          leaf bandwidth {
+            type uint32;
+          }
+          leaf vlans {
+            type string;
+          }
+        }
+      }
+    }
+  }
+
+  grouping nsi-metadata {
+    container nsi {
+      tailf:info "NSI metadata";
+      presence nsi;
+      leaf stp-id {
+        tailf:info "NSI STP - used to define port name - do not use attributes like node name or interface ID - this is the LOCAL part of urn:ogf:network:internet2.edu:2025:topology:{LOCAL}";
+        type string;
+        mandatory true;
+      }
+      leaf description {
+        tailf:info "NSI port description - human readable";
+        type string;
+        mandatory true;
+      }
+      leaf is-alias {
+        tailf:info "NSI isAlias relation - used to define peer port STP";
+        type string;
+      }
+      leaf bandwidth {
+        tailf:info "NSI port bandwidth in Mbps [100000]";
+        type uint32;
+        default 100000;
+      }
+      list vlan-range {
+        key "lower upper";
+        tailf:info "VLAN Range(s) allowed on this port";
+        leaf lower {
+          tailf:info "Min VLAN allowed (inclusive)";
+          type int16 {
+            range "1..4094";
+          }
+        }
+        leaf upper {
+          tailf:info "Max VLAN allowed (inclusive)";
+          type int16 {
+            range "1..4094";
+          }
+        }
+        min-elements 1;
+        must "lower <= upper" {
+          error-message "VLAN Range must list the lower VLAN ID first";
+        }
+      }
+    }
+  }
+
+}
