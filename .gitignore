@@ -128,3 +128,6 @@ src/supa/grpc_nsi
 # SuPA docker compose database folder
 **/db/
 !src/supa/db
+
+# nso.env
+src/supa/nrm/backends/nso.env
