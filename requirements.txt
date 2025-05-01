@@ -37,7 +37,7 @@ colorama==0.4.6
     # via supa (setup.cfg)
 cryptography==44.0.2
     # via paramiko
-greenlet==3.1.1
+greenlet==3.2.1
     # via sqlalchemy
 grpcio==1.71.0
     # via
