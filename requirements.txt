@@ -16,7 +16,7 @@ backports-tarfile==1.2.0
     # via jaraco-context
 bcrypt==4.3.0
     # via paramiko
-certifi==2025.1.31
+certifi==2025.4.26
     # via
     #   httpcore
     #   httpx
