@@ -518,5 +518,5 @@ def recover_jobs() -> None:
     for job in recovered_jobs:
         scheduler.add_job(job, trigger=job.trigger(), id=job.job_id)
     for job in scheduler.get_jobs():
-        next_run_time = job.next_run_time.isoformat()  # type: ignore[attr-defined]
-        logger.debug("scheduled job", job=job.id, next_run_time=next_run_time)  # type: ignore[attr-defined]
+        next_run_time = job.next_run_time.isoformat()
+        logger.debug("scheduled job", job=job.id, next_run_time=next_run_time)
