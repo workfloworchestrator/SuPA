@@ -14,7 +14,7 @@ autocommand==2.2.2
     # via jaraco-text
 bcrypt==4.3.0
     # via paramiko
-certifi==2025.4.26
+certifi==2025.6.15
     # via
     #   httpcore
     #   httpx
