@@ -14,7 +14,7 @@ autocommand==2.2.2
     # via jaraco-text
 bcrypt==4.3.0
     # via paramiko
-certifi==2025.4.26
+certifi==2025.6.15
     # via
     #   httpcore
     #   httpx
@@ -33,13 +33,13 @@ click==8.2.1
     # via supa (setup.cfg)
 colorama==0.4.6
     # via supa (setup.cfg)
-cryptography==45.0.3
+cryptography==45.0.4
     # via paramiko
-grpcio==1.72.1
+grpcio==1.73.1
     # via
     #   grpcio-tools
     #   supa (setup.cfg)
-grpcio-tools==1.72.1
+grpcio-tools==1.73.1
     # via supa (setup.cfg)
 h11==0.16.0
     # via httpcore
@@ -54,18 +54,18 @@ idna==3.10
     #   anyio
     #   httpx
     #   requests
-jaraco-collections==5.1.0
+jaraco-collections==5.2.1
     # via cherrypy
 jaraco-context==6.0.1
     # via jaraco-text
-jaraco-functools==4.1.0
+jaraco-functools==4.2.1
     # via
     #   cheroot
     #   jaraco-text
     #   tempora
 jaraco-text==4.0.0
     # via jaraco-collections
-lxml==5.4.0
+lxml==6.0.0
     # via supa (setup.cfg)
 lxml-stubs==0.5.1
     # via supa (setup.cfg)
@@ -89,17 +89,17 @@ protobuf==6.31.1
     #   supa (setup.cfg)
 pycparser==2.22
     # via cffi
-pydantic==2.11.5
+pydantic==2.11.7
     # via pydantic-settings
 pydantic-core==2.33.2
     # via pydantic
-pydantic-settings==2.9.1
+pydantic-settings==2.10.1
     # via supa (setup.cfg)
 pynacl==1.5.0
     # via paramiko
 python-dateutil==2.9.0.post0
     # via tempora
-python-dotenv==1.1.0
+python-dotenv==1.1.1
     # via pydantic-settings
 python-nso-client==0.1.2
     # via supa (setup.cfg)
@@ -107,7 +107,7 @@ python-statemachine==2.5.0
     # via supa (setup.cfg)
 pytz==2025.2
     # via supa (setup.cfg)
-requests==2.32.3
+requests==2.32.4
     # via supa (setup.cfg)
 six==1.17.0
     # via python-dateutil
@@ -121,7 +121,7 @@ structlog==25.4.0
     #   supa (setup.cfg)
 tabulate==0.9.0
     # via supa (setup.cfg)
-tempora==5.8.0
+tempora==5.8.1
     # via portend
 types-protobuf==6.30.2.20250516
     # via mypy-protobuf
@@ -138,7 +138,7 @@ typing-inspection==0.4.1
     #   pydantic-settings
 tzlocal==5.3.1
     # via apscheduler
-urllib3==2.4.0
+urllib3==2.5.0
     # via requests
 zc-lockfile==3.0.post1
     # via cherrypy
