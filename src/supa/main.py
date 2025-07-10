@@ -232,6 +232,11 @@ def cli() -> None:
     help="URL scheme of the exposed service.",
 )
 @click.option(
+    "--nsa_provider_port",
+    default=settings.nsa_provider_port,
+    help="Port of the NSI provider endpoint.",
+)
+@click.option(
     "--nsa-provider-path",
     default=settings.nsa_provider_path,
     help="Path of the NSI provider endpoint.",
@@ -313,6 +318,7 @@ def serve(
     nsa_port: str,
     nsa_name: str,
     nsa_scheme: str,
+    nsa_provider_port: str,
     nsa_provider_path: str,
     nsa_topology_path: str,
     nsa_discovery_path: str,
@@ -345,6 +351,7 @@ def serve(
     settings.nsa_port = nsa_port
     settings.nsa_name = nsa_name
     settings.nsa_scheme = nsa_scheme
+    settings.nsa_provider_port = nsa_provider_port
     settings.nsa_provider_path = nsa_provider_path
     settings.nsa_topology_path = nsa_topology_path
     settings.nsa_discovery_path = nsa_discovery_path

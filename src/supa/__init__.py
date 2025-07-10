@@ -203,7 +203,8 @@ class Settings(BaseSettings):
     nsa_host: str = "localhost"
     nsa_port: str = "8080"
     nsa_name: str = "example.domain uPA"
-    nsa_provider_path: str = "/provider"
+    nsa_provider_port: str = "8443"
+    nsa_provider_path: str = "/soap/connection/provider"
     nsa_topology_path: str = "/topology"
     nsa_discovery_path: str = "/discovery"
     nsa_owner_timestamp: str = "19700101T000000Z"
@@ -221,6 +222,11 @@ class Settings(BaseSettings):
     def nsa_exposed_url(self) -> str:
         """Return URL that NSA is exposed on constructed from nsa_scheme, nsa_host and nsa_port."""
         return f"{self.nsa_scheme}://{self.nsa_host}:{self.nsa_port}"
+
+    @property
+    def nsa_provider_exposed_url(self) -> str:
+        """Return Provider URL that NSA is exposed on constructed from nsa_scheme, nsa_host and nsa_provider_port."""
+        return f"{self.nsa_scheme}://{self.nsa_host}:{self.nsa_provider_port}"
 
     @property
     def nsa_id(self) -> str:
