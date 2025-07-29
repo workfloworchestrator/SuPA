@@ -102,6 +102,8 @@ spec:
             readOnly: true
             volumeAttributes:
               secretProviderClass: {{ .Release.Name }}-secretproviderclass
+            nodePublishSecretRef:
+              name: {{ .Values.secretProviderClass.nodePublishSecretRefNname }}
         {{- end }}
 {{- if .Values.persistence.enabled }}
   volumeClaimTemplates:
