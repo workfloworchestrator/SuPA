@@ -36,8 +36,19 @@ spec:
             - "supa"
           args:
             - "serve"
-          {{- if .Values.env }}
+          env:
+          {{- if .Values.secretProviderClass.enabled }}
+            {{- range .Values.secretProviderClass.env }}
+            - name: {{ .name }}
+              value: {{ .value | quote }}
+            {{- end }}
+          {{- end }}
           envFrom:
+          {{- if .Values.secretProviderClass.enabled }}
+            - secretRef:
+                name: {{ .Release.Name }}-secret
+          {{- end }}
+          {{- if .Values.env }}
             - configMapRef:
                 name: {{ .Release.Name }}-environment
           {{- end }}

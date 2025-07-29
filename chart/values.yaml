@@ -81,6 +81,22 @@ persistence:
     - ReadWriteOnce
   size: 1Gi
 
+secretProviderClass:
+  enabled: true
+  provider: azure
+  name: "surf-dev-kv"
+  keyVaultName: "surf-dev-kv"
+  tenantId: "0cd9bc36-9c09-4562-8d35-e911c1f68a7a"
+  nodePublishSecretRefNname: "kv-sp-secret"
+  env:
+    #- name: "PGHOST"
+    #  value: "surf-orchestration-dev-pgsql2.postgres.database.azure.com"
+    #- name: "PGPORT"
+    #  value: 5432
+  objects:
+    - key: "OIDC_PASSWORD"
+      objectName: "supa-dev-oidc-basic-auth"
+
 config:
   # either read config files from folder or use inline data, filesGlob takes precedence over inline.
   #filesGlob: "config/*"
