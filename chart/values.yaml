@@ -8,6 +8,10 @@ image:
   # Overrides the image tag whose default is the chart appVersion.
   tag: ""
 
+# optional configmap with environment variables mounted into the pod
+#env:
+#  TOPOLOGY: development
+
 imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""

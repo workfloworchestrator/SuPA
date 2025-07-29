@@ -31,11 +31,16 @@ spec:
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
           command:
             - "supa"
           args:
             - "serve"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if .Values.env }}
+          envFrom:
+            - configMapRef:
+                name: {{ .Release.Name }}-environment
+          {{- end }}
           ports:
             - name: http-alt
               containerPort: 8080
