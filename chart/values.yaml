@@ -86,16 +86,19 @@ config:
       document_server_port=8080
       grpc_server_insecure_host=0.0.0.0
       grpc_server_insecure_port=50051
-      grpc_client_insecure_host=polynsi-grpc.hanst.svc.cluster.local
+      grpc_client_insecure_host=polynsi-grpc.nsi.svc.cluster.local
       grpc_client_insecure_port=80
       topology=topology
       domain=example.domain:2001
       log_level=INFO
       backend=surf
     surf.env: |-
-      host=http://development-orchestrator.development.svc.cluster.local:80
-      oauth2_active=False
-      create_workflow_name=create_sn8_light_path
-      terminate_workflow_name=terminate_sn8_light_path
-      customer_id=0a11ebb9-0d11-e511-80d0-005056956c1a
-      product_id=f228eb9b-fe38-4b59-aa1e-1f57e6ec6e4d
+      base_url=http://development-orchestrator.development.svc.cluster.local:80
+      oauth2_active=True
+      oidc_url=https://sso.dev.example.domain/realms/development/protocol/openid-connect/token
+      oidc_user=supa-oidc-user
+      oidc_password=kFh9setPa8syRMZoWQIw5Bl4IUDPDXtTuCkdRA3evakt
+      create_workflow_name=create_nsi_light_path
+      terminate_workflow_name=terminate_nsi_light_path
+      customer_id=1a6f361b-2d8b-48a8-bbcc-74e4bcff6c21
+      product_id=6ef76caa-5564-4740-9c83-c0e6d09176c4
