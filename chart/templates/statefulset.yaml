@@ -95,6 +95,14 @@ spec:
         - name: config
           configMap:
             name: {{ printf "%s-config" (include "SuPA.fullname" .) }}
+        {{- if .Values.secretProviderClass.enabled }}
+        - name: secret-store
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: {{ .Release.Name }}-secretproviderclass
+        {{- end }}
 {{- if .Values.persistence.enabled }}
   volumeClaimTemplates:
     - metadata:
