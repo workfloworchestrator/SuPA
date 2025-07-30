@@ -97,8 +97,8 @@ secretProviderClass:
     - key: "PASSWORD"
       objectName: "db-password"
 
+# either read config files from folder or use inline data, filesGlob takes precedence over inline.
 config:
-  # either read config files from folder or use inline data, filesGlob takes precedence over inline.
   #filesGlob: "config/*"
   inline: |-
     supa.env: |-
@@ -122,3 +122,13 @@ config:
       terminate_workflow_name=terminate_nsi_light_path
       customer_id=1a6f361b-2d8b-48a8-bbcc-74e4bcff6c21
       product_id=6ef76caa-5564-4740-9c83-c0e6d09176c4
+
+# list of environment variables exposed in the pod,
+# note that configuration done via environment variables will take precedence over .env files
+#env:
+#  DOCUMENT_SERVER_HOST: "0.0.0.0"
+#  DOCUMENT_SERVER_PORT: "8080"
+#  GRPC_SERVER_INSECURE_HOST: "0.0.0.0"
+#  GRPC_SERVER_INSECURE_PORT: "50051"
+#  GRPC_CLIENT_INSECURE_HOST: "{{ namespace }}-polynsi-grpc"
+#  GRPC_CLIENT_INSECURE_PORT: "80"
