@@ -76,6 +76,11 @@ spec:
               mountPath: {{ .Values.persistence.mountPath }}
               subPath: {{ .Values.persistence.subPath }}
           {{- end }}
+          {{- if .Values.secretProviderClass.enabled }}
+            - name: secret-store
+              mountPath: "/mnt/secrets-store"
+              readOnly: true
+          {{- end }}
             - name: config
               mountPath: "/usr/local/etc/supa"
               readOnly: true
