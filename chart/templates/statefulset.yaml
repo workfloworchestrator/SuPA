@@ -12,7 +12,8 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        automation.surf.net/config-checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        automation.surf.net/environment-config-checksum/config: {{ include (print $.Template.BasePath "/environment-configmap.yaml") . | sha256sum }}
       {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
       {{- end }}
