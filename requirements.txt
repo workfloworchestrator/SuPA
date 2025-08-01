@@ -33,7 +33,7 @@ click==8.2.1
     # via supa (setup.cfg)
 colorama==0.4.6
     # via supa (setup.cfg)
-cryptography==45.0.4
+cryptography==45.0.5
     # via paramiko
 grpcio==1.73.1
     # via
