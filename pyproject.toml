@@ -6,7 +6,7 @@
 requires = [
     "setuptools>=65.5.0",
     "wheel",
-    "grpcio-tools==1.73.1",
+    "grpcio-tools==1.74.0",
     "mypy-protobuf",
     "bandit==1.7.10",
 ]
