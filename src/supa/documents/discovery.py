@@ -134,6 +134,6 @@ class DiscoveryEndpoint(object):
         topology_type.text = "application/vnd.ogf.nsi.topology.v2+xml"
         topology_href.text = f"{settings.nsa_exposed_url}{settings.nsa_topology_path}"
         provider_type.text = "application/vnd.ogf.nsi.cs.v2.provider+soap"
-        provider_href.text = f"{settings.nsa_exposed_url}{settings.nsa_provider_path}"
+        provider_href.text = f"{settings.nsa_provider_exposed_url}{settings.nsa_provider_path}"
 
         return tostring(nsa, encoding="iso-8859-1", pretty_print=True)  # .decode('iso-8859-1')
