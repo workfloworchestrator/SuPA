@@ -49,7 +49,7 @@ from apscheduler.jobstores.memory import MemoryJobStore
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.schedulers.base import BaseScheduler
 from apscheduler.util import undefined
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings
 from sqlalchemy import create_engine
 from sqlalchemy.orm import scoped_session, sessionmaker
 
@@ -166,8 +166,6 @@ class Settings(BaseSettings):
 
     See also: the ``supa.env`` file
     """
-
-    model_config = SettingsConfigDict(case_sensitive=True)
 
     grpc_server_max_workers: int = 8
 

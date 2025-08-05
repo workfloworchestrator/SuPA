@@ -1,0 +1,17 @@
+{{- if .Values.env }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/name: {{ .Release.Name }}-environment
+    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+  name: {{ .Release.Name }}-environment
+  namespace: {{ .Release.Namespace }}
+{{- with .Values.env }}
+data:
+    {{- toYaml . | nindent 8 }}
+{{- end }}
+{{- end }}

@@ -12,7 +12,8 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        automation.surf.net/config-checksum: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        automation.surf.net/environment-checksum: {{ include (print $.Template.BasePath "/environment-configmap.yaml") . | sha256sum }}
       {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
       {{- end }}
@@ -31,11 +32,27 @@ spec:
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
           command:
             - "supa"
           args:
             - "serve"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+          {{- if .Values.secretProviderClass.enabled }}
+            {{- range .Values.secretProviderClass.env }}
+            - name: {{ .name }}
+              value: {{ .value | quote }}
+            {{- end }}
+          {{- end }}
+          envFrom:
+          {{- if .Values.secretProviderClass.enabled }}
+            - secretRef:
+                name: {{ .Release.Name }}-secret
+          {{- end }}
+          {{- if .Values.env }}
+            - configMapRef:
+                name: {{ .Release.Name }}-environment
+          {{- end }}
           ports:
             - name: http-alt
               containerPort: 8080
@@ -60,6 +77,11 @@ spec:
               mountPath: {{ .Values.persistence.mountPath }}
               subPath: {{ .Values.persistence.subPath }}
           {{- end }}
+          {{- if .Values.secretProviderClass.enabled }}
+            - name: secret-store
+              mountPath: "/mnt/secrets-store"
+              readOnly: true
+          {{- end }}
             - name: config
               mountPath: "/usr/local/etc/supa"
               readOnly: true
@@ -79,6 +101,16 @@ spec:
         - name: config
           configMap:
             name: {{ printf "%s-config" (include "SuPA.fullname" .) }}
+        {{- if .Values.secretProviderClass.enabled }}
+        - name: secret-store
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: {{ .Release.Name }}-secretproviderclass
+            nodePublishSecretRef:
+              name: {{ .Values.secretProviderClass.nodePublishSecretRefNname }}
+        {{- end }}
 {{- if .Values.persistence.enabled }}
   volumeClaimTemplates:
     - metadata:
