@@ -210,6 +210,7 @@ class Settings(BaseSettings):
     nsa_latitude: str = "-0.374350"
     nsa_longitude: str = "-159.996719"
     topology_name: str = "example.domain topology"
+    label_swapping: bool = True
 
     healthcheck_with_topology: bool = False
 

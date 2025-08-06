@@ -229,7 +229,7 @@ class TopologyEndpoint(object):
             relation_sw = SubElement(relation, QName(nsmap["ns3"], "SwitchingService"))
             relation_sw.set("encoding", "http://schemas.ogf.org/nml/2012/10/ethernet")
             relation_sw.set("id", f"{network_id}:switch:EVTS.A-GOLE")
-            relation_sw.set("labelSwapping", "true")
+            relation_sw.set("labelSwapping", "true" if settings.label_swapping else "false")
             relation_sw.set("labelType", "http://schemas.ogf.org/nml/2012/10/ethernet#vlan")
             for relation_type, suffix in (
                 ("http://schemas.ogf.org/nml/2013/05/base#hasInboundPort", "in"),
