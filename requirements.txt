@@ -109,7 +109,7 @@ python-statemachine==2.5.0
     # via supa (setup.cfg)
 pytz==2025.2
     # via supa (setup.cfg)
-requests==2.32.4
+requests==2.32.5
     # via supa (setup.cfg)
 six==1.17.0
     # via python-dateutil
