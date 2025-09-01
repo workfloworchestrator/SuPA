@@ -127,7 +127,7 @@ tempora==5.8.1
     # via portend
 types-protobuf==6.30.2.20250703
     # via mypy-protobuf
-typing-extensions==4.14.1
+typing-extensions==4.15.0
     # via
     #   anyio
     #   pydantic
