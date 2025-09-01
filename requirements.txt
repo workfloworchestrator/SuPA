@@ -67,7 +67,7 @@ jaraco-functools==4.2.1
     #   tempora
 jaraco-text==4.0.0
     # via jaraco-collections
-lxml==6.0.0
+lxml==6.0.1
     # via supa (setup.cfg)
 lxml-stubs==0.5.1
     # via supa (setup.cfg)
