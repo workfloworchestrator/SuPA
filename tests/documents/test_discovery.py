@@ -45,7 +45,7 @@ discovery = b"""<?xml version=\'1.0\' encoding=\'iso-8859-1\'?>
   </interface>
   <interface>
     <type>application/vnd.ogf.nsi.cs.v2.provider+soap</type>
-    <href>http://localhost:8080/provider</href>
+    <href>http://localhost:8443/provider</href>
   </interface>
   <feature type="vnd.ogf.nsi.cs.v2.role.uPA"/>
 </nsa:nsa>
