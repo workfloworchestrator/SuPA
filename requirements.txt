@@ -39,7 +39,7 @@ grpcio==1.74.0
     # via
     #   grpcio-tools
     #   supa (setup.cfg)
-grpcio-tools==1.74.0
+grpcio-tools==1.75.1
     # via supa (setup.cfg)
 h11==0.16.0
     # via httpcore
