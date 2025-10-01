@@ -25,11 +25,11 @@ git checkout gh-pages
 rm -rf *
 git stash pop
 touch .nojekyll
-git checkout master .gitignore
+git checkout main .gitignore
 mv ./docs/_build/html/* ./
 rm -rf ./docs
 git add -A
 git commit -m "publish updated docs" --no-verify
 git push origin gh-pages --force
 ## switch back
-git checkout master
+git checkout main
