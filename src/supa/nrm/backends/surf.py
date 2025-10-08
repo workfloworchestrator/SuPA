@@ -167,7 +167,7 @@ class Backend(BaseBackend):
         reporter = settings.nsa_host
         try:
             result = self._post_url_json(
-                url=f"{base_url}/api/processes/{terminate_workflow_name}?reporter={reporter}", json={json}
+                url=f"{base_url}/api/processes/{terminate_workflow_name}?reporter={reporter}", json=json
             )
         except ConnectionError as con_err:
             self.log.warning("call to orchestrator failed", reason=str(con_err))
