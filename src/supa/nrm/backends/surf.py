@@ -156,12 +156,10 @@ class Backend(BaseBackend):
 
     def _workflow_terminate(self, subscription_id: str) -> Any:
         self.log.info("start workflow terminate")
-        json = (
-            [
-                {"subscription_id": subscription_id},
-                {},
-            ],
-        )
+        json = [
+            {"subscription_id": subscription_id},
+            {},
+        ]
         base_url = self.backend_settings.base_url
         terminate_workflow_name = self.backend_settings.terminate_workflow_name
         reporter = settings.nsa_host
