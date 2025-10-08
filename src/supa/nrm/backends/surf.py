@@ -22,6 +22,7 @@ from requests.auth import HTTPBasicAuth
 from requests.exceptions import ConnectionError, HTTPError, RequestException  # noqa: A004
 from structlog.stdlib import BoundLogger
 
+from supa import settings
 from supa.connection.error import GenericRmError
 from supa.job.shared import NsiException
 from supa.nrm.backend import STP, BaseBackend
@@ -110,7 +111,9 @@ class Backend(BaseBackend):
     def _workflow_create(self, src_port_id: str, src_vlan: int, dst_port_id: str, dst_vlan: int, bandwidth: int) -> Any:
         self.log.info("start workflow create")
         json = [
-            {"product": self.backend_settings.product_id},
+            {
+                "product": self.backend_settings.product_id,
+            },
             {
                 "customer_id": self.backend_settings.customer_id,
                 "service_ports": [
@@ -118,18 +121,23 @@ class Backend(BaseBackend):
                         "subscription_id": src_port_id,
                         "vlan": str(src_vlan),
                     },
-                    {"subscription_id": dst_port_id, "vlan": str(dst_vlan)},
+                    {
+                        "subscription_id": dst_port_id,
+                        "vlan": str(dst_vlan),
+                    },
                 ],
                 "service_speed": str(bandwidth),
                 "speed_policer": True,
             },
             {},  # summary form
         ]
+        base_url = self.backend_settings.base_url
+        create_workflow_name = self.backend_settings.create_workflow_name
+        reporter = settings.nsa_host
         self.log.debug("create workflow payload", payload=dumps(json))
         try:
             result = self._post_url_json(
-                url=f"{self.backend_settings.base_url}/api/processes/{self.backend_settings.create_workflow_name}",
-                json=json,
+                url=f"{base_url}/api/processes/{create_workflow_name}?reporter={reporter}", json=json
             )
         except ConnectionError as con_err:
             self.log.warning("call to orchestrator failed", reason=str(con_err))
@@ -148,10 +156,16 @@ class Backend(BaseBackend):
 
     def _workflow_terminate(self, subscription_id: str) -> Any:
         self.log.info("start workflow terminate")
+        json = [
+            {"subscription_id": subscription_id},
+            {},
+        ]
+        base_url = self.backend_settings.base_url
+        terminate_workflow_name = self.backend_settings.terminate_workflow_name
+        reporter = settings.nsa_host
         try:
             result = self._post_url_json(
-                url=f"{self.backend_settings.base_url}/api/processes/{self.backend_settings.terminate_workflow_name}",
-                json=[{"subscription_id": subscription_id}, {}],
+                url=f"{base_url}/api/processes/{terminate_workflow_name}?reporter={reporter}", json=json
             )
         except ConnectionError as con_err:
             self.log.warning("call to orchestrator failed", reason=str(con_err))
@@ -166,15 +180,24 @@ class Backend(BaseBackend):
 
     def _add_note(self, connection_id: UUID, subscription_id: str) -> Any:
         self.log.info("start workflow modify note")
+        json = [
+            {
+                "subscription_id": subscription_id,
+            },
+            {
+                "note": (
+                    "NSI "
+                    f" - host {settings.nsa_host}"
+                    f" - NSA ID {settings.nsa_id}"
+                    f" - connection ID {connection_id}"
+                )
+            },
+        ]
+        base_url = self.backend_settings.base_url
+        reporter = settings.nsa_host
         try:
             self.log.debug("adding connection id to note of subscription")
-            result = self._post_url_json(
-                url=f"{self.backend_settings.base_url}/api/processes/modify_note",
-                json=[
-                    {"subscription_id": subscription_id},
-                    {"note": f"NSI connectionId {connection_id}"},
-                ],
-            )
+            result = self._post_url_json(url=f"{base_url}/api/processes/modify_note?reporter={reporter}", json=json)
         except ConnectionError as con_err:
             self.log.warning("call to orchestrator failed", reason=str(con_err))
             raise NsiException(GenericRmError, str(con_err)) from con_err
