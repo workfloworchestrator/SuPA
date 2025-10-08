@@ -189,9 +189,10 @@ class Backend(BaseBackend):
             },
             {
                 "note": (
-                    f"NSI host {settings.nsa_host}\n"
-                    f"NSI NSA ID {settings.nsa_id}\n"
-                    f"NSI connection ID {connection_id}\n"
+                    "NSI "
+                    f" - host {settings.nsa_host}"
+                    f" - NSI NSA ID {settings.nsa_id}"
+                    f" - NSI connection ID {connection_id}"
                 )
             },
         ]
