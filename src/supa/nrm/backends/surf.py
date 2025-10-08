@@ -191,8 +191,8 @@ class Backend(BaseBackend):
                 "note": (
                     "NSI "
                     f" - host {settings.nsa_host}"
-                    f" - NSI NSA ID {settings.nsa_id}"
-                    f" - NSI connection ID {connection_id}"
+                    f" - NSA ID {settings.nsa_id}"
+                    f" - connection ID {connection_id}"
                 )
             },
         ]
