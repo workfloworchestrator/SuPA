@@ -180,7 +180,6 @@ class Backend(BaseBackend):
 
     def _add_note(self, connection_id: UUID, subscription_id: str) -> Any:
         self.log.info("start workflow modify note")
-        base_url = self.backend_settings.base_url
         json = [
             {
                 "subscription_id": subscription_id,
@@ -194,6 +193,7 @@ class Backend(BaseBackend):
                 )
             },
         ]
+        base_url = self.backend_settings.base_url
         reporter = settings.nsa_host
         try:
             self.log.debug("adding connection id to note of subscription")
