@@ -99,7 +99,12 @@ class ActivateJob(Job):
 
                     dpsm.auto_end_request()
                     self.log.info("Schedule auto end", job="AutoEndJob", end_time=end_time.isoformat())
-                    scheduler.add_job(job := AutoEndJob(self.connection_id), trigger=job.trigger(), id=job.job_id)
+                    # TODO: swith back to trigger=job.trigger() once db_session_ro() is implemented
+                    scheduler.add_job(
+                        job := AutoEndJob(self.connection_id),
+                        trigger=DateTrigger(run_date=reservation.schedule.end_time),
+                        id=job.job_id,
+                    )
 
         # send result to requester, done outside the database session because communication can throw exception
         stub = requester.get_stub()
