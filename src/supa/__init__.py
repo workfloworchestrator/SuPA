@@ -189,6 +189,7 @@ class Settings(BaseSettings):
 
     topology_freshness: int = 60
     log_level: str = ""
+    sql_echo_enable: bool = False
 
     domain: str = "example.domain:2013"
     topology: str = "topology"
@@ -459,7 +460,7 @@ def init_app(with_scheduler: bool = True) -> None:
             "`database_file` did not exist. Created new SQLite DB file. Is this really what you wanted?",
             database_file=database_file,
         )
-    engine = create_engine(f"sqlite:///{database_file}", echo=False)
+    engine = create_engine(f"sqlite:///{database_file}", echo=settings.sql_echo_enable)
 
     import supa.db.session
 
