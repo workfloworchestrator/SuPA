@@ -148,8 +148,9 @@ def connection_id() -> Generator[UUID, None, None]:
         )
         session.add(request)
 
-        yield connection_id
+    yield connection_id
 
+    with db_session() as session:
         session.delete(session.query(Reservation).filter(Reservation.connection_id == connection_id).one())
         # connection, schedule and p2p_criteria are deleted through cascade
 

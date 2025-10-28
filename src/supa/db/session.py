@@ -148,6 +148,12 @@ def db_session() -> Iterator[scoped_session]:
     session = None
     try:
         session = Session()
+        # TODO: To avoid immediate 'database locked' errors when a session starts
+        #   with a read statement and only later emits update/add statements, we start all sessions with an
+        #   explicit begin(). It would probably be better to either create two context managers, one for read only
+        #   sessions and one for read/write sessions. Or otherwise refactor the code so that every session that
+        #   needs to write will not emit read statements before any update/add statements.
+        session.begin()
         yield session  # type: ignore
         session.commit()
     except BaseException as exc:
