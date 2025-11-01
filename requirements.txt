@@ -54,7 +54,7 @@ idna==3.10
     #   anyio
     #   httpx
     #   requests
-invoke==2.2.0
+invoke==2.2.1
     # via paramiko
 jaraco-collections==5.2.1
     # via cherrypy
