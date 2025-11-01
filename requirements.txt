@@ -35,7 +35,7 @@ colorama==0.4.6
     # via supa (setup.cfg)
 cryptography==46.0.2
     # via paramiko
-grpcio==1.75.1
+grpcio==1.76.0
     # via
     #   grpcio-tools
     #   supa (setup.cfg)
