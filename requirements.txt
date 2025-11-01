@@ -8,7 +8,7 @@ annotated-types==0.7.0
     # via pydantic
 anyio==4.11.0
     # via httpx
-apscheduler==3.11.0
+apscheduler==3.11.1
     # via supa (setup.cfg)
 autocommand==2.2.2
     # via jaraco-text
