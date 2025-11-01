@@ -84,7 +84,7 @@ paramiko==4.0.0
     # via supa (setup.cfg)
 portend==3.2.1
     # via cherrypy
-protobuf==6.32.1
+protobuf==6.33.0
     # via
     #   grpcio-tools
     #   mypy-protobuf
