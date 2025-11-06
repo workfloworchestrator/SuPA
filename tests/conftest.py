@@ -27,6 +27,7 @@ from supa.util.type import RequestType
 
 @pytest.fixture(scope="session")
 def thread_pool_executor() -> futures.ThreadPoolExecutor:
+    """Create a thread pool executor fixture to be used throughout all tests."""
     return futures.ThreadPoolExecutor(max_workers=settings.grpc_server_max_workers)
 
 
