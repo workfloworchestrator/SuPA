@@ -22,6 +22,7 @@ from statemachine.exceptions import TransitionNotAllowed
 
 from supa import settings
 from supa.connection.error import (
+    GenericMessagePayLoadError,
     GenericServiceError,
     InvalidTransition,
     ReservationNonExistent,
@@ -311,6 +312,24 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         else:  # modify reservation
             connection_id = UUID(pb_reserve_request.connection_id)
             log = log.bind(connection_id=str(connection_id))
+
+            if (
+                pb_reserve_request.description
+                or pb_reserve_request.global_reservation_id
+                or pb_reserve_request.criteria.service_type
+                or pb_reserve_request.criteria.ptps.source_stp
+                or pb_reserve_request.criteria.ptps.dest_stp
+                or pb_reserve_request.criteria.ptps.symmetric_path
+                or pb_reserve_request.criteria.ptps.eros
+            ):
+                reserve_response = ReserveResponse(
+                    header=to_response_header(pb_reserve_request.header),
+                    service_exception=to_service_exception(
+                        NsiException(GenericMessagePayLoadError, "unsupported parameter for modify"), connection_id
+                    ),
+                )
+                log.debug("Sending response.", response_message=reserve_response)
+                return reserve_response  # return NSI Exception to requester
 
             from supa.db.session import db_session
 
