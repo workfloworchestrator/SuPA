@@ -25,12 +25,17 @@ from supa.util.timestamp import NO_END_DATE, current_timestamp
 from supa.util.type import RequestType
 
 
+@pytest.fixture(scope="session")
+def thread_pool_executor() -> futures.ThreadPoolExecutor:
+    return futures.ThreadPoolExecutor(max_workers=settings.grpc_server_max_workers)
+
+
 @pytest.fixture(autouse=True, scope="session")
-def init(tmp_path_factory: pytest.TempPathFactory) -> Generator:
+def init(tmp_path_factory: pytest.TempPathFactory, thread_pool_executor: futures.ThreadPoolExecutor) -> Generator:
     """Initialize application and start the connection provider gRPC server."""
     settings.database_file = tmp_path_factory.mktemp("supa") / "supa.db"
     init_app()
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=settings.grpc_server_max_workers))
+    server = grpc.server(thread_pool_executor)
 
     # Safe to import, now that `init_app()` has been called
     from supa.connection.provider.server import ConnectionProviderService
@@ -400,6 +405,16 @@ def reserve_aborting(connection_id: Column) -> None:
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
         reservation.reservation_state = ReservationStateMachine.ReserveAborting.value
+
+
+@pytest.fixture
+def reserve_failed(connection_id: Column) -> None:
+    """Set reserve state machine of reservation identified by connection_id to state ReserveFailed."""
+    from supa.db.session import db_session
+
+    with db_session() as session:
+        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
+        reservation.reservation_state = ReservationStateMachine.ReserveFailed.value
 
 
 @pytest.fixture
