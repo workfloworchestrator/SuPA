@@ -125,7 +125,7 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [tool.setuptools.data-files]
-"etc/supa" = ["supa.env"]
+"etc/supa" = ["supa.env", "src/supa/nrm/backends/*.env"]
 
 [tool.pytest]
 minversion = "9.0"
