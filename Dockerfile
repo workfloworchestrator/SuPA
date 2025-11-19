@@ -24,5 +24,5 @@ RUN mkdir --parents $DATABASE_DIR && chown supa:supa $DATABASE_DIR
 USER supa
 
 EXPOSE 8080/tcp 50051/tcp
-ENV PYTHONPATH=/usr/local/etc/supa:/usr/local/lib/python3.13/site-packages/supa/nrm/backends
+ENV PYTHONPATH=/usr/local/etc/supa
 CMD ["supa", "serve"]

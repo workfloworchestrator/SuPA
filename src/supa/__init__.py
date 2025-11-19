@@ -38,6 +38,7 @@ import random
 import sys
 from datetime import datetime
 from enum import Enum
+from importlib import import_module
 from pathlib import Path
 from typing import Union
 
@@ -471,13 +472,20 @@ def init_app(with_scheduler: bool = True) -> None:
     import supa.nrm.backend
 
     if settings.backend:
-        sys.path.insert(0, str(get_project_root() / "src" / "supa" / "nrm" / "backends"))
         logger.debug("backend import path", path=sys.path)
         try:
-            supa.nrm.backend.backend = __import__(settings.backend).Backend()
+            # first look for the module directly on the path
+            backend_module = import_module(settings.backend)
         except ModuleNotFoundError:
+            try:
+                # else look for module in installed supa package
+                backend_module = import_module(f"supa.nrm.backends.{settings.backend}")
+            except ModuleNotFoundError:
+                backend_module = None
+        if not backend_module:
             logger.warn("cannot find NRM backend module", backend=settings.backend)
         else:
+            supa.nrm.backend.backend = backend_module.Backend()
             supa.nrm.backend.backend.log = supa.nrm.backend.backend.log.bind(backend=settings.backend)
             logger.info("successfully loaded NRM backend", backend=settings.backend)
 
