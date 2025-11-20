@@ -117,17 +117,17 @@ Some rules
 Importing new protobuf/gRPC definitions
 ---------------------------------------
 
-When new NSI protobuf/gRPC definitions are imported into the ``protos`` directory
+When new NSI protobuf/gRPC definitions are imported into the ``src/supa/protos`` directory
 one should (re)generated the corresponding Python code for it::
 
-    % python setup.py clean gen_code
+    % python src/supa/buildtools/backend.py
 
 .. note::
 
-    Cleaning the previously generated code is a good thing thing.
+    Cleaning the previously generated code is a good thing.
     We want to ensure that we don't accidentally depend on no longer used protobuf/gRPC definitions.
-    Hence always run the ``gen_code`` in conjunction with
-    and prepended by the ``clean`` command.
+    Hence always remove the ``src/supa/protos`` directory
+    before generating code from new or updated protos'
 
 
 PyCharm

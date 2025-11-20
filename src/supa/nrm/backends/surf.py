@@ -55,8 +55,20 @@ class Backend(BaseBackend):
     def __init__(self) -> None:
         """Load properties from 'surf.env'."""
         super(Backend, self).__init__()
-        self.backend_settings = BackendSettings(_env_file=(env_file := find_file("surf.env")))  # type: ignore[call-arg]
-        self.log.info("Read backend properties", path=str(env_file))
+        try:
+            # first look for surf.env directly on the sys path
+            env_file = find_file("surf.env")
+        except FileNotFoundError:
+            try:
+                # else look for surf.env in an installed supa package
+                env_file = find_file("supa/nrm/backends/surf.env")
+            except FileNotFoundError:
+                env_file = None
+        if env_file:
+            self.backend_settings = BackendSettings(_env_file=env_file)  # type: ignore[call-arg]
+            self.log.info("Read backend properties", path=str(env_file))
+        else:
+            raise FileNotFoundError("Backend surf env file not found")
 
     def _retrieve_access_token(self) -> str:
         access_token = ""  # noqa: S105

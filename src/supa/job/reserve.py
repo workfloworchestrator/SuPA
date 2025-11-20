@@ -166,8 +166,7 @@ class ReserveJob(Job):
             .join(
                 Schedule,
                 and_(Reservation.connection_id == Schedule.connection_id, Reservation.version == Schedule.version),
-            )
-            .join(
+            ).join(
                 CurrentSchedule,
                 # Do they overlap?
                 and_(
@@ -175,16 +174,18 @@ class ReserveJob(Job):
                     CurrentSchedule.end_time > Schedule.start_time,
                 ),
             )
+            # This filter assumes that this selection is only done to verify initial reservations.
             .filter(
-                # Only select active reservations
+                # Only select active reservations ...
+                Reservation.lifecycle_state != LifecycleStateMachine.Failed.value,
+                Reservation.lifecycle_state != LifecycleStateMachine.PassedEndTime.value,
+                Reservation.lifecycle_state != LifecycleStateMachine.Terminated.value,
+                # ... that have resources held, committing or reserved (back in start again).
                 or_(
-                    and_(
-                        Reservation.reservation_state == ReservationStateMachine.ReserveStart.value,
-                        Reservation.provision_state.isnot(None),
-                        Reservation.lifecycle_state == LifecycleStateMachine.Created.value,
-                    ),
                     Reservation.reservation_state == ReservationStateMachine.ReserveHeld.value,
-                )
+                    Reservation.reservation_state == ReservationStateMachine.ReserveCommitting.value,
+                    Reservation.reservation_state == ReservationStateMachine.ReserveStart.value,
+                ),
             )
             # And only those that overlap with our reservation.
             .filter(CurrentSchedule.connection_id == self.connection_id)
@@ -338,31 +339,35 @@ class ReserveJob(Job):
             assert reservation.version == reservation.schedule.version  # assert versions on references are the same
             assert reservation.version == reservation.p2p_criteria.version  # TODO: refactor into unit test(s)
 
-            try:
-                if reservation.p2p_criteria.src_stp_id == reservation.p2p_criteria.dst_stp_id:
-                    raise NsiException(
-                        # Not sure if this is the correct error to use.
-                        # As its descriptive text refers to path computation
-                        # it suggests it's an error typically returned by an aggregator.
-                        # On the other hand it is the only error related to a path/connection as a whole
-                        # and that is what is at issue here.
-                        NoServiceplanePathFound,
-                        "source and destination STP's are the same",
-                        {
-                            Variable.PROVIDER_NSA: settings.nsa_id,
-                            Variable.SOURCE_STP: str(reservation.p2p_criteria.src_stp()),
-                            Variable.DEST_STP: str(reservation.p2p_criteria.dst_stp()),
-                        },
-                    )
-                for target, var in (("src", Variable.SOURCE_STP), ("dst", Variable.DEST_STP)):
-                    # Dynamic attribute lookups as we want to use the same code for
-                    # both src and dst STP's
-                    self._process_stp(target, var, reservation, session)
-                reservation.p2p_criteria.src_selected_vlan = self.src_selected_vlan
-                reservation.p2p_criteria.dst_selected_vlan = self.dst_selected_vlan
-                self.bandwidth = reservation.p2p_criteria.bandwidth
-            except NsiException as nsi_exc:
-                nsi_exception = nsi_exc
+            self.bandwidth = reservation.p2p_criteria.bandwidth
+            if len(reservation.schedules) > 1:
+                self.log.info("modify reservation")
+            else:
+                self.log.info("verify schedule and criteria")
+                try:
+                    if reservation.p2p_criteria.src_stp_id == reservation.p2p_criteria.dst_stp_id:
+                        raise NsiException(
+                            # Not sure if this is the correct error to use.
+                            # As its descriptive text refers to path computation
+                            # it suggests it's an error typically returned by an aggregator.
+                            # On the other hand it is the only error related to a path/connection as a whole
+                            # and that is what is at issue here.
+                            NoServiceplanePathFound,
+                            "source and destination STP's are the same",
+                            {
+                                Variable.PROVIDER_NSA: settings.nsa_id,
+                                Variable.SOURCE_STP: str(reservation.p2p_criteria.src_stp()),
+                                Variable.DEST_STP: str(reservation.p2p_criteria.dst_stp()),
+                            },
+                        )
+                    for target, var in (("src", Variable.SOURCE_STP), ("dst", Variable.DEST_STP)):
+                        # Dynamic attribute lookups as we want to use the same code for
+                        # both src and dst STP's
+                        self._process_stp(target, var, reservation, session)
+                    reservation.p2p_criteria.src_selected_vlan = self.src_selected_vlan
+                    reservation.p2p_criteria.dst_selected_vlan = self.dst_selected_vlan
+                except NsiException as nsi_exc:
+                    nsi_exception = nsi_exc
 
         # call backend
         circuit_id = None

@@ -7,8 +7,140 @@ requires = [
     "setuptools>=65.5.0",
     "wheel",
     "grpcio-tools==1.75.1",
-    "mypy-protobuf",
-    "bandit==1.7.10",
+    "mypy_protobuf",
+]
+build-backend = "buildtools.backend"
+backend-path = ["src/supa"]
+
+
+[project]
+name = "supa"
+version = "0.3.5.dev1"
+dependencies = [
+  "grpcio == 1.75.1",
+  "mypy-protobuf ~= 3.0",
+  "structlog ~= 25.0",
+  "colorama ~= 0.0",
+  "click ~= 8.0",
+  "pydantic-settings ~= 2.0",
+  "python-statemachine ~= 2.0",
+  "sqlalchemy ~= 2.0",
+  "apscheduler ~= 3.0",
+  "tabulate ~= 0.0",
+  "more-itertools ~= 10.0",
+  "protobuf ~= 6.0",
+  "python-nso-client ~= 0.0",
+  "requests ~= 2.0",
+  "lxml ~= 6.0",
+  "lxml-stubs ~= 0.0",
+  "cherrypy ~= 18.0",
+  "htmlgen ~= 2.0",
+  "paramiko >=3.0",
+  "pytz ~= 2025.0",
+]
+requires-python = ">=3.11"
+authors = [
+    {name = "Guido Kollerie", email = "guido@kollerie.com"},
+    {name = "Hans Trompert", email = "hans.trompert@surf.nl"},
+]
+maintainers = [
+    {name = "Hans Trompert"},
+]
+description = "The SURF ultimate Provider Agent (SuPA)"
+readme = "README.rst"
+keywords = [
+    "NSI",
+    "Python",
+    "uPA",
+    "NSA",
+    "gRPC",
+    "protobuf",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Telecommunications Industry",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: System :: Networking",
+]
+license = "Apache-2.0"
+license-files = ["LICENSE.txt"]
+
+[project.urls]
+#Homepage = "https://example.com"
+Documentation = "https://workfloworchestrator.org/SuPA"
+Repository = "https://github.com/workfloworchestrator/SuPA.git"
+Issues = "https://github.com/workfloworchestrator/SuPA/issues"
+#Changelog = "https://github.com/me/spam/blob/master/CHANGELOG.md"
+
+[project.optional-dependencies]
+dev = [
+    "bandit",
+    "black",
+    "flake8",
+    "flake8-bandit",  # security checks
+    "flake8-bugbear",  # assorted opinionated checks
+    "flake8-builtins",  # check for name collision with builtins
+    "flake8-comprehensions",
+    "flake8-docstrings",
+    "flake8-implicit-str-concat",
+    "flake8-print",
+    "flake8-rst",  # Allows run flake8 on code snippets in docstrings or rst files
+    "flake8-string-format",
+    "grpcio-tools == 1.75.1",  # version number should match that of `grpcio-tools` in `build-system` above
+    "grpc-stubs >= 1.53.0",
+    "pytest-grpc",
+    "isort",
+    "mypy",
+    "protobuf",
+    "types-pytz",
+    "types-tabulate",
+    "pip-tools",
+    "pre-commit",
+    "pytest",
+    "pytest-cov",
+    "pytest-xdist",
+    "types-requests",
+    "types-setuptools",
+    "types-paramiko >=3.0.0",
+]
+doc = [
+    "sphinx",
+    "sphinx-rtd-theme",
+    "sphinx-click",
+]
+
+[project.scripts]
+supa = "supa.main:cli"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.package-data]
+"supa.protos" = ["*.proto"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.data-files]
+"etc/supa" = ["supa.env", "src/supa/nrm/backends/*.env"]
+
+[tool.pytest]
+minversion = "9.0"
+testpaths = [
+    "tests",
+]
+
+[tool.coverage.run]
+branch = true
+source = [
+    "src/supa",
+]
+omit = [
+    "src/supa/grpc_nsi/*",
+    "tests/*",
 ]
 
 [tool.isort]
@@ -39,3 +171,81 @@ exclude = '''
   )/
 )
 '''
+
+[tool.mypy]
+ignore_missing_imports = true
+disallow_untyped_calls = false
+disallow_untyped_defs = true
+disallow_incomplete_defs= true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = false
+warn_unused_ignores = true
+warn_return_any = true
+warn_unreachable = true
+strict_equality = true
+show_error_codes = true
+show_column_numbers = true
+exclude = [
+    "src/supa/nrm/backends/nso_service_model",
+]
+
+[[tool.mypy.overrides]]
+module = [
+    "supa.grpc_nsi.*",
+]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_untyped_decorators = false
+
+[tool.ruff]
+lint.exclude = [
+    ".git",
+    ".cache",
+    ".eggs",
+    "__pycache__",
+    "venv",
+    ".venv",
+]
+lint.ignore = [
+    "D100",
+    "D104",
+    "T201",
+]
+line-length = 120
+lint.select = [
+    "ANN",
+    "ARG",
+    "B",
+    "C",
+    "D",
+    "E",
+    "F",
+    "I",
+    "N",
+    "PGH",
+    "PTH",
+    "RET",
+    "RUF",
+    "S",
+    "T",
+    "W",
+    "Q",
+]
+target-version = "py311"
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.isort]
+known-first-party=[]
+
+[tool.ruff.lint.mccabe]
+# Explicitly set default to 7, so we can later lower this threshold once all 6+ issues are solved.
+max-complexity = 7

@@ -56,8 +56,8 @@ def pb_ptps() -> PointToPointService:
     ptps = PointToPointService()
     ptps.capacity = 10
     ptps.symmetric_path = True
-    ptps.source_stp = "urn:ogf:network:netherlight.net:2013:production8:port1?vlan=1783"
-    ptps.dest_stp = "urn:ogf:network:netherlight.net:2013:production8:port2?vlan=1783"
+    ptps.source_stp = "urn:ogf:network:example.domain:2001:topology:port1?vlan=1783"
+    ptps.dest_stp = "urn:ogf:network:example.domain:2001:topology:port2?vlan=1783"
     # The initial version didn't have to support Explicit Routing Objects.
     # for param in reservation.parameters:
     #    pb_ptps.parameters[param.key] = param.value
@@ -89,10 +89,15 @@ def pb_reserve_request(
 
 
 @pytest.fixture()
-def pb_reserve_modify_request(pb_reserve_request: ReserveRequest, connection_id: UUID) -> ReserveRequest:
+def pb_reserve_modify_request(pb_header: Header, connection_id: UUID) -> ReserveRequest:
     """Create protobuf reserve modify request with connection_id added to request."""
-    pb_reserve_request.connection_id = str(connection_id)
-    return pb_reserve_request
+    pb_request = ReserveRequest()
+    pb_request.header.CopyFrom(pb_header)
+    pb_request.criteria.CopyFrom(ReservationRequestCriteria())
+    pb_request.criteria.schedule.CopyFrom(Schedule())
+    pb_request.criteria.ptps.CopyFrom(PointToPointService())
+    pb_request.connection_id = str(connection_id)
+    return pb_request
 
 
 @pytest.fixture()
