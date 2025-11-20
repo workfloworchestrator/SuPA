@@ -18,7 +18,7 @@ There are several methods to install and run the application:
 
 .. note::
 
-    SuPA has been tested with Python 3.11 and 3.12.
+    SuPA has been tested with Python version 3.11 upto and including 3.14.
     Compatibility with earlier Python versions will brake in the future or is already broken.
     Compatibility with later Python versions is untested.
 
@@ -34,11 +34,11 @@ SuPA
 
 _`Clone the SuPA source code repository from GitHub`,
 and checkout the desired branch or version,
-for example version 0.2.0::
+for example version 0.3.4::
 
     git clone https://github.com/workfloworchestrator/supa.git
     cd supa
-    git checkout 0.2.0
+    git checkout 0.3.4
 
 There are multiple ways to add an virtual Python environment, and you can choose
 whatever suits you best. This example uses the standard ``venv`` module and assumes
