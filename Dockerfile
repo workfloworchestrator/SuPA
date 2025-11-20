@@ -12,14 +12,14 @@ COPY src src
 RUN python -m build --wheel --outdir dist
 
 # Final stage
-FROM python:3.13-slim-trixie
+FROM python:3.13-alpine
 ENV PIP_ROOT_USER_ACTION=ignore
 ENV DATABASE_DIR=/usr/local/var/db
-RUN set -ex; apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
+RUN set -ex; apk update && apk upgrade && apk add tzdata
 RUN pip install --upgrade pip --no-cache-dir
 COPY --from=build /app/dist/*.whl /tmp/
 RUN pip install /tmp/*.whl --no-cache-dir && rm /tmp/*.whl
-RUN groupadd --gid 1000 supa && useradd --uid 1000 --gid 1000 supa
+RUN addgroup -g 1000 supa && adduser -D -u 1000 -G supa supa
 RUN mkdir --parents $DATABASE_DIR && chown supa:supa $DATABASE_DIR
 USER supa
 
