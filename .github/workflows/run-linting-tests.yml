@@ -25,16 +25,16 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e '.[dev]'
-          python setup.py gen_code
+          pip install '.[dev]'
+          python src/supa/buildtools/backend.py  # compile proto files
       - name: Check formatting
         run: |
-          isort -c .
-          black --check .
+          isort -c src/supa tests
+          black --check src/supa tests
       - name: Lint with flake8
         run: |
           # stop the build if there are Python syntax errors or undefined names
-          flake8 .
+          flake8 src/supa tests
       - name: Check with mypy
         run: |
-          mypy src/supa
+          mypy src/supa tests
