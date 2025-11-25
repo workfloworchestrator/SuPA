@@ -42,9 +42,3 @@ repos:
     hooks:
       - id: black
         language_version: python3.12
-  - repo: https://github.com/jazzband/pip-tools
-    rev: 7.4.1
-    hooks:
-      - id: pip-compile
-        files: ^setup.cfg$
-        args: [--output-file, requirements.txt, --strip-extras, setup.cfg]
