@@ -18,9 +18,10 @@ jobs:
       - name: Install dependencies
         run: |
           apt update
-          apt install -y bash curl git gpg  # needed by codecov below
-          pip install uv
-          uv sync --extra dev  # editable install so coverage can be generated
+          apt install --no-install-recommends --yes bash curl git gpg  # needed by codecov below
+          PIP_ROOT_USER_ACTION=ignore
+          pip install --no-cache-dir uv
+          uv sync --link-mode=copy --extra dev  # editable install so coverage can be generated
       - name: Run Unit tests
         run: uv run pytest --cov-report term-missing --cov-report=xml --cov=src tests
       - name: "Upload coverage to Codecov"
