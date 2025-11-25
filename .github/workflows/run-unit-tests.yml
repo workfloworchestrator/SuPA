@@ -20,7 +20,7 @@ jobs:
           apt update
           apt install -y bash curl git gpg # needed by codecov below
           python -m pip install --upgrade pip
-          pip install '.[dev]'
+          pip install -e '.[dev]'
           python src/supa/buildtools/backend.py  # compile proto files
       - name: Run Unit tests
         run: pytest --cov-report term-missing --cov-report=xml --cov=src tests
