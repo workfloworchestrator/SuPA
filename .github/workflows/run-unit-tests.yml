@@ -19,7 +19,7 @@ jobs:
         run: |
           apt update
           apt install --no-install-recommends --yes bash curl git gpg  # needed by codecov below
-          PIP_ROOT_USER_ACTION=ignore
+          export PIP_ROOT_USER_ACTION=ignore
           pip install --no-cache-dir uv
           uv sync --link-mode=copy --extra dev  # editable install so coverage can be generated
       - name: Run Unit tests
