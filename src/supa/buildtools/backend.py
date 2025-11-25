@@ -119,6 +119,16 @@ def build_sdist(
     return _build_meta.build_sdist(sdist_directory, config_settings)
 
 
+def build_editable(
+    wheel_directory: str | PathLike[str],
+    config_settings: Mapping[str, str | list[str] | None] | None = None,
+    metadata_directory: str | PathLike[str] | None = None,
+) -> str:
+    """Overload build_editable from setuptools to prepend compile protos step."""
+    _compile_protos()
+    return _build_meta.build_editable(wheel_directory, config_settings, metadata_directory)
+
+
 if __name__ == "__main__":
     _compile_protos()
     sys.exit(0)
