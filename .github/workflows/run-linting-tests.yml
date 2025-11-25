@@ -26,17 +26,16 @@ jobs:
         run: |
           pip install uv
           uv sync --extra dev
-          #python src/supa/buildtools/backend.py  # compile proto files
       - name: Check formatting
         run: |
-          isort -c src/supa tests
-          black --check src/supa tests
+          uv run isort -c src/supa tests
+          uv run black --check src/supa tests
       - name: Lint with flake8
         run: |
           # stop the build if there are Python syntax errors or undefined names
-          flake8 src/supa tests
+          uv run flake8 src/supa tests
       - name: Check with mypy
         run: |
           # do not run mypy on both directories at the same time
-          mypy src/supa
-          mypy tests
+          uv run mypy src/supa
+          uv run mypy tests

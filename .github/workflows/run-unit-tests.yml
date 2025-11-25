@@ -22,7 +22,7 @@ jobs:
           pip install uv
           uv sync --extra dev  # editable install so coverage can be generated
       - name: Run Unit tests
-        run: pytest --cov-report term-missing --cov-report=xml --cov=src tests
+        run: uv run pytest --cov-report term-missing --cov-report=xml --cov=src tests
       - name: "Upload coverage to Codecov"
         uses: codecov/codecov-action@v5
         with:
