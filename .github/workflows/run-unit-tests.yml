@@ -1,5 +1,7 @@
 name: Unit tests
-on: push
+on:
+  push:
+  workflow_dispatch:
 
 jobs:
   container_job:
@@ -12,18 +14,18 @@ jobs:
     steps:
       # Downloads a copy of the code in your repository before running CI tests
       - name: Check out repository code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Install dependencies
         run: |
           apt update
-          apt install -y curl git
+          apt install -y bash curl git gpg  # needed by codecov below
           python -m pip install --upgrade pip
-          pip install '.[dev]'
+          pip install -e '.[dev]'  # editable install so coverage can be generated
           python src/supa/buildtools/backend.py  # compile proto files
       - name: Run Unit tests
         run: pytest --cov-report term-missing --cov-report=xml --cov=src tests
       - name: "Upload coverage to Codecov"
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
           fail_ci_if_error: true
           files: ./coverage.xml
