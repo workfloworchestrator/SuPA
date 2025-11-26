@@ -4,6 +4,7 @@ on:
   push:
     branches-ignore:
       - 'dependabot/**'
+      - 'renovate-**'
     tags:
       - '**'
   workflow_dispatch:
