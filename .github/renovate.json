@@ -14,7 +14,7 @@
     }
   ],
   "lockFileMaintenance": {
-    "enabled": true
+    "enabled": false
   },
   "ignorePaths": [
     "Dockerfile"
