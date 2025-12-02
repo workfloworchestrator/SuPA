@@ -183,7 +183,7 @@ nsmap = {
 class TopologyEndpoint(object):
     """A cherryPy application to generate a NSI topology document."""
 
-    @cherrypy.expose  # type: ignore[misc]
+    @cherrypy.expose  # type: ignore[untyped-decorator]
     def index(self) -> Union[str, bytes]:
         """Index returns the generated NSI topology document."""
         refresh_topology()
