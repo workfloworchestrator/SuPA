@@ -37,45 +37,14 @@ you will get an informative error.
 But just to be on the safe side,
 always import anything from this module locally!
 """
-import sqlite3
-from contextlib import closing, contextmanager
+from contextlib import contextmanager
 from typing import Any, Iterator
 
 import structlog
-from sqlalchemy import event, orm
-from sqlalchemy.engine import Engine
+from sqlalchemy import orm
 from sqlalchemy.orm import scoped_session
-from sqlalchemy.pool import _ConnectionRecord
-
-from supa import settings
 
 logger = structlog.get_logger(__name__)
-
-
-@event.listens_for(Engine, "connect")
-def set_sqlite_pragma(dbapi_connection: sqlite3.Connection, connection_record: _ConnectionRecord) -> None:
-    """Configure certain SQLite settings.
-
-    These settings,
-    issued as SQLite `pragmas <https://sqlite.org/pragma.html>`_,
-    need to be configured on each connection.
-    Hence the usage of SQLAlchemy's engine's connect event.
-    """
-    with closing(dbapi_connection.cursor()) as cursor:
-        # https://sqlite.org/pragma.html#pragma_foreign_keys
-        foreign_keys = "ON"
-        log = logger.bind(foreign_keys=foreign_keys)
-        cursor.execute(f"PRAGMA foreign_keys={foreign_keys}")
-
-        # https://sqlite.org/pragma.html#pragma_auto_vacuum
-        auto_vacuum = "INCREMENTAL"
-        log = log.bind(auto_vacuum=auto_vacuum)
-        cursor.execute(f"PRAGMA auto_vacuum={auto_vacuum}")
-
-        # https://sqlite.org/pragma.html#pragma_journal_mode
-        log = log.bind(journal_mode=settings.database_journal_mode.value)
-        cursor.execute(f"PRAGMA journal_mode={settings.database_journal_mode.value}")
-        log.debug("Set default options for SQLite database.")
 
 
 class UnconfiguredSession(scoped_session):

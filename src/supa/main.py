@@ -53,6 +53,7 @@ class CommonOptionsState:
     """Class to capture common options shared between Click callables/sub commands."""
 
     database_file: Optional[Path] = None
+    database_uri: Optional[str] = None
     log_level: Optional[str] = None
 
 
@@ -134,9 +135,31 @@ def log_level_option(f):  # type: ignore
     )(f)
 
 
+def database_uri_option(f):  # type: ignore
+    """Define common option for specifying database URI."""
+
+    def callback(ctx: Context, param: Option, value: Optional[str]) -> Optional[str]:
+        """Update the Settings instance when the database-uri option is used."""
+        cos: CommonOptionsState = ctx.ensure_object(CommonOptionsState)
+        if value is not None:
+            cos.database_uri = value
+            settings.database_uri = cos.database_uri
+        return value
+
+    return click.option(
+        "--database-uri",
+        type=str,
+        expose_value=False,  # Don't add to sub command arg list. We have `@pass_common_options_state` for that.
+        help="database URI",
+        callback=callback,
+        default=settings.database_uri,
+    )(f)
+
+
 def common_options(f):  # type: ignore
     """Provide the means to declare common options to Click callables/sub command."""
     f = database_file_option(f)
+    f = database_uri_option(f)
     f = log_level_option(f)
     return f
 

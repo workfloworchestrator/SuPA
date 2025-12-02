@@ -229,17 +229,21 @@ class Reservation(Base):
 
     # internal state keeping
     reservation_state = mapped_column(
-        Enum(*[s.value for s in ReservationStateMachine.states]),
+        Enum(*[s.value for s in ReservationStateMachine.states], name="RESERVATION_STATE"),
         nullable=False,
         default=ReservationStateMachine.ReserveStart.value,  # type: ignore[has-type]
     )
-    provision_state = mapped_column(Enum(*[s.value for s in ProvisionStateMachine.states]))
+    provision_state = mapped_column(
+        Enum(*[s.value for s in ProvisionStateMachine.states], name="PROVISION_STATE"),
+    )
     lifecycle_state = mapped_column(
-        Enum(*[s.value for s in LifecycleStateMachine.states]),
+        Enum(*[s.value for s in LifecycleStateMachine.states], name="LIFECYCLE_STATE"),
         nullable=False,
         default=LifecycleStateMachine.Created.value,  # type: ignore[has-type]
     )
-    data_plane_state = mapped_column(Enum(*[s.value for s in DataPlaneStateMachine.states]))
+    data_plane_state = mapped_column(
+        Enum(*[s.value for s in DataPlaneStateMachine.states], name="DATA_PLAN_STATE"),
+    )
     # need this because the reservation state machine is missing a state
     reservation_timeout: Mapped[bool] = mapped_column(default=False)
 
@@ -355,7 +359,11 @@ class P2PCriteria(Base):
 
     # p2p criteria
     bandwidth: Mapped[int] = mapped_column(comment="Mbps")
-    directionality = mapped_column(Enum("BI_DIRECTIONAL", "UNI_DIRECTIONAL"), nullable=False, default="BI_DIRECTIONAL")
+    directionality = mapped_column(
+        Enum("BI_DIRECTIONAL", "UNI_DIRECTIONAL", name="DIRECTIONALITY"),
+        nullable=False,
+        default="BI_DIRECTIONAL",
+    )
     symmetric: Mapped[bool]
 
     src_domain: Mapped[str]
@@ -608,7 +616,10 @@ class Request(Base):
     correlation_id: Mapped[uuid.UUID] = mapped_column(comment="urn:uid", primary_key=True)
     timestamp: Mapped[datetime] = mapped_column(default=current_timestamp)
     connection_id: Mapped[Optional[uuid.UUID]]
-    request_type = mapped_column(Enum(*[r_type.value for r_type in RequestType]), nullable=False)
+    request_type = mapped_column(
+        Enum(*[r_type.value for r_type in RequestType], name="REQUEST_TYPE"),
+        nullable=False,
+    )
     request_data: Mapped[bytes]
 
 
@@ -627,7 +638,10 @@ class Notification(Base):
     )
     timestamp: Mapped[datetime] = mapped_column(default=current_timestamp)
     notification_id: Mapped[int] = mapped_column(primary_key=True)
-    notification_type = mapped_column(Enum(*[n_type.value for n_type in NotificationType]), nullable=False)
+    notification_type = mapped_column(
+        Enum(*[n_type.value for n_type in NotificationType], name="NOTIFICATION_TYPE"),
+        nullable=False,
+    )
     notification_data: Mapped[bytes]
 
     reservation = relationship(
@@ -654,7 +668,10 @@ class Result(Base):
     timestamp: Mapped[datetime] = mapped_column(default=current_timestamp)
     correlation_id: Mapped[uuid.UUID] = mapped_column(comment="urn:uid", unique=True)
     result_id: Mapped[int] = mapped_column(primary_key=True)
-    result_type = mapped_column(Enum(*[r_type.value for r_type in ResultType]), nullable=False)
+    result_type = mapped_column(
+        Enum(*[r_type.value for r_type in ResultType], name="RESULT_TYPE"),
+        nullable=False,
+    )
     result_data: Mapped[bytes]
 
     reservation = relationship(
