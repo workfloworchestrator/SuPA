@@ -106,7 +106,7 @@ def database_file_option(f):  # type: ignore
         "--database-file",
         type=click.Path(readable=False),
         expose_value=False,  # Don't add to sub command arg list. We have `@pass_common_options_state` for that.
-        help="Location of the SQLlite database file",
+        help="Location of the SQLlite database file (deprecated)",
         callback=callback,
     )(f)
 
@@ -150,7 +150,7 @@ def database_uri_option(f):  # type: ignore
         "--database-uri",
         type=str,
         expose_value=False,  # Don't add to sub command arg list. We have `@pass_common_options_state` for that.
-        help="database URI",
+        help="database URI, supports sqlite and postgresql",
         callback=callback,
         default=settings.database_uri,
     )(f)
