@@ -64,6 +64,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import (
     CheckConstraint,
+    DateTime,
     Enum,
     ForeignKey,
     ForeignKeyConstraint,
@@ -165,13 +166,14 @@ class UtcTimestamp(TypeDecorator):
     **UTC is always implied.**
     """
 
-    impl = sqlite.DATETIME(truncate_microseconds=False)
+    impl = DateTime(timezone=True)
 
-    cache_ok = True
+    cache_ok = False
 
     def process_bind_param(self, value: Optional[datetime], dialect: Dialect) -> Optional[datetime]:  # noqa: D102
         if value is not None:
             if value.tzinfo is None:
+                # value = value.astimezone()
                 raise UtcTimestampException(f"Expected timestamp with tzinfo. Got naive timestamp {value!r} instead")
             return value.astimezone(timezone.utc)
         return value

@@ -35,6 +35,7 @@ def thread_pool_executor() -> futures.ThreadPoolExecutor:
 def init(tmp_path_factory: pytest.TempPathFactory, thread_pool_executor: futures.ThreadPoolExecutor) -> Generator:
     """Initialize application and start the connection provider gRPC server."""
     settings.database_file = tmp_path_factory.mktemp("supa") / "supa.db"
+    # settings.database_uri = "postgresql://supa:supa@localhost:5432/pytest"
     init_app()
     server = grpc.server(thread_pool_executor)
 
