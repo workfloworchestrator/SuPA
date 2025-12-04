@@ -105,7 +105,8 @@ The following global options are available:
 
   --log-level TEXT                Log level (DEBUG, INFO, WARNING, ERROR,
                                   CRITICAL)  [default: INFO]
-  --database-file PATH            Location of the SQLlite database file
+  --database-file PATH            Location of the SQLlite database file (deprecated)
+  --database-uri URI              database URI, support for `postgresql` and `sqlite` scheme
 
 Subcommand serve
 ................

@@ -94,7 +94,7 @@ class VlanRanges(abc.Set):
                 elif isinstance(val[0], abc.Sequence):
                     vlans = cast(Sequence[Sequence[int]], val)
         elif isinstance(val, abc.Iterable):
-            vlans = [[x] for x in val]  # type: ignore
+            vlans = [[x] for x in val]
         else:
             raise ValueError(f"{val} could not be converted to a {self.__class__.__name__} object.")
 

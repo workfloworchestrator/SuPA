@@ -38,8 +38,9 @@ dependencies = [
   "paramiko >=3.0",
   "pytz ~= 2025.0",
   "grpcio-tools>=1.76.0",
+  "psycopg2-binary>=2.9.11",
 ]
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.14"
 authors = [
     {name = "Guido Kollerie", email = "guido@kollerie.com"},
     {name = "Hans Trompert", email = "hans.trompert@surf.nl"},
@@ -81,16 +82,16 @@ dev = [
     "bandit",
     "black",
     "flake8",
-    "flake8-bandit",  # security checks
-    "flake8-bugbear",  # assorted opinionated checks
-    "flake8-builtins",  # check for name collision with builtins
+    "flake8-bandit", # security checks
+    "flake8-bugbear", # assorted opinionated checks
+    "flake8-builtins", # check for name collision with builtins
     "flake8-comprehensions",
     "flake8-docstrings",
     "flake8-implicit-str-concat",
     "flake8-print",
-    "flake8-rst",  # Allows run flake8 on code snippets in docstrings or rst files
+    "flake8-rst", # Allows run flake8 on code snippets in docstrings or rst files
     "flake8-string-format",
-    "grpcio-tools == 1.76.0",  # version number should match that of `grpcio-tools` in `build-system` above
+    "grpcio-tools == 1.76.0", # version number should match that of `grpcio-tools` in `build-system` above
     "grpc-stubs >= 1.53.0",
     "pytest-grpc",
     "isort",

@@ -55,6 +55,7 @@ from supa.db.model import (
     Topology,
     connection_to_dict,
 )
+from supa.db.utils import group_concat
 from supa.grpc_nsi.connection_requester_pb2 import ReserveConfirmedRequest, ReserveTimeoutRequest
 from supa.job.dataplane import AutoEndJob, AutoStartJob
 from supa.job.shared import Job, NsiException, register_notification, register_result
@@ -226,7 +227,7 @@ class ReserveJob(Job):
             session.query(
                 stps.c.stp,
                 func.sum(P2PCriteria.bandwidth).label("bandwidth"),
-                func.group_concat(stps.c.vlan, ",").label("vlans"),  # yes, plural!
+                group_concat(stps.c.vlan, ",").label("vlans"),  # yes, plural!
             )
             .select_from(OverlappingActiveReservation)
             .join(

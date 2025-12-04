@@ -35,7 +35,7 @@ def _check_topology() -> bool:
 class HealthcheckEndpoint(object):
     """A cherryPy application to generate a healthcheck document."""
 
-    @cherrypy.expose  # type: ignore[misc]
+    @cherrypy.expose  # type: ignore[untyped-decorator]
     def index(self) -> Union[str, bytes]:
         """Index returns the generated healthcheck document."""
         document = Document("SuPA healthcheck")

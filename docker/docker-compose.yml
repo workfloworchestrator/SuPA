@@ -1,12 +1,9 @@
----
-version: "3.9"
-
 services:
   #
   # SuPA
   #
   supa:
-    image: "ghcr.io/workfloworchestrator/supa:latest"
+    image: ghcr.io/workfloworchestrator/supa:latest
     configs:
       - source: supa.env
         target: /usr/local/etc/supa/supa.env
@@ -23,8 +20,7 @@ services:
   # PolyNSI
   #
   polynsi:
-    #image: "ghcr.io/workfloworchestrator/polynsi:latest"
-    image: polynsi:test
+    image: ghcr.io/workfloworchestrator/polynsi:latest
     ports:
       - "8443:8443"
     configs:
@@ -34,6 +30,8 @@ services:
         target: /usr/local/polynsi/polynsi-keystore.jks
       - source: polynsi-truststore.jks
         target: /usr/local/polynsi/polynsi-truststore.jks
+    volumes:
+      - ./tmp:/tmp:rw
   #
   # create SuPA database folder
   #

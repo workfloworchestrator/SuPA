@@ -41,6 +41,7 @@ from enum import Enum
 from importlib import import_module
 from pathlib import Path
 from typing import Union
+from urllib.parse import urlparse
 
 import pytz
 import structlog
@@ -52,6 +53,7 @@ from apscheduler.schedulers.base import BaseScheduler
 from apscheduler.util import undefined
 from pydantic_settings import BaseSettings
 from sqlalchemy import create_engine
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import scoped_session, sessionmaker
 
 from supa.db.model import Base
@@ -186,7 +188,8 @@ class Settings(BaseSettings):
     scheduler_max_workers: int = grpc_server_max_workers + 4
 
     database_journal_mode: JournalMode = JournalMode.WAL
-    database_file: Path = Path("supa.db")
+    database_file: Path | None = None  # deprecated
+    database_uri: str = "sqlite:///supa.db"
 
     topology_freshness: int = 60
     log_level: str = ""
@@ -455,20 +458,39 @@ def init_app(with_scheduler: bool = True) -> None:
     random.seed()
 
     # Initialize the database
-    database_file = resolve_database_file(settings.database_file)
-    if not database_file.exists():
-        logger.warn(
-            "`database_file` did not exist. Created new SQLite DB file. Is this really what you wanted?",
-            database_file=database_file,
-        )
-    engine = create_engine(f"sqlite:///{database_file}", echo=settings.sql_echo_enable)
+    if (parse_result := urlparse(settings.database_uri)).scheme not in ("sqlite", "postgresql"):
+        logger.error("Database engine not supported.", engine=parse_result.scheme)
+        exit(1)
+    if settings.database_file or parse_result.scheme == "sqlite":
+        if settings.database_file:
+            logger.warning("setting `database_file` is deprecated, please use `database_uri` instead")
+            database_file = resolve_database_file(settings.database_file)
+        else:
+            database_file = resolve_database_file(parse_result.path[1:])
+        if not database_file.exists():
+            logger.warn(
+                "`database_file` did not exist. Creating new SQLite DB file. Is this really what you wanted?",
+                database_file=database_file,
+            )
+        import supa.db.sqlite  # noqa: F401  # install sqlite connect listener
+
+        database_uri = f"sqlite:///{database_file}"
+    else:
+        database_uri = settings.database_uri
 
     import supa.db.session
 
-    Base.metadata.create_all(engine)
-    session_factory = sessionmaker(bind=engine)
+    logger.info("Create database connection", database_uri=database_uri)
+    try:
+        engine = create_engine(database_uri, echo=settings.sql_echo_enable)
+        Base.metadata.create_all(engine)
+    except OperationalError as e:
+        logger.error("Failed to create database connection", reason=e)
+        exit(1)
+    session_factory = sessionmaker(bind=engine, autocommit=False, autoflush=False)
     supa.db.session.Session = scoped_session(session_factory)  # type: ignore[assignment]
 
+    # Initialize backend
     import supa.nrm.backend
 
     if settings.backend:
@@ -489,6 +511,7 @@ def init_app(with_scheduler: bool = True) -> None:
             supa.nrm.backend.backend.log = supa.nrm.backend.backend.log.bind(backend=settings.backend)
             logger.info("successfully loaded NRM backend", backend=settings.backend)
 
+    # Initialize scheduler
     if with_scheduler:
         # Initialize and start the scheduler
         jobstores = {"default": MemoryJobStore()}

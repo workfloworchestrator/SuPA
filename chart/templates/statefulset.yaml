@@ -72,7 +72,7 @@ spec:
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           volumeMounts:
-          {{- if .Values.persistence.enabled }}
+          {{- if ne ( toString .Values.persistence.enabled ) "false" }}
             - name: data
               mountPath: {{ .Values.persistence.mountPath }}
               subPath: {{ .Values.persistence.subPath }}
@@ -111,7 +111,7 @@ spec:
             nodePublishSecretRef:
               name: {{ .Values.secretProviderClass.nodePublishSecretRefNname }}
         {{- end }}
-{{- if .Values.persistence.enabled }}
+{{- if ne ( toString .Values.persistence.enabled ) "false" }}
   volumeClaimTemplates:
     - metadata:
         name: data
