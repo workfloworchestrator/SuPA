@@ -1,10 +1,12 @@
 # Contributed by Andrew Lytvynov (CANARIE Inc.), 2025
 import logging
+from typing import Any, Generator, Optional
 from uuid import UUID, uuid4
 
 import xmltodict
 from ncclient import manager
 from pydantic_settings import BaseSettings
+
 from supa.connection.error import GenericRmError
 from supa.job.shared import NsiException
 from supa.nrm.backend import STP, BaseBackend
@@ -117,7 +119,7 @@ class Ciena8190:
         name: str,
         vlan: int,
         operation: str = "merge",
-    ) -> bool:
+    ) -> str:
         """Create a classifier on the device
 
         Attributes:
@@ -126,9 +128,7 @@ class Ciena8190:
             operation: The NETCONF operation to perform, default is 'merge'
         """
         return Ciena8190.CONFIG.format(
-            config=Ciena8190.CREATE_CLASSIFIER.format(
-                name=name, vlan=vlan, operation=operation
-            )
+            config=Ciena8190.CREATE_CLASSIFIER.format(name=name, vlan=vlan, operation=operation)
         )
 
     @staticmethod
@@ -136,7 +136,7 @@ class Ciena8190:
         name: str,
         description: str = "",
         operation: str = "merge",
-    ) -> bool:
+    ) -> str:
         """Create a forwarding domain on the device
 
         Attributes:
@@ -145,9 +145,7 @@ class Ciena8190:
             operation: The NETCONF operation to perform, default is 'merge'
         """
         return Ciena8190.CONFIG.format(
-            config=Ciena8190.CREATE_FORWADING_DOMAIN.format(
-                name=name, description=description, operation=operation
-            )
+            config=Ciena8190.CREATE_FORWADING_DOMAIN.format(name=name, description=description, operation=operation)
         )
 
     @staticmethod
@@ -158,7 +156,7 @@ class Ciena8190:
         classifier: str,
         description: str = "",
         operation: str = "merge",
-    ) -> bool:
+    ) -> str:
         """Create a flow point on the device
 
         Attributes:
@@ -183,59 +181,51 @@ class Ciena8190:
     @staticmethod
     def delete_classifier(
         name: str,
-    ) -> bool:
+    ) -> str:
         """Delete a classifier on the device
 
         Attributes:
             name: The name of the classifier
         """
-        return Ciena8190.CONFIG.format(
-            config=Ciena8190.DELETE_CLASSIFIER.format(name=name)
-        )
+        return Ciena8190.CONFIG.format(config=Ciena8190.DELETE_CLASSIFIER.format(name=name))
 
     @staticmethod
     def delete_forwarding_domain(
         name: str,
-    ) -> bool:
+    ) -> str:
         """Delete a forwarding domain on the device
 
         Attributes:
             name: The name of the forwarding domain
         """
-        return Ciena8190.CONFIG.format(
-            config=Ciena8190.DELETE_FORWADING_DOMAIN.format(name=name)
-        )
+        return Ciena8190.CONFIG.format(config=Ciena8190.DELETE_FORWADING_DOMAIN.format(name=name))
 
     @staticmethod
     def delete_flow_point(
         name: str,
-    ) -> bool:
+    ) -> str:
         """Delete a flow point on the device
 
         Attributes:
             name: The name of the flow point
         """
-        return Ciena8190.CONFIG.format(
-            config=Ciena8190.DELETE_FLOW_POINT.format(name=name)
-        )
+        return Ciena8190.CONFIG.format(config=Ciena8190.DELETE_FLOW_POINT.format(name=name))
 
     @staticmethod
     def disable_flow_point(
         name: str,
-    ) -> bool:
+    ) -> str:
         """Disable a flow point on the device
 
         Attributes:
             name: The name of the flow point
         """
-        return Ciena8190.CONFIG.format(
-            config=Ciena8190.DISABLE_FLOW_POINT.format(name=name)
-        )
+        return Ciena8190.CONFIG.format(config=Ciena8190.DISABLE_FLOW_POINT.format(name=name))
 
 
 class Backend(BaseBackend):
 
-    def _iter(self, element: list | dict) -> dict:
+    def _iter(self, element: list | dict) -> Generator:
         """Iterate over a list or a single element.
 
         Based on how xmltodict parses XML, YANG containers may be represented
@@ -250,9 +240,9 @@ class Backend(BaseBackend):
             dict: A single element of the container.
 
         Doctest:
-            >>> list(_iter([1, 2, 3]))
+            >>> list(Backend._iter([1, 2, 3]))
             [1, 2, 3]
-            >>> list(_iter(1))
+            >>> list(Backend._iter(1))
             [1]
         """
         if isinstance(element, list):
@@ -261,17 +251,15 @@ class Backend(BaseBackend):
         else:
             yield element
 
-    def __init__(self):
+    def __init__(self) -> None:
         super(Backend, self).__init__()
-        self._settings = BackendSettings(
-            _env_file=(env_file := find_file("ciena8190.env"))
-        )
+        self._settings = BackendSettings(_env_file=(env_file := find_file("ciena8190.env")))  # type: ignore[call-arg]
         self.log.info("Read backend properties", path=str(env_file))
         self._manager = None
-        self._capabilities = None
-        self._is_candidate_flag = None
+        self._capabilities: list[str] = []
+        self._is_candidate_flag: Optional[bool] = None
 
-    def _get_ports(self):
+    def _get_ports(self) -> dict:
         """Get a mapping of ports to STP IDs and VLAN ranges
 
         Return Example:
@@ -285,15 +273,13 @@ class Backend(BaseBackend):
             }
         """
         if not hasattr(self, "_ports"):
-            self._ports = {}
+            self._ports: dict[str, dict[tuple[int, int], str]] = {}
             for stp in self.topology():
                 if stp.port_id not in self._ports:
                     self._ports[stp.port_id] = {}
                 for vlans in stp.vlans.split(","):
                     (start_vlan, end_vlan) = (
-                        (int(vlans), int(vlans))
-                        if "-" not in vlans
-                        else tuple(map(int, vlans.split("-")))
+                        (int(vlans), int(vlans)) if "-" not in vlans else tuple(map(int, vlans.split("-")))
                     )
                     self._ports[stp.port_id][(start_vlan, end_vlan)] = stp.stp_id
         return self._ports
@@ -302,26 +288,24 @@ class Backend(BaseBackend):
         self,
         port_id: str,
         vlan: int,
-    ) -> str:
+    ) -> Any:
         """Get the STP ID for a given port and VLAN
 
         Example:
-            >>> _get_stp_id(port_id='et-0/0/19', vlan=1100)
+            >>> Backend._get_stp_id(port_id='et-0/0/19', vlan=1100)
             'AMST1'
         """
         ports = self._get_ports()
         if port_id not in self._get_ports():
-            raise NsiException(GenericRmError, "Port not found", port_id=port_id)
+            raise NsiException(GenericRmError, "Port {port} not found".format(port=port_id))
         for (start_vlan, end_vlan), stp_id in ports[port_id].items():
             if start_vlan <= vlan <= end_vlan:
                 return stp_id
-        raise NsiException(
-            GenericRmError, "VLAN not found on the port", port_id=port_id, vlan=vlan
-        )
+        raise NsiException(GenericRmError, "VLAN {vlan} not found on the port {port}".format(port=port_id, vlan=vlan))
 
     def _get_manager(self) -> manager.Manager:
         """Return an active NETCONF manager session"""
-        if not self._manager or not self._manager.connected:
+        if not self._manager:
             try:
                 self._manager = manager.connect(
                     host=self._settings.host,
@@ -348,7 +332,7 @@ class Backend(BaseBackend):
             )
         return self._manager
 
-    def _get_capabilities(self) -> list:
+    def _get_capabilities(self) -> list[Any]:
         """Get the device capabilities"""
         if not self._capabilities:
             self._capabilities = self._get_manager().server_capabilities
@@ -380,9 +364,7 @@ class Backend(BaseBackend):
         except Exception as e:
             self.log.warning("Failed to create source classifier", reason=str(e))
             self._discard()
-            raise NsiException(
-                GenericRmError, "Failed to create source classifier"
-            ) from e
+            raise NsiException(GenericRmError, "Failed to create source classifier") from e
         self.log.info("Source classifier created successfully", name=name, vlan=vlan)
 
     def _create_forwarding_domain(
@@ -395,16 +377,12 @@ class Backend(BaseBackend):
         try:
             self._get_manager().edit_config(
                 target=self._get_target(),
-                config=Ciena8190.create_forwarding_domain(
-                    name=name, description=description
-                ),
+                config=Ciena8190.create_forwarding_domain(name=name, description=description),
             )
         except Exception as e:
             self.log.warning("Failed to create forwarding domain", reason=str(e))
             self._discard()
-            raise NsiException(
-                GenericRmError, "Failed to create forwarding domain"
-            ) from e
+            raise NsiException(GenericRmError, "Failed to create forwarding domain") from e
         self.log.info("Forwarding domain created successfully", name=name)
 
     def _create_flow_point(
@@ -416,9 +394,7 @@ class Backend(BaseBackend):
         description: str = "",
     ) -> None:
         """Create a flow point on the device"""
-        self.log.info(
-            "Creating flow point", name=name, fd=fd, port=port, classifier=classifier
-        )
+        self.log.info("Creating flow point", name=name, fd=fd, port=port, classifier=classifier)
         try:
             self._get_manager().edit_config(
                 target=self._get_target(),
@@ -450,9 +426,7 @@ class Backend(BaseBackend):
         except Exception as e:
             self.log.warning("Failed to validate the configuration", reason=str(e))
             self._discard()
-            raise NsiException(
-                GenericRmError, "Failed to validate the configuration"
-            ) from e
+            raise NsiException(GenericRmError, "Failed to validate the configuration") from e
         self.log.info("Configuration validated successfully")
 
     def _discard(self) -> None:
@@ -463,9 +437,7 @@ class Backend(BaseBackend):
                 self._get_manager().discard_changes()
             except Exception as e:
                 self.log.warning("Failed to discard the configuration", reason=str(e))
-                raise NsiException(
-                    GenericRmError, "Failed to discard the configuration"
-                ) from e
+                raise NsiException(GenericRmError, "Failed to discard the configuration") from e
             self.log.info("Configuration discarded successfully")
 
     def _commit(self) -> None:
@@ -477,9 +449,7 @@ class Backend(BaseBackend):
             except Exception as e:
                 self.log.warning("Failed to commit the configuration", reason=str(e))
                 self._discard()
-                raise NsiException(
-                    GenericRmError, "Failed to commit the configuration"
-                ) from e
+                raise NsiException(GenericRmError, "Failed to commit the configuration") from e
             self.log.info("Configuration committed successfully")
 
     def _parse_classifiers(self) -> dict:
@@ -497,20 +467,17 @@ class Backend(BaseBackend):
             config = xmltodict.parse(response.data_xml)
 
             classifiers = {}
-            _classifiers = self._iter(
-                config.get("data", {}).get("classifiers", {}).get("classifier", [])
-            )
+            _classifiers = self._iter(config.get("data", {}).get("classifiers", {}).get("classifier", []))
             for classifier in _classifiers:
                 name = classifier["name"]
-                vlan = int(
-                    classifier.get("filter-entry", {})
-                    .get("vtags", {})
-                    .get("vlan-id", None)
-                )
-                classifiers[name] = {
-                    "name": name,
-                    "vlan": vlan,
-                }
+                try:
+                    vlan = int(classifier.get("filter-entry", {}).get("vtags", {}).get("vlan-id", None))
+                    classifiers[name] = {
+                        "name": name,
+                        "vlan": vlan,
+                    }
+                except Exception:
+                    self.log.warning("Skipping classifier {name} due to missing VLAN".format(name=name))
         except Exception as e:
             self.log.warning("Failed to parse classifiers", reason=str(e))
             raise NsiException(GenericRmError, "Failed to parse classifiers") from e
@@ -527,9 +494,7 @@ class Backend(BaseBackend):
         """
         self.log.info("Parsing forwarding domains")
         try:
-            response = self._get_manager().get(
-                ("subtree", Ciena8190.GET_FORWARDING_DOMAINS)
-            )
+            response = self._get_manager().get(("subtree", Ciena8190.GET_FORWARDING_DOMAINS))
             config = xmltodict.parse(response.data_xml)
 
             fds = {}
@@ -541,9 +506,7 @@ class Backend(BaseBackend):
                 }
         except Exception as e:
             self.log.warning("Failed to parse forwarding domains", reason=str(e))
-            raise NsiException(
-                GenericRmError, "Failed to parse forwarding domains"
-            ) from e
+            raise NsiException(GenericRmError, "Failed to parse forwarding domains") from e
         self.log.info("Forwarding domains parsed successfully", count=len(fds))
         return fds
 
@@ -569,9 +532,7 @@ class Backend(BaseBackend):
             _fps = self._iter(config.get("data", {}).get("fps", {}).get("fp", []))
             for fp in _fps:
                 name = fp["name"]
-                admin_state = (
-                    True if fp.get("admin-state", "enabled") == "enabled" else False
-                )
+                admin_state = True if fp.get("admin-state", "enabled") == "enabled" else False
                 port = fp["logical-port"]
                 fd = fp["fd-name"]
                 classifiers = list(self._iter(fp.get("classifier-list", [])))
@@ -592,9 +553,7 @@ class Backend(BaseBackend):
         """Delete a classifier on the device"""
         self.log.info("Deleting classifier", name=name)
         try:
-            self._get_manager().edit_config(
-                target=self._get_target(), config=Ciena8190.delete_classifier(name=name)
-            )
+            self._get_manager().edit_config(target=self._get_target(), config=Ciena8190.delete_classifier(name=name))
         except Exception as e:
             self.log.warning("Failed to delete classifier", reason=str(e))
             self._discard()
@@ -612,18 +571,14 @@ class Backend(BaseBackend):
         except Exception as e:
             self.log.warning("Failed to delete forwarding domain", reason=str(e))
             self._discard()
-            raise NsiException(
-                GenericRmError, "Failed to delete forwarding domain"
-            ) from e
+            raise NsiException(GenericRmError, "Failed to delete forwarding domain") from e
         self.log.info("Forwarding domain deleted successfully", name=name)
 
     def _delete_flow_point(self, name: str) -> None:
         """Delete a flow point on the device"""
         self.log.info("Deleting flow point", name=name)
         try:
-            self._get_manager().edit_config(
-                target=self._get_target(), config=Ciena8190.delete_flow_point(name=name)
-            )
+            self._get_manager().edit_config(target=self._get_target(), config=Ciena8190.delete_flow_point(name=name))
         except Exception as e:
             self.log.warning("Failed to delete flow point", reason=str(e))
             self._discard()
@@ -669,28 +624,21 @@ class Backend(BaseBackend):
             if any([len(v["classifiers"]) != 1 for _, v in fps.items()]):
                 raise NsiException(
                     GenericRmError,
-                    "Multiple classifiers configured on the single flow point",
-                    flow_points=fps,
+                    "Multiple classifiers configured on the single flow point: {fp}".format(
+                        fp=next(fd for fd, v in fps.items() if len(v["classifiers"]) != 1)
+                    ),
                 )
 
             fds = {
                 fd_name: {
                     **fd,
-                    "flow_points": {
-                        fp_name: fp
-                        for fp_name, fp in fps.items()
-                        if fp["fd"] == fd_name
-                    },
+                    "flow_points": {fp_name: fp for fp_name, fp in fps.items() if fp["fd"] == fd_name},
                 }
                 for fd_name, fd in self._parse_forwarding_domains().items()
             }
 
             # Filter out only forwarding domains that have two flow points
-            fds = {
-                fd_name: fd
-                for fd_name, fd in fds.items()
-                if len(fd["flow_points"]) == 2
-            }
+            fds = {fd_name: fd for fd_name, fd in fds.items() if len(fd["flow_points"]) == 2}
 
             # NOTE: There is option to filter classifiers, flow points and
             # forwarding domains based on their name.
@@ -733,13 +681,7 @@ class Backend(BaseBackend):
                 values = {
                     "fd": fd["name"],
                     "flow_points": set(fd["flow_points"].keys()),
-                    "classifiers": set(
-                        [
-                            e
-                            for fp in fd["flow_points"].values()
-                            for e in fp["classifiers"]
-                        ]
-                    ),
+                    "classifiers": set([e for fp in fd["flow_points"].values() for e in fp["classifiers"]]),
                 }
                 lookup[(port1, vlan1, port2, vlan2)] = values
                 lookup[(port2, vlan2, port1, vlan1)] = values
@@ -776,9 +718,7 @@ class Backend(BaseBackend):
         self._create_classifier(name=dst_classifier, vlan=dst_vlan)
 
         # Create forwarding domain
-        self._create_forwarding_domain(
-            name=forwarding_domain, description=forwarding_domain
-        )
+        self._create_forwarding_domain(name=forwarding_domain, description=forwarding_domain)
 
         # Create flow points
         self._create_flow_point(
@@ -868,11 +808,11 @@ class Backend(BaseBackend):
     def terminate(
         self,
         connection_id: UUID,
+        bandwidth: int,
         src_port_id: str,
         src_vlan: int,
         dst_port_id: str,
         dst_vlan: int,
-        bandwidth: int,
         circuit_id: str,
     ) -> None:
         """Terminate resources"""
@@ -936,7 +876,7 @@ class Backend(BaseBackend):
 if __name__ == "__main__":
     import logging
 
-    def __init__(self):
+    def __init__(self: Any) -> None:
         # Mock BaseBackend
         self.topology = lambda: [
             STP(
@@ -963,41 +903,32 @@ if __name__ == "__main__":
             ),
         ]
         self._str = lambda *args, **kwargs: " ".join(
-            [str(a) for a in args]
-            + list({'%s="%s"' % (k, v) for k, v in kwargs.items()})
+            [str(a) for a in args] + list({'%s="%s"' % (k, v) for k, v in kwargs.items()})
         )
         self.log = type(
             "Object",
             (),
             {
-                "info": lambda *args, **kwargs: logging.info(
-                    self._str(*args, **kwargs)
-                ),
-                "debug": lambda *args, **kwargs: logging.debug(
-                    self._str(*args, **kwargs)
-                ),
-                "warning": lambda *args, **kwargs: logging.warning(
-                    self._str(*args, **kwargs)
-                ),
+                "info": lambda *args, **kwargs: logging.info(self._str(*args, **kwargs)),
+                "debug": lambda *args, **kwargs: logging.debug(self._str(*args, **kwargs)),
+                "warning": lambda *args, **kwargs: logging.warning(self._str(*args, **kwargs)),
             },
         )()
         #
         # Original __init__
-        self._settings = BackendSettings(
-            _env_file=(env_file := find_file("ciena8190.env"))
-        )
+        self._settings = BackendSettings(_env_file=(env_file := find_file("ciena8190.env")))  # type: ignore[call-arg]
         self.log.info("Read backend properties", path=str(env_file))
         self._manager = None
         self._capabilities = None
         self._is_candidate_flag = None
 
-    Backend.__init__ = __init__
+    Backend.__init__ = __init__  # type: ignore[method-assign]
     backend = Backend()
 
     input("Press Enter to continue to activate...")
     backend.activate(
-        connection_id="any",
-        bandwidth="any",
+        connection_id=UUID(int=0),
+        bandwidth=999,
         src_port_id="19",
         src_vlan=1111,
         dst_port_id="13",
@@ -1006,8 +937,8 @@ if __name__ == "__main__":
     )
     input("Press Enter to continue to deactivate...")
     backend.deactivate(
-        connection_id="any",
-        bandwidth="any",
+        connection_id=UUID(int=0),
+        bandwidth=999,
         src_port_id="19",
         src_vlan=1111,
         dst_port_id="13",
@@ -1016,8 +947,8 @@ if __name__ == "__main__":
     )
     input("Press Enter to continue to terminate...")
     backend.terminate(
-        connection_id="any",
-        bandwidth="any",
+        connection_id=UUID(int=0),
+        bandwidth=999,
         src_port_id="19",
         src_vlan=1111,
         dst_port_id="13",
