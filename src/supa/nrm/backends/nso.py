@@ -129,6 +129,25 @@ class Backend(BaseBackend):
         nso_stp = self.nso.post(path="/common:workflow/nsi-circuit:get-nsi-stp", payload=payload)
         self.log.debug("NSO STPs", nso_stp=nso_stp)
 
+        if nso_stp is None:
+            self.log.error(
+                "NSO returned no data for topology request",
+                topology=settings.topology,
+                payload=payload,
+            )
+            raise ValueError(
+                f"NSO returned no data for topology {settings.topology}. "
+                "Check that the topology exists in NSO and the configuration is correct."
+            )
+
+        if "nsi-circuit:output" not in nso_stp or "stp-list" not in nso_stp.get("nsi-circuit:output", {}):
+            self.log.error(
+                "NSO response missing expected structure",
+                nso_stp=nso_stp,
+                topology=settings.topology,
+            )
+            raise ValueError(f"NSO response missing 'nsi-circuit:output' or 'stp-list'. Response: {nso_stp}")
+
         for stp in nso_stp["nsi-circuit:output"]["stp-list"]:
             ports.append(
                 STP(
