@@ -83,8 +83,8 @@ class ProvisionJob(Job):
             )
 
         # update reservation and connection state in the database, schedule jobs if required
-        from supa import scheduler
-
+        auto_start_job: AutoStartJob | None = None
+        activate_job: ActivateJob | None = None
         with db_session() as session:
             reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
             connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
@@ -118,12 +118,7 @@ class ProvisionJob(Job):
                         )
                     else:
                         start_time = reservation.schedule.start_time
-                        self.log.info("Schedule auto start", job="AutoStartJob", start_time=start_time.isoformat())
-                        scheduler.add_job(
-                            auto_start_job := AutoStartJob(self.connection_id),
-                            trigger=DateTrigger(run_date=start_time),
-                            id=auto_start_job.job_id,
-                        )
+                        auto_start_job = AutoStartJob(self.connection_id)
                         confirmed_request = to_generic_confirmed_request(reservation)
                         psm.provision_confirmed()
                 else:
@@ -139,12 +134,7 @@ class ProvisionJob(Job):
                             },
                         )
                     else:
-                        self.log.info("Schedule activate", job="ActivateJob")
-                        scheduler.add_job(
-                            activate_job := ActivateJob(self.connection_id),
-                            trigger=activate_job.trigger(),
-                            id=activate_job.job_id,
-                        )
+                        activate_job = ActivateJob(self.connection_id)
                         confirmed_request = to_generic_confirmed_request(reservation)
                         psm.provision_confirmed()
                 if circuit_id:
@@ -154,12 +144,20 @@ class ProvisionJob(Job):
                 error_request = to_error_request(to_header(reservation), nsi_exception, self.connection_id)
 
         # send result to requester, done outside the database session because communication can throw exception
+        from supa import scheduler
+
         stub = requester.get_stub()
         if nsi_exception:  # provision failed
             self.log.debug("Sending message", method="Error", message=error_request)
             register_result(error_request, ResultType.Error)
             stub.Error(error_request)
-        else:  # provision successful
+        else:  # provision successful, either schedule an activation in the future or activate right now
+            if auto_start_job:
+                self.log.info("Schedule auto start", job="AutoStartJob", start_time=start_time.isoformat())
+                scheduler.add_job(auto_start_job, trigger=DateTrigger(run_date=start_time), id=auto_start_job.job_id)
+            if activate_job:
+                self.log.info("Schedule activate", job="ActivateJob")
+                scheduler.add_job(activate_job, trigger=activate_job.trigger(), id=activate_job.job_id)
             self.log.debug("Sending message", method="ProvisionConfirmed", message=confirmed_request)
             register_result(confirmed_request, ResultType.ProvisionConfirmed)
             stub.ProvisionConfirmed(confirmed_request)
