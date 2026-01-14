@@ -19,6 +19,7 @@ from nso_client import NSOClient, YangData
 from pydantic_settings import BaseSettings
 from sqlalchemy import select
 
+from supa import settings
 from supa.db.model import Connection
 from supa.db.session import db_session
 from supa.nrm.backend import STP, BaseBackend
@@ -65,6 +66,7 @@ class Backend(BaseBackend):
     def _service_create(
         self,
         circuit_id: str,
+        topology: str,
         src_port_id: str,
         src_vlan: int,
         dst_port_id: str,
@@ -77,6 +79,7 @@ class Backend(BaseBackend):
             "nsi-circuit:nsi-circuit": [
                 {
                     "circuit-id": circuit_id,
+                    "topology": topology,
                     "admin-state": "in-service",
                     "src-port-id": {
                         "interface": src_port_id,
@@ -121,8 +124,29 @@ class Backend(BaseBackend):
         self.log.info("Get topology from NSO")
         ports: List[STP] = []
 
-        nso_stp = self.nso.post(path="/common:workflow/nsi-circuit:get-nsi-stp", payload={})
+        payload: YangData = {"input": {"name": settings.topology}}
+
+        nso_stp = self.nso.post(path="/common:workflow/nsi-circuit:get-nsi-stp", payload=payload)
         self.log.debug("NSO STPs", nso_stp=nso_stp)
+
+        if nso_stp is None:
+            self.log.error(
+                "NSO returned no data for topology request",
+                topology=settings.topology,
+                payload=payload,
+            )
+            raise ValueError(
+                f"NSO returned no data for topology {settings.topology}. "
+                "Check that the topology exists in NSO and the configuration is correct."
+            )
+
+        if "nsi-circuit:output" not in nso_stp or "stp-list" not in nso_stp.get("nsi-circuit:output", {}):
+            self.log.error(
+                "NSO response missing expected structure",
+                nso_stp=nso_stp,
+                topology=settings.topology,
+            )
+            raise ValueError(f"NSO response missing 'nsi-circuit:output' or 'stp-list'. Response: {nso_stp}")
 
         for stp in nso_stp["nsi-circuit:output"]["stp-list"]:
             ports.append(
@@ -132,8 +156,8 @@ class Backend(BaseBackend):
                     vlans=stp["vlans"],
                     description=stp["description"],
                     bandwidth=stp["bandwidth"],
-                    is_alias_in=stp["is-alias"],
-                    is_alias_out=stp["is-alias"],
+                    is_alias_in=stp["is-alias-in"],
+                    is_alias_out=stp["is-alias-out"],
                 )
             )
         return ports
@@ -161,8 +185,9 @@ class Backend(BaseBackend):
             circuit_id=circuit_id,
         )
         circuit_id = self._get_next_circuit_id()
+        topology = settings.topology
         self.log.info("Setting circuit_id", circuit_id=circuit_id)
-        self._service_create(circuit_id, src_port_id, src_vlan, dst_port_id, dst_vlan, bandwidth)
+        self._service_create(circuit_id, topology, src_port_id, src_vlan, dst_port_id, dst_vlan, bandwidth)
         return circuit_id
 
     def deactivate(
