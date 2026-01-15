@@ -18,7 +18,7 @@ name = "supa"
 version = "0.4.1.dev1"
 dependencies = [
   "grpcio==1.76.0",
-  "mypy-protobuf==3.7.0",
+  "mypy-protobuf==5.0.0",
   "structlog==25.5.0",
   "colorama==0.4.6",
   "click==8.3.1",
