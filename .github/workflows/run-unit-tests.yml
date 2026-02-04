@@ -24,10 +24,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          # apt update
-          # apt install --no-install-recommends --yes bash curl git gpg  # needed by codecov below
-          # export PIP_ROOT_USER_ACTION=ignore
-          # pip install --no-cache-dir uv
+          apt update
+          apt install --no-install-recommends --yes bash curl git gpg  # needed by codecov below
           uv sync --link-mode=copy --dev  # editable install so coverage can be generated
 
       - name: Run Unit tests
