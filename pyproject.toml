@@ -77,7 +77,7 @@ Repository = "https://github.com/workfloworchestrator/SuPA.git"
 Issues = "https://github.com/workfloworchestrator/SuPA/issues"
 #Changelog = "https://github.com/me/spam/blob/master/CHANGELOG.md"
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
     "bandit",
     "black",
@@ -99,6 +99,7 @@ dev = [
     "protobuf",
     "types-pytz",
     "types-tabulate",
+    "tzdata==2025.3",
     "pip-tools",
     "pre-commit",
     "pytest",

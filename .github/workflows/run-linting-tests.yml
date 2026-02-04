@@ -30,7 +30,7 @@ jobs:
         run: |
           # export PIP_ROOT_USER_ACTION=ignore
           # pip install --no-cache-dir uv
-          uv sync --link-mode=copy --extra dev
+          uv sync --link-mode=copy --dev
 
       - name: Check formatting
         run: |

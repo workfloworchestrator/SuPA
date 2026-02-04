@@ -28,7 +28,7 @@ jobs:
           # apt install --no-install-recommends --yes bash curl git gpg  # needed by codecov below
           # export PIP_ROOT_USER_ACTION=ignore
           # pip install --no-cache-dir uv
-          uv sync --link-mode=copy --extra dev  # editable install so coverage can be generated
+          uv sync --link-mode=copy --dev  # editable install so coverage can be generated
 
       - name: Run Unit tests
         run: uv run pytest --cov-report term-missing --cov-report=xml --cov=src tests
