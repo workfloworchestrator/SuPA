@@ -79,40 +79,40 @@ Issues = "https://github.com/workfloworchestrator/SuPA/issues"
 
 [dependency-groups]
 dev = [
-    "bandit",
-    "black",
-    "flake8",
-    "flake8-bandit", # security checks
-    "flake8-bugbear", # assorted opinionated checks
-    "flake8-builtins", # check for name collision with builtins
-    "flake8-comprehensions",
-    "flake8-docstrings",
-    "flake8-implicit-str-concat",
-    "flake8-print",
-    "flake8-rst", # Allows run flake8 on code snippets in docstrings or rst files
-    "flake8-string-format",
-    "grpcio-tools == 1.76.0", # version number should match that of `grpcio-tools` in `build-system` above
-    "grpc-stubs >= 1.53.0",
-    "pytest-grpc",
-    "isort",
-    "mypy",
-    "protobuf",
-    "types-pytz",
-    "types-tabulate",
+    "bandit==1.9.3",
+    "black==26.1.0",
+    "flake8==7.3.0",
+    "flake8-bandit==4.1.1",
+    "flake8-bugbear==25.11.29",
+    "flake8-builtins==3.1.0",
+    "flake8-comprehensions==3.17.0",
+    "flake8-docstrings==1.7.0",
+    "flake8-implicit-str-concat==0.6.0",
+    "flake8-print==5.0.0",
+    "flake8-rst==0.8.0",
+    "flake8-string-format==0.3.0",
+    "grpc-stubs==1.53.0.6",
+    "grpcio-tools==1.76.0",
+    "isort==7.0.0",
+    "mypy==1.19.1",
+    "pip-tools==7.5.2",
+    "pre-commit==4.5.1",
+    "protobuf==6.33.4",
+    "pytest==9.0.2",
+    "pytest-cov==7.0.0",
+    "pytest-grpc==0.8.0",
+    "pytest-xdist==3.8.0",
+    "types-paramiko==4.0.0.20250822",
+    "types-pytz==2025.2.0.20251108",
+    "types-requests==2.32.4.20260107",
+    "types-setuptools==80.10.0.20260124",
+    "types-tabulate==0.9.0.20241207",
     "tzdata==2025.3",
-    "pip-tools",
-    "pre-commit",
-    "pytest",
-    "pytest-cov",
-    "pytest-xdist",
-    "types-requests",
-    "types-setuptools",
-    "types-paramiko >=3.0.0",
 ]
 doc = [
-    "sphinx",
-    "sphinx-rtd-theme",
-    "sphinx-click",
+    "sphinx==9.0.4",
+    "sphinx-click==6.2.0",
+    "sphinx-rtd-theme==3.1.0",
 ]
 
 [project.scripts]
