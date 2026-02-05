@@ -273,8 +273,7 @@ class ReserveJob(Job):
         if (
             stp is None
             or not stp.enabled
-            or domain != settings.domain  # only process requests for our domain
-            or topology != settings.topology  # only process requests for our network
+            or f"urn:ogf:network:{domain}:{topology}" != settings.topology_id  # only our topology
         ):
             raise NsiException(UnknownStp, nsi_stp, {var: nsi_stp})
         if not requested_vlans:

@@ -135,7 +135,7 @@ def refresh_topology() -> None:
 
     with db_session() as session:
         for nrm_stp in nrm_stps:
-            if nrm_stp.topology != settings.topology:
+            if nrm_stp.topology != settings.topology_id.split(":")[-1]:
                 log.debug("skip STP with unknown topology", stp=nrm_stp.stp_id, topology=nrm_stp.topology)
             else:
                 stp = session.query(Topology).filter(Topology.stp_id == nrm_stp.stp_id).one_or_none()
@@ -188,7 +188,7 @@ class TopologyEndpoint(object):
     def index(self) -> Union[str, bytes]:
         """Index returns the generated NSI topology document."""
         refresh_topology()
-        network_id = f"urn:ogf:network:{settings.domain}:{settings.topology}"
+        network_id = settings.topology_id
         now = current_timestamp()
 
         from supa.db.session import db_session

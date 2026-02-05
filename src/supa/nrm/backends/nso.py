@@ -124,7 +124,7 @@ class Backend(BaseBackend):
         self.log.info("Get topology from NSO")
         ports: List[STP] = []
 
-        payload: YangData = {"input": {"name": settings.topology}}
+        payload: YangData = {"input": {"name": settings.topology_id.split(":")[-1]}}
 
         nso_stp = self.nso.post(path="/common:workflow/nsi-circuit:get-nsi-stp", payload=payload)
         self.log.debug("NSO STPs", nso_stp=nso_stp)
@@ -132,11 +132,11 @@ class Backend(BaseBackend):
         if nso_stp is None:
             self.log.error(
                 "NSO returned no data for topology request",
-                topology=settings.topology,
+                topology=settings.topology_id.split(":")[-1],
                 payload=payload,
             )
             raise ValueError(
-                f"NSO returned no data for topology {settings.topology}. "
+                f"NSO returned no data for topology {settings.topology_id.split(':')[-1]}. "
                 "Check that the topology exists in NSO and the configuration is correct."
             )
 
@@ -144,7 +144,7 @@ class Backend(BaseBackend):
             self.log.error(
                 "NSO response missing expected structure",
                 nso_stp=nso_stp,
-                topology=settings.topology,
+                topology=settings.topology_id.split(":")[-1],
             )
             raise ValueError(f"NSO response missing 'nsi-circuit:output' or 'stp-list'. Response: {nso_stp}")
 
@@ -185,7 +185,7 @@ class Backend(BaseBackend):
             circuit_id=circuit_id,
         )
         circuit_id = self._get_next_circuit_id()
-        topology = settings.topology
+        topology = settings.topology_id.split(":")[-1]
         self.log.info("Setting circuit_id", circuit_id=circuit_id)
         self._service_create(circuit_id, topology, src_port_id, src_vlan, dst_port_id, dst_vlan, bandwidth)
         return circuit_id
