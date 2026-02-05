@@ -56,6 +56,7 @@ Example discovery document::
       <feature type="vnd.ogf.nsi.cs.v2.role.uPA"/>
     </nsa:nsa>
 """
+
 import importlib.metadata
 from datetime import timedelta
 from typing import Union

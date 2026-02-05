@@ -11,6 +11,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 """Assorted helper functions and datastructures for dealing with timestamps."""
+
 from datetime import datetime, timezone
 
 from google.protobuf.timestamp_pb2 import Timestamp

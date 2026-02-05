@@ -37,6 +37,7 @@ you will get an informative error.
 But just to be on the safe side,
 always import anything from this module locally!
 """
+
 from contextlib import contextmanager
 from typing import Any, Iterator
 
@@ -68,8 +69,7 @@ class UnconfiguredSession(scoped_session):
 
     def __call__(self, *args: Any, **kwargs: Any) -> orm.Session:
         """Trap premature ``Session()`` calls and raise an exception."""
-        raise Exception(
-            """DB has not yet been initialized.
+        raise Exception("""DB has not yet been initialized.
 Call `main.init_app` first. Only then (locally) import `Session` or `db_session`.
 
 IMPORTANT
@@ -79,8 +79,7 @@ configuration before you call `main.init_app`.  The env file (`supa.env`) and
 the environment are handled automatically by the `supa.settings` instance.
 However anything specified on the command line generally needs to be processed
 explicitly in the module `supa.main`.
-"""
-        )
+""")
 
 
 Session = UnconfiguredSession()

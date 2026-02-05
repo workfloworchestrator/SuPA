@@ -66,6 +66,7 @@ Example topology document::
 
     </ns3:Topology>
 """
+
 from datetime import datetime, timedelta
 from typing import Union
 

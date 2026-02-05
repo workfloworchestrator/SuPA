@@ -11,6 +11,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 """Handy types to keep things sane."""
+
 from enum import Enum, unique
 
 

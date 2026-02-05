@@ -29,6 +29,7 @@ if any,
 in the configuration file ``supa.env``.
 See also :func:`resolve_env_file`
 """
+
 import errno
 import functools
 import importlib

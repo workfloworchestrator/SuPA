@@ -11,6 +11,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 """Converter functions for converting data to and from Protobuf messages."""
+
 from typing import List, Optional
 from uuid import UUID, uuid4
 

@@ -19,6 +19,7 @@ That is what is executed when the ``supa`` command is issued from the command-li
 
 The other ``@cli.command`` annotated functions in this modules implement the various sub-commands.
 """
+
 import logging
 import signal
 from concurrent import futures

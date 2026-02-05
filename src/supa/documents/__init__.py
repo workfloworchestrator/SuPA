@@ -11,6 +11,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 """Initialize cherrypy to serve discovery and topology documents."""
+
 from logging import Filter
 from threading import Lock
 from typing import Any

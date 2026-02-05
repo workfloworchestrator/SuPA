@@ -11,6 +11,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 """NSI specific functions and datastructures."""
+
 import operator
 from dataclasses import dataclass
 from typing import Optional

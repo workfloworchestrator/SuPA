@@ -41,6 +41,7 @@ prism-core(s1)(config)#no vlan {$vlan}
 prism-core(s1)#copy running-config startup-config
 
 """
+
 import os
 from typing import List, Optional
 from uuid import UUID, uuid4

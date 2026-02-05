@@ -11,6 +11,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 """SQLite specific code."""
+
 import sqlite3
 from contextlib import closing
 
