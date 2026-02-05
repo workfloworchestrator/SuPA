@@ -39,7 +39,7 @@ class STP:
     is_alias_out: Optional[str] = None
     bandwidth: int = 1000000000
     enabled: bool = True
-    topology: str = settings.topology
+    topology: str = settings.topology_id.split(":")[-1]
 
 
 class BaseBackend:
