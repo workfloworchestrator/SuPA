@@ -97,7 +97,7 @@ dev = [
     "mypy==1.19.1",
     "pip-tools==7.5.2",
     "pre-commit==4.5.1",
-    "protobuf==6.33.4",
+    "protobuf==6.33.5",
     "pytest==9.0.2",
     "pytest-cov==7.0.0",
     "pytest-grpc==0.8.0",
