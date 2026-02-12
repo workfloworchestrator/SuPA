@@ -154,10 +154,10 @@ class Backend(BaseBackend):
                     stp_id=stp["stp-id"],
                     port_id=stp["port-id"],
                     vlans=stp["vlans"],
-                    description=stp["description"],
-                    bandwidth=stp["bandwidth"],
-                    is_alias_in=stp["is-alias-in"],
-                    is_alias_out=stp["is-alias-out"],
+                    description=stp.get("description"),
+                    bandwidth=stp.get("bandwidth", 1000000000),
+                    is_alias_in=stp.get("is-alias-in"),
+                    is_alias_out=stp.get("is-alias-out"),
                 )
             )
         return ports
