@@ -17,7 +17,7 @@ backend-path = ["src/supa"]
 name = "supa"
 version = "0.4.2.dev1"
 dependencies = [
-  "grpcio==1.76.0",
+  "grpcio==1.78.0",
   "mypy-protobuf==5.0.0",
   "structlog==25.5.0",
   "colorama==0.4.6",
