@@ -95,7 +95,7 @@ dev = [
     "grpcio-tools==1.78.0",
     "isort==7.0.0",
     "mypy==1.19.1",
-    "pip-tools==7.5.2",
+    "pip-tools==7.5.3",
     "pre-commit==4.5.1",
     "protobuf==6.33.5",
     "pytest==9.0.2",
