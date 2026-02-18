@@ -236,12 +236,12 @@ class Settings(BaseSettings):
 
     @property
     def nsa_id(self) -> str:
-        """Construct NSA ID"""
+        """Construct NSA ID."""
         return f"urn:ogf:network:{self.org_id}:{self.nsa_designator}"
 
     @property
     def topology_id(self) -> str:
-        """Construct Topology ID"""
+        """Construct Topology ID."""
         return f"urn:ogf:network:{self.org_id}:{self.topology}"
 
 
