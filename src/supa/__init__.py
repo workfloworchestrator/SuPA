@@ -196,8 +196,9 @@ class Settings(BaseSettings):
     log_level: str = ""
     sql_echo_enable: bool = False
 
-    nsa_id: str = "urn:ogf:network:example.domain:2013:nsa:supa"
-    topology_id: str = "urn:ogf:network:example.domain:2013:topology"
+    org_id: str = "example.domain:2013"
+    nsa_designator: str = "nsa:supa"
+    topology: str = "topology"
     manual_topology: bool = False
     reserve_timeout: int = 120
     backend: str = ""
@@ -232,6 +233,16 @@ class Settings(BaseSettings):
     def nsa_provider_exposed_url(self) -> str:
         """Return Provider URL that NSA is exposed on constructed from nsa_scheme, nsa_host and nsa_provider_port."""
         return f"{self.nsa_scheme}://{self.nsa_host}:{self.nsa_provider_port}"
+
+    @property
+    def nsa_id(self) -> str:
+        """Construct NSA ID"""
+        return f"urn:ogf:network:{self.org_id}:{self.nsa_designator}"
+
+    @property
+    def topology_id(self) -> str:
+        """Construct Topology ID"""
+        return f"urn:ogf:network:{self.org_id}:{self.topology}"
 
 
 @functools.lru_cache(maxsize=1)  # not for performance, but rather to keep the logging sane.

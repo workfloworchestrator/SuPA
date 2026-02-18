@@ -135,7 +135,7 @@ def refresh_topology() -> None:
 
     with db_session() as session:
         for nrm_stp in nrm_stps:
-            if nrm_stp.topology != settings.topology_id.split(":")[-1]:
+            if nrm_stp.topology != settings.topology:
                 log.debug("skip STP with unknown topology", stp=nrm_stp.stp_id, topology=nrm_stp.topology)
             else:
                 stp = session.query(Topology).filter(Topology.stp_id == nrm_stp.stp_id).one_or_none()

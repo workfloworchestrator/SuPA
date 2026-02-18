@@ -140,10 +140,11 @@ are available:
   --scheduler-max-workers INTEGER
                                   Maximum number of workers to execute
                                   scheduler jobs.  [default: 12]
-  --domain TEXT                   Name of the domain SuPA is responsible for.
-                                  [default: example.domain:2001]
+  --org-id TEXT                   The Organization ID of SuPA.  [default:
+                                  example.domain:2001]
   --topology TEXT                 Name of the topology SuPA is responsible
                                   for.  [default: topology]
+  --nsa-designator TEXT           The NSA designator.  [default: nsa:supa]
   --manual-topology               Use SuPA CLI to manually administrate
                                   topology.
   --reserve-timeout INTEGER       Reserve timeout in seconds.  [default: 120]

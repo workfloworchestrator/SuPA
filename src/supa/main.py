@@ -225,8 +225,9 @@ def cli() -> None:
     type=int,
     help="Maximum number of workers to execute scheduler jobs.",
 )
-@click.option("--nsa-id", default=settings.nsa_id, type=str, help="The NSA ID of SuPA")
-@click.option("--topology-id", default=settings.topology_id, type=str, help="The Topology ID SuPA is responsible for")
+@click.option("--org-id", default=settings.org_id, type=str, help="The Organization ID of SuPA.")
+@click.option("--topology", default=settings.topology, type=str, help="The Topology SuPA is responsible for.")
+@click.option("--nsa-designator", default=settings.nsa_designator, type=str, help="The NSA designator.")
 @click.option(
     "--manual-topology",
     default=settings.manual_topology,
@@ -333,8 +334,9 @@ def serve(
     document_server_host: str,
     document_server_port: int,
     scheduler_max_workers: int,
-    nsa_id: str,
-    topology_id: str,
+    org_id: str,
+    topology: str,
+    nsa_designator: str,
     manual_topology: bool,
     reserve_timeout: int,
     backend: str,
@@ -366,8 +368,9 @@ def serve(
     settings.document_server_host = document_server_host
     settings.document_server_port = document_server_port
     settings.scheduler_max_workers = scheduler_max_workers
-    settings.nsa_id = nsa_id
-    settings.topology_id = topology_id
+    settings.org_id = org_id
+    settings.topology = topology
+    settings.nsa_designator = nsa_designator
     settings.manual_topology = manual_topology
     settings.reserve_timeout = reserve_timeout
     settings.backend = backend
