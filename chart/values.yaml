@@ -109,7 +109,8 @@ config:
       grpc_client_insecure_host=polynsi-grpc.nsi.svc.cluster.local
       grpc_client_insecure_port=80
       topology=topology
-      domain=example.domain:2001
+      org_id=example.domain:2001
+      nsa_designator=nsa:supa
       log_level=INFO
       backend=surf
     surf.env: |-
