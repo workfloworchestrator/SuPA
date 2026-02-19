@@ -11,7 +11,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-from typing import Any, List
+from typing import Any, List, Optional
 from uuid import UUID
 
 import httpx
@@ -172,6 +172,26 @@ class Backend(BaseBackend):
             )
         return ports
 
+    def provision(
+        self,
+        connection_id: UUID,
+        bandwidth: int,
+        src_port_id: str,
+        src_vlan: int,
+        dst_port_id: str,
+        dst_vlan: int,
+        circuit_id: str,
+    ) -> Optional[str]:
+        """Provision resources in NRM."""
+        self.log = self.log.bind(primitive="provision")
+        self.log.info(
+            "Provision circuit_id in connections table",
+            connection_id=str(connection_id),
+        )
+        circuit_id = self._get_next_circuit_id()
+        self.log.info("Provisioning circuit_id", circuit_id=circuit_id)
+        return circuit_id
+
     def activate(
         self,
         connection_id: UUID,
@@ -181,7 +201,7 @@ class Backend(BaseBackend):
         dst_port_id: str,
         dst_vlan: int,
         circuit_id: str,
-    ) -> str:
+    ) -> Optional[str]:
         """Activate resources in NRM."""
         self.log = self.log.bind(primitive="activate")
         self.log.debug(
@@ -194,11 +214,17 @@ class Backend(BaseBackend):
             dst_vlan=dst_vlan,
             circuit_id=circuit_id,
         )
-        circuit_id = self._get_next_circuit_id()
         topology = settings.topology
-        self.log.info("Setting circuit_id", circuit_id=circuit_id)
-        self._service_create(circuit_id, topology, src_port_id, src_vlan, dst_port_id, dst_vlan, bandwidth)
-        return circuit_id
+        self._service_create(
+            circuit_id,
+            topology,
+            src_port_id,
+            src_vlan,
+            dst_port_id,
+            dst_vlan,
+            bandwidth,
+        )
+        return None
 
     def deactivate(
         self,
@@ -209,7 +235,7 @@ class Backend(BaseBackend):
         dst_port_id: str,
         dst_vlan: int,
         circuit_id: str,
-    ) -> None:
+    ) -> Optional[str]:
         """Deactivate resources in NRM."""
         self.log = self.log.bind(primitive="deactivate")
         self.log.debug(
@@ -223,6 +249,7 @@ class Backend(BaseBackend):
             circuit_id=circuit_id,
         )
         self._service_delete(circuit_id)
+        return None
 
     def topology(self) -> List[STP]:
         """Get exposed topology from NRM."""
