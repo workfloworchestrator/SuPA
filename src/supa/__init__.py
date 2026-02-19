@@ -196,7 +196,8 @@ class Settings(BaseSettings):
     log_level: str = ""
     sql_echo_enable: bool = False
 
-    domain: str = "example.domain:2013"
+    org_id: str = "example.domain:2013"
+    nsa_designator: str = "nsa:supa"
     topology: str = "topology"
     manual_topology: bool = False
     reserve_timeout: int = 120
@@ -235,8 +236,13 @@ class Settings(BaseSettings):
 
     @property
     def nsa_id(self) -> str:
-        """Construct NSA ID using Settings.domain."""
-        return f"urn:ogf:network:{self.domain}:nsa:supa"
+        """Construct NSA ID."""
+        return f"urn:ogf:network:{self.org_id}:{self.nsa_designator}"
+
+    @property
+    def topology_id(self) -> str:
+        """Construct Topology ID."""
+        return f"urn:ogf:network:{self.org_id}:{self.topology}"
 
 
 @functools.lru_cache(maxsize=1)  # not for performance, but rather to keep the logging sane.

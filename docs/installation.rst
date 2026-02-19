@@ -22,9 +22,10 @@ There are several methods to install and run the application:
     Compatibility with earlier Python versions will brake in the future or is already broken.
     Compatibility with later Python versions is untested.
 
-    PolyNSI was developed using Java 11 and Maven 3.8.5.
-    Compatibility with other Java and Maven versions is untested.
-    It is assumed that a suitable versions of Java and Maven are already installed.
+    PolyNSI has been tested with Java 21.
+    Compatibility with other Java versions is untested, but will probably just work.
+    It is assumed that a suitable versions of Java is already installed. Use the Maven wrapper
+    `mvnw` in the root of the repository to use the bundled Maven.
 
 GitHub
 ++++++
@@ -38,13 +39,13 @@ for example version 0.3.4::
 
     git clone https://github.com/workfloworchestrator/supa.git
     cd supa
-    git checkout 0.3.4
+    git checkout 0.4.1
 
 There are multiple ways to add an virtual Python environment, and you can choose
 whatever suits you best. This example uses the standard ``venv`` module and assumes
 that Python version 3.12 is already installed using your local package manager::
 
-    python3.12 -m venv venv
+    python3.13 -m venv venv
     source venv/bin/activate
 
 The virtual environment created by the ``venv`` module does not always contain the most recent version of ``pip``.
@@ -72,11 +73,11 @@ for example version 0.2.0::
 
     git clone https://github.com/workfloworchestrator/polynsi.git
     cd PolyNSI
-    git checkout 0.2.0
+    git checkout 0.4.0
 
 And start the application::
 
-    mvn spring-boot:run
+    ./mvnw spring-boot:run
 
 Docker compose
 ++++++++++++++

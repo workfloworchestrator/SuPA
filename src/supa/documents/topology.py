@@ -188,7 +188,7 @@ class TopologyEndpoint(object):
     def index(self) -> Union[str, bytes]:
         """Index returns the generated NSI topology document."""
         refresh_topology()
-        network_id = f"urn:ogf:network:{settings.domain}:{settings.topology}"
+        network_id = settings.topology_id
         now = current_timestamp()
 
         from supa.db.session import db_session

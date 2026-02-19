@@ -131,7 +131,7 @@ class DiscoveryEndpoint(object):
         vcard_n_given.text = settings.nsa_owner_firstname
         nsa_latitude.text = settings.nsa_latitude
         nsa_longitude.text = settings.nsa_longitude
-        network_id.text = f"urn:ogf:network:{settings.domain}:{settings.topology}"
+        network_id.text = settings.topology_id
         topology_type.text = "application/vnd.ogf.nsi.topology.v2+xml"
         topology_href.text = f"{settings.nsa_exposed_url}{settings.nsa_topology_path}"
         provider_type.text = "application/vnd.ogf.nsi.cs.v2.provider+soap"
