@@ -1622,15 +1622,15 @@ wheels = [
 
 [[package]]
 name = "python-nso-client"
-version = "0.1.2"
+version = "0.1.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
     { name = "structlog" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/fa/24/598e06c3ac2e671d790b91d4fe1f17a896eab96afad31229677e64e9e007/python_nso_client-0.1.2.tar.gz", hash = "sha256:f9d0d67a7a8b58e6fef300b4d8184bdb810ec88913a80578db38a8342a68e0dd", size = 28065, upload-time = "2025-04-10T16:11:52.964Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ed/ec/e89972543d885d4243c453568ef034e2e5cadc4cfff24b33b1686cbe23b5/python_nso_client-0.1.3.tar.gz", hash = "sha256:e3fb02a3897a2f7e64475ed58c6702998cd5180e00b8260bffb06070e83428ef", size = 28886, upload-time = "2026-02-19T17:23:48.912Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f1/9f/ab2c24c04928b4dec0e978968027516afc7943861c5693850cd09fe7baf9/python_nso_client-0.1.2-py3-none-any.whl", hash = "sha256:0e60b6cb1589987b72362fe3a0cdc1514ed86e4df7a7c9f13bed430609f595d8", size = 12975, upload-time = "2025-04-10T16:11:51.688Z" },
+    { url = "https://files.pythonhosted.org/packages/57/c3/65acb394fc9b1609da74c2171a7dea1541b089d81d2fbbc1bf3335c9ced9/python_nso_client-0.1.3-py3-none-any.whl", hash = "sha256:d4b2073c7034bcb44514c6218719529dbfc3a0814a565c36c9f5be7b8d88cfcd", size = 13046, upload-time = "2026-02-19T17:23:49.726Z" },
 ]
 
 [[package]]
@@ -2038,7 +2038,7 @@ requires-dist = [
     { name = "protobuf", specifier = "==6.33.5" },
     { name = "psycopg2-binary", specifier = "==2.9.11" },
     { name = "pydantic-settings", specifier = "==2.13.0" },
-    { name = "python-nso-client", specifier = "==0.1.2" },
+    { name = "python-nso-client", specifier = "==0.1.3" },
     { name = "python-statemachine", specifier = "==2.6.0" },
     { name = "pytz", specifier = "==2025.2" },
     { name = "requests", specifier = "==2.32.5" },
