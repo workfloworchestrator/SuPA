@@ -1635,11 +1635,11 @@ wheels = [
 
 [[package]]
 name = "python-statemachine"
-version = "2.6.0"
+version = "3.0.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/92/82/7340e8b3ae588bcbe698f38d3d5578fe99a99ea6a9dad083b9e7316ddb03/python_statemachine-2.6.0.tar.gz", hash = "sha256:adda2e7327ed7ecc96069c49e830fcc8b11a5f9d899ab16742317167b3d7997d", size = 552809, upload-time = "2026-02-13T21:37:35.745Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f4/a6/d0626b1efb56d9502fe8686fa5dbf23d444b5985adac974be2aa8780c956/python_statemachine-3.0.0.tar.gz", hash = "sha256:91523f9ead73c1d6fecc975d5c6e0bfe363fbf537c5f0bf309bcd0f94f9441b2", size = 852800, upload-time = "2026-02-24T18:06:04.908Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/6e/b5/c6702da31050b49f4694617a1a1b47b2509ae65ab7eafe8093f3d1c8b0ad/python_statemachine-2.6.0-py3-none-any.whl", hash = "sha256:1b1bfae954e0a980ef3e8617948efa12b5e9a0fef7bb0284ed6e212efede8db4", size = 53167, upload-time = "2026-02-13T21:37:34.116Z" },
+    { url = "https://files.pythonhosted.org/packages/a2/ba/9863be42c209d66623e188223484c1502f25a2412f258f00505c613f6e5d/python_statemachine-3.0.0-py3-none-any.whl", hash = "sha256:f967ee864cfd26375c91f49560e790357613482811efcec8b2020c1f874a5eaf", size = 103801, upload-time = "2026-02-24T18:06:03.31Z" },
 ]
 
 [[package]]
@@ -2039,7 +2039,7 @@ requires-dist = [
     { name = "psycopg2-binary", specifier = "==2.9.11" },
     { name = "pydantic-settings", specifier = "==2.13.1" },
     { name = "python-nso-client", specifier = "==0.1.3" },
-    { name = "python-statemachine", specifier = "==2.6.0" },
+    { name = "python-statemachine", specifier = "==3.0.0" },
     { name = "pytz", specifier = "==2025.2" },
     { name = "requests", specifier = "==2.32.5" },
     { name = "sqlalchemy", specifier = "==2.0.46" },
