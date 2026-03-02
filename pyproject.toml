@@ -79,7 +79,7 @@ Issues = "https://github.com/workfloworchestrator/SuPA/issues"
 
 [dependency-groups]
 dev = [
-    "bandit==1.9.3",
+    "bandit==1.9.4",
     "black==26.1.0",
     "flake8==7.3.0",
     "flake8-bandit==4.1.1",
