@@ -167,7 +167,8 @@ class ReserveJob(Job):
             .join(
                 Schedule,
                 and_(Reservation.connection_id == Schedule.connection_id, Reservation.version == Schedule.version),
-            ).join(
+            )
+            .join(
                 CurrentSchedule,
                 # Do they overlap?
                 and_(
@@ -303,7 +304,7 @@ class ReserveJob(Job):
                 f"no matching VLAN found (requested: {requested_vlans!s}, available: {available_vlans!s}",
                 {var: nsi_stp},
             )
-        selected_vlan = random.choice(list(candidate_vlans))
+        selected_vlan = random.choice(list(candidate_vlans))  # noqa: S311
         # selected vlan will be stored on reservation p2p criteria below
         setattr(self, f"{target}_selected_vlan", selected_vlan)
         # port id will be stored on connection below

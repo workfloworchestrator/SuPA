@@ -3,7 +3,6 @@ from typing import Any
 from uuid import UUID
 
 import tests.shared.state_machine as state_machine
-
 from supa import settings
 from supa.job.lifecycle import HealthCheckJob, TerminateJob
 from supa.util.timestamp import current_timestamp
@@ -212,6 +211,4 @@ def test_health_check_job_trigger(caplog: Any) -> None:
     assert job_trigger.end_date is None
     assert current_timestamp() + datetime.timedelta(
         seconds=settings.backend_health_check_interval
-    ) - job_trigger.start_date < datetime.timedelta(
-        seconds=5
-    )  # with a marging of 5 seconds
+    ) - job_trigger.start_date < datetime.timedelta(seconds=5)  # with a marging of 5 seconds

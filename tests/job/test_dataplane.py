@@ -3,7 +3,6 @@ from typing import Any
 from uuid import UUID
 
 import tests.shared.state_machine as state_machine
-
 from supa.db.model import Reservation
 from supa.job.dataplane import ActivateJob, AutoEndJob, AutoStartJob, DeactivateJob
 from supa.util.timestamp import NO_END_DATE, current_timestamp

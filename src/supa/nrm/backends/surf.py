@@ -196,14 +196,7 @@ class Backend(BaseBackend):
             {
                 "subscription_id": subscription_id,
             },
-            {
-                "note": (
-                    "NSI "
-                    f" - host {settings.nsa_host}"
-                    f" - NSA ID {settings.nsa_id}"
-                    f" - connection ID {connection_id}"
-                )
-            },
+            {"note": (f"NSI  - host {settings.nsa_host} - NSA ID {settings.nsa_id} - connection ID {connection_id}")},
         ]
         base_url = self.backend_settings.base_url
         reporter = settings.nsa_host

@@ -52,7 +52,7 @@ def format_bandwidth(mbits: int, *, short: bool = False) -> str:
     number = "0"
     if mbits > 0:
         magnitude = floor(log(mbits, base))
-        number = f"{(mbits / base ** magnitude):.1f}"
+        number = f"{(mbits / base**magnitude):.1f}"
     if number.endswith(".0"):
         number = number[:-2]
     return f"{number}{separator}{units[unit_fmt][magnitude]}"

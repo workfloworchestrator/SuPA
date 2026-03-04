@@ -124,7 +124,7 @@ def create_query_notification_confirmed_request(
     optionally limiting the notifications by start and end notification ID.
 
     Args:
-        pb_query_notification_request (QueryNotificationRequest):
+        pb_query_notification_request (QueryNotificationRequest): the protobuf query notification request.
 
     Returns:
         QueryNotificationConfirmedRequest with list of notifications.
@@ -158,7 +158,7 @@ def create_query_notification_confirmed_request(
                     DataPlaneStateChangeRequest().FromString(notification.notification_data)
                 )
             else:
-                logger.error("unknown notification type: %s" % notification.notification_type)
+                logger.error("unknown notification type: %s", notification.notification_type)
 
         return request
 
@@ -172,7 +172,7 @@ def create_query_result_confirmed_request(
     optionally limiting the notifications by start and end result ID.
 
     Args:
-        pb_query_result_request (QueryResultRequest):
+        pb_query_result_request (QueryResultRequest): the protobuf query result request.
 
     Returns:
         QueryResultConfirmedRequest with list of results.
@@ -214,7 +214,7 @@ def create_query_result_confirmed_request(
             elif result.result_type == ResultType.Error.value:
                 rr.error.CopyFrom(ErrorRequest().FromString(result.result_data))
             else:
-                logger.error("unknown result type: %s" % result.result_type)
+                logger.error("unknown result type: %s", result.result_type)
             request.result.append(rr)
 
         return request

@@ -1,8 +1,6 @@
 from typing import Any
 from uuid import UUID
 
-from tests.shared import state_machine
-
 from supa.connection.fsm import (
     DataPlaneStateMachine,
     LifecycleStateMachine,
@@ -21,6 +19,7 @@ from supa.grpc_nsi.connection_requester_pb2 import (
 )
 from supa.grpc_nsi.connection_requester_pb2_grpc import ConnectionRequesterServicer
 from supa.util.timestamp import NO_END_DATE
+from tests.shared import state_machine
 
 
 class Servicer(ConnectionRequesterServicer):
@@ -137,9 +136,7 @@ class Servicer(ConnectionRequesterServicer):
         with db_session() as session:
             reservation = (
                 # By this time the reservation in the database already transitioned to ReserveFailed.
-                session.query(Reservation)
-                .filter(Reservation.connection_id == UUID(request.connection_id))
-                .one()
+                session.query(Reservation).filter(Reservation.connection_id == UUID(request.connection_id)).one()
             )
             assert reservation.reservation_state == ReservationStateMachine.ReserveStart.value
 

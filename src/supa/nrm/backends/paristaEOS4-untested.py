@@ -10,8 +10,7 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-"""
-Arista EOS 4.x Backend.
+"""Arista EOS 4.x Backend.
 
 This code is a compilation from different authors:
 - sally (unknown affiliation)
@@ -198,7 +197,7 @@ class Backend(BaseBackend):
 
             self.log.debug("Entered configure mode")
             for cmd in commands:
-                self.log.debug("CMD> %r" % cmd)
+                self.log.debug("CMD> %r", cmd)
                 self.channel.send(cmd + line_termination)
                 while not line.decode("utf-8").endswith(")#"):
                     resp = self.channel.recv(999)

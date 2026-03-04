@@ -5,7 +5,6 @@ from uuid import UUID
 import pytest
 
 import tests.shared.state_machine as state_machine
-
 from supa.db.model import Connection, Reservation
 from supa.db.session import db_session
 from supa.job.reserve import ReserveAbortJob, ReserveCommitJob, ReserveJob, ReserveTimeoutJob

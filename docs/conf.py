@@ -24,7 +24,7 @@ sys.path.insert(0, (Path("..") / "src").resolve().as_posix())
 
 # -- Project information -----------------------------------------------------
 
-copyright = "2020, SURF"
+copyright = "2020, SURF"  # noqa: A001
 author = "Guido Kollerie"
 project = "SuPA"
 

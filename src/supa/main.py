@@ -10,8 +10,7 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-"""
-SuPA main entry point.
+"""SuPA main entry point.
 
 SuPA has a single entry point defined in this module,
 namely :func:`cli`.
@@ -167,7 +166,7 @@ def common_options(f):  # type: ignore
 
 @click.group(context_settings=CONTEXT_SETTINGS)
 def cli() -> None:
-    """Manage the SURF ultimate Provider Agent from the command line.
+    r"""Manage the SURF ultimate Provider Agent from the command line.
 
     Configuration variables can be set using (in order of precedence):
 

@@ -1,9 +1,4 @@
 repos:
-  - repo: https://github.com/pycqa/isort
-    rev: 7.0.0
-    hooks:
-      - id: isort
-        additional_dependencies: [toml]
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
@@ -15,10 +10,14 @@ repos:
       - id: detect-private-key
       - id: end-of-file-fixer
       - id: trailing-whitespace
-  - repo: https://github.com/pycqa/flake8
-    rev: 7.3.0
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.9 # Use the latest version
     hooks:
-      - id: flake8
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+
   - repo: local
     hooks:
       - id: mypy
@@ -31,14 +30,4 @@ repos:
         args:
           - --no-warn-unused-ignores
           - --allow-untyped-decorators
-        exclude: (tests/)
-  - repo: https://github.com/pre-commit/pygrep-hooks
-    rev: v1.10.0
-    hooks:
-      - id: python-check-blanket-noqa
-      - id: python-use-type-annotations
-  - repo: https://github.com/ambv/black
-    rev: 26.1.0
-    hooks:
-      - id: black
-        language_version: python3.12
+        exclude: ^(tests|src/supa/nrm/backends/nso_service_model)/

@@ -80,20 +80,8 @@ Issues = "https://github.com/workfloworchestrator/SuPA/issues"
 [dependency-groups]
 dev = [
     "bandit==1.9.4",
-    "black==26.1.0",
-    "flake8==7.3.0",
-    "flake8-bandit==4.1.1",
-    "flake8-bugbear==25.11.29",
-    "flake8-builtins==3.1.0",
-    "flake8-comprehensions==3.17.0",
-    "flake8-docstrings==1.7.0",
-    "flake8-implicit-str-concat==0.6.0",
-    "flake8-print==5.0.0",
-    "flake8-rst==0.8.0",
-    "flake8-string-format==0.3.0",
     "grpc-stubs==1.53.0.6",
     "grpcio-tools==1.78.0",
-    "isort==8.0.1",
     "mypy==1.19.1",
     "pip-tools==7.5.3",
     "pre-commit==4.5.1",
@@ -102,6 +90,7 @@ dev = [
     "pytest-cov==7.0.0",
     "pytest-grpc==0.8.0",
     "pytest-xdist==3.8.0",
+    "ruff==0.15.4",
     "types-paramiko==4.0.0.20250822",
     "types-pytz==2025.2.0.20251108",
     "types-requests==2.32.4.20260107",
@@ -146,35 +135,6 @@ omit = [
     "tests/*",
 ]
 
-[tool.isort]
-multi_line_output = 3
-include_trailing_comma = true
-force_grid_wrap = 0
-use_parentheses = true
-line_length = 120
-forced_separate = "supa"
-skip = ["venv", "src/supa/grpc_nsi"]
-default_section = "THIRDPARTY"
-
-[tool.black]
-line-length = 120
-target-version = ["py38"]
-exclude = '''
-(
-  /(
-      \.eggs         # exclude a few common directories in the
-    | \.git          # root of the project
-    | \.hg
-    | \.mypy_cache
-    | \.tox
-    | \.venv
-    | venv
-    | src/supa/grpc_nsi
-    | build
-  )/
-)
-'''
-
 [tool.mypy]
 ignore_missing_imports = true
 disallow_untyped_calls = false
@@ -202,53 +162,40 @@ disallow_incomplete_defs = false
 disallow_untyped_decorators = false
 
 [tool.ruff]
-lint.exclude = [
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "A",    # Builtins
+    "B",    # Bugbear
+    "C4",   # Comprehensions
+    "D",    # Docstrings
+    "E",    # pycodestyle Error
+    "F",    # Pyflakes
+    "G",    # Logging format
+    "I",    # Isort
+    "ISC",  # Implicit string concat
+    "S",    # Bandit
+    "T20",  # Print
+    "W",    # pycodestyle Warning
+    # "UP",   # Pyupgrade
+]
+
+# Match flake8-docstrings default behavior
+pydocstyle.convention = "google" # or "numpy" / "pep257"
+exclude = [
     ".git",
     ".cache",
     ".eggs",
     "__pycache__",
     "venv",
     ".venv",
+    "src/supa/nrm/backends/nso_service_model/*",
 ]
-lint.ignore = [
+ignore = [
     "D100",
     "D104",
     "T201",
+    "S101",
 ]
-lint.select = [
-    "ANN",
-    "ARG",
-    "B",
-    "C",
-    "D",
-    "E",
-    "F",
-    "I",
-    "N",
-    "PGH",
-    "PTH",
-    "RET",
-    "RUF",
-    "S",
-    "T",
-    "W",
-    "Q",
-]
-line-length = 120
-target-version = "py311"
-
-[tool.ruff.lint.flake8-tidy-imports]
-ban-relative-imports = "all"
-
-[tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101"]
-
-[tool.ruff.lint.pydocstyle]
-convention = "google"
-
-[tool.ruff.lint.isort]
-known-first-party=[]
-
-[tool.ruff.lint.mccabe]
-# Explicitly set default to 7, so we can later lower this threshold once all 6+ issues are solved.
-max-complexity = 7

@@ -2,9 +2,9 @@
 
 This package implements an NSO service to manage NSI (Network Service Interface) L2VPN circuits.
 
-Various files will need to be modified for your local NSO installation. 
+Various files will need to be modified for your local NSO installation.
  - The template file should create a service that implements an L2VPN.
- - The GetNsiStp action needs to be modified to query NSI metadata from your installation 
+ - The GetNsiStp action needs to be modified to query NSI metadata from your installation
 
 ## Package Structure
 
@@ -17,7 +17,7 @@ nsi-circuit/
 │       └── main.py         # Main service implementation
 ├── src/
 │   ├── Makefile
-│   └── yang/              
+│   └── yang/
 │       └── nsi-circuit.yang # YANG service model
 └── templates/
     └── nsi-circuit-template.xml # Service template
@@ -32,7 +32,7 @@ nsi-circuit/
 
 ## Components
 
-### Service Model 
+### Service Model
 The package implements a YANG service model for NSI circuits that includes:
 - Circuit ID
 - Administrative state

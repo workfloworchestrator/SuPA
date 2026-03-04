@@ -53,5 +53,3 @@ jinja2-templates: $(JINJA2_CLI) $(CONFIG_XML_OUT)
 clean:
 	rm -rf $(DIRS) $(CONFIG_XML_OUT)
 .PHONY: clean jinja2-install jinja2-templates
-
-

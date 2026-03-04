@@ -32,17 +32,15 @@ jobs:
           # pip install --no-cache-dir uv
           uv sync --link-mode=copy --dev
 
-      - name: Check formatting
+      - name: Ruff format
         run: |
-          uv run isort -c src/supa tests
-          uv run black --check src/supa tests
+          uv run ruff format src/supa tests
 
-      - name: Lint with flake8
+      - name: Ruff check
         run: |
-          # stop the build if there are Python syntax errors or undefined names
-          uv run flake8 src/supa tests
+          uv run ruff check src/supa tests
 
-      - name: Check with mypy
+      - name: Mypy
         run: |
           # do not run mypy on both directories at the same time
           uv run mypy src/supa

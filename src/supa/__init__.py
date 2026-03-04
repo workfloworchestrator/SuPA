@@ -150,7 +150,7 @@ class JournalMode(str, Enum):
     This might also hold for some, or most of the Kubernetes storage volumes.
     If in doubt use a ``local`` volume.
 
-    See also:
+    See Also:
         - https://sqlite.org/pragma.html#pragma_journal_mode
         - https://docs.sqlalchemy.org/en/13/dialects/sqlite.html?highlight=sqlite#database-locking-behavior-concurrency
         - https://kubernetes.io/docs/concepts/storage/volumes/#local
@@ -454,13 +454,11 @@ def init_app(with_scheduler: bool = True) -> None:
 
     """
     logger.info(
-        "Starting SuPA %s using Python %s (%s) on %s"
-        % (
-            importlib.metadata.version("SuPA"),
-            platform.python_version(),
-            platform.python_implementation(),
-            platform.node(),
-        )
+        "Starting SuPA %s using Python %s (%s) on %s",
+        importlib.metadata.version("SuPA"),
+        platform.python_version(),
+        platform.python_implementation(),
+        platform.node(),
     )
     random.seed()
 
@@ -475,7 +473,7 @@ def init_app(with_scheduler: bool = True) -> None:
         else:
             database_file = resolve_database_file(parse_result.path[1:])
         if not database_file.exists():
-            logger.warn(
+            logger.warning(
                 "`database_file` did not exist. Creating new SQLite DB file. Is this really what you wanted?",
                 database_file=database_file,
             )
@@ -512,7 +510,7 @@ def init_app(with_scheduler: bool = True) -> None:
             except ModuleNotFoundError:
                 backend_module = None
         if not backend_module:
-            logger.warn("cannot find NRM backend module", backend=settings.backend)
+            logger.warning("cannot find NRM backend module", backend=settings.backend)
         else:
             supa.nrm.backend.backend = backend_module.Backend()
             supa.nrm.backend.backend.log = supa.nrm.backend.backend.log.bind(backend=settings.backend)
