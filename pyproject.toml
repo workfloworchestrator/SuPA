@@ -87,7 +87,7 @@ dev = [
     "pre-commit==4.5.1",
     "protobuf==6.33.5",
     "pytest==9.0.2",
-    "pytest-cov==7.0.0",
+    "pytest-cov==7.1.0",
     "pytest-grpc==0.8.0",
     "pytest-xdist==3.8.0",
     "ruff==0.15.8",
