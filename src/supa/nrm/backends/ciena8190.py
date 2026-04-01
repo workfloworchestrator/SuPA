@@ -16,6 +16,8 @@ logging.getLogger("ncclient").setLevel(logging.WARNING)
 
 
 class BackendSettings(BaseSettings):
+    """Settings for the Ciena 8190 backend."""
+
     host: str = ""
     port: int = 0
     username: str = ""
@@ -23,7 +25,7 @@ class BackendSettings(BaseSettings):
 
 
 class Ciena8190:
-    """Ciena 8190 NETCONF XML templates"""
+    """Ciena 8190 NETCONF XML templates."""
 
     CANDIDATE = "candidate"
     RUNNING = "running"
@@ -120,7 +122,7 @@ class Ciena8190:
         vlan: int,
         operation: str = "merge",
     ) -> str:
-        """Create a classifier on the device
+        """Create a classifier on the device.
 
         Attributes:
             name: The name of the classifier
@@ -137,7 +139,7 @@ class Ciena8190:
         description: str = "",
         operation: str = "merge",
     ) -> str:
-        """Create a forwarding domain on the device
+        """Create a forwarding domain on the device.
 
         Attributes:
             name: The name of the forwarding domain,
@@ -157,7 +159,7 @@ class Ciena8190:
         description: str = "",
         operation: str = "merge",
     ) -> str:
-        """Create a flow point on the device
+        """Create a flow point on the device.
 
         Attributes:
             name: The name of the flow point
@@ -182,7 +184,7 @@ class Ciena8190:
     def delete_classifier(
         name: str,
     ) -> str:
-        """Delete a classifier on the device
+        """Delete a classifier on the device.
 
         Attributes:
             name: The name of the classifier
@@ -193,7 +195,7 @@ class Ciena8190:
     def delete_forwarding_domain(
         name: str,
     ) -> str:
-        """Delete a forwarding domain on the device
+        """Delete a forwarding domain on the device.
 
         Attributes:
             name: The name of the forwarding domain
@@ -204,7 +206,7 @@ class Ciena8190:
     def delete_flow_point(
         name: str,
     ) -> str:
-        """Delete a flow point on the device
+        """Delete a flow point on the device.
 
         Attributes:
             name: The name of the flow point
@@ -215,7 +217,7 @@ class Ciena8190:
     def disable_flow_point(
         name: str,
     ) -> str:
-        """Disable a flow point on the device
+        """Disable a flow point on the device.
 
         Attributes:
             name: The name of the flow point
@@ -224,6 +226,7 @@ class Ciena8190:
 
 
 class Backend(BaseBackend):
+    """Ciena 8190 (SAOS 10.x) NRM backend."""
 
     def _iter(self, element: list | dict) -> Generator:
         """Iterate over a list or a single element.
@@ -252,6 +255,7 @@ class Backend(BaseBackend):
             yield element
 
     def __init__(self) -> None:
+        """Initialize the Ciena 8190 backend."""
         super(Backend, self).__init__()
         self._settings = BackendSettings(_env_file=(env_file := find_file("ciena8190.env")))  # type: ignore[call-arg]
         self.log.info("Read backend properties", path=str(env_file))
@@ -260,7 +264,7 @@ class Backend(BaseBackend):
         self._is_candidate_flag: Optional[bool] = None
 
     def _get_ports(self) -> dict:
-        """Get a mapping of ports to STP IDs and VLAN ranges
+        """Get a mapping of ports to STP IDs and VLAN ranges.
 
         Return Example:
             {
@@ -289,7 +293,7 @@ class Backend(BaseBackend):
         port_id: str,
         vlan: int,
     ) -> Any:
-        """Get the STP ID for a given port and VLAN
+        """Get the STP ID for a given port and VLAN.
 
         Example:
             >>> Backend._get_stp_id(port_id='et-0/0/19', vlan=1100)
@@ -304,7 +308,7 @@ class Backend(BaseBackend):
         raise NsiException(GenericRmError, "VLAN {vlan} not found on the port {port}".format(port=port_id, vlan=vlan))
 
     def _get_manager(self) -> manager.Manager:
-        """Return an active NETCONF manager session"""
+        """Return an active NETCONF manager session."""
         if not self._manager:
             try:
                 self._manager = manager.connect(
@@ -333,20 +337,20 @@ class Backend(BaseBackend):
         return self._manager
 
     def _get_capabilities(self) -> list[Any]:
-        """Get the device capabilities"""
+        """Get the device capabilities."""
         if not self._capabilities:
             self._capabilities = self._get_manager().server_capabilities
         return self._capabilities
 
     def _is_candidate(self) -> bool:
-        """Check whether candidate datastore is activated"""
+        """Check whether candidate datastore is activated."""
         _str = "urn:ietf:params:netconf:capability:candidate:1.0"
         if self._is_candidate_flag is None:
             self._is_candidate_flag = _str in self._get_capabilities()
         return self._is_candidate_flag
 
     def _get_target(self) -> str:
-        """Return the appropriate target datastore"""
+        """Return the appropriate target datastore."""
         return Ciena8190.CANDIDATE if self._is_candidate() else Ciena8190.RUNNING
 
     def _create_classifier(
@@ -354,7 +358,7 @@ class Backend(BaseBackend):
         name: str,
         vlan: int,
     ) -> None:
-        """Create a classifier on the device"""
+        """Create a classifier on the device."""
         self.log.info("Creating source classifier", name=name, vlan=vlan)
         try:
             self._get_manager().edit_config(
@@ -372,7 +376,7 @@ class Backend(BaseBackend):
         name: str,
         description: str = "",
     ) -> None:
-        """Create a forwarding domain on the device"""
+        """Create a forwarding domain on the device."""
         self.log.info("Creating forwarding domain", name=name)
         try:
             self._get_manager().edit_config(
@@ -393,7 +397,7 @@ class Backend(BaseBackend):
         classifier: str,
         description: str = "",
     ) -> None:
-        """Create a flow point on the device"""
+        """Create a flow point on the device."""
         self.log.info("Creating flow point", name=name, fd=fd, port=port, classifier=classifier)
         try:
             self._get_manager().edit_config(
@@ -419,7 +423,7 @@ class Backend(BaseBackend):
         )
 
     def _validate(self) -> None:
-        """Validate the candidate configuration on the device"""
+        """Validate the candidate configuration on the device."""
         self.log.info("Validating configuration")
         try:
             self._get_manager().validate(source=self._get_target())
@@ -430,7 +434,7 @@ class Backend(BaseBackend):
         self.log.info("Configuration validated successfully")
 
     def _discard(self) -> None:
-        """Discard the candidate configuration on the device"""
+        """Discard the candidate configuration on the device."""
         if self._is_candidate():
             self.log.info("Discarding configuration")
             try:
@@ -441,7 +445,7 @@ class Backend(BaseBackend):
             self.log.info("Configuration discarded successfully")
 
     def _commit(self) -> None:
-        """Commit the candidate configuration on the device"""
+        """Commit the candidate configuration on the device."""
         if self._is_candidate():
             self.log.info("Committing configuration")
             try:
@@ -453,7 +457,7 @@ class Backend(BaseBackend):
             self.log.info("Configuration committed successfully")
 
     def _parse_classifiers(self) -> dict:
-        """Parse existing classifiers on the device
+        """Parse existing classifiers on the device.
 
         Return Example:
           "CL-opennsa-20-111": {
@@ -477,7 +481,7 @@ class Backend(BaseBackend):
                         "vlan": vlan,
                     }
                 except Exception:
-                    self.log.warning("Skipping classifier {name} due to missing VLAN".format(name=name))
+                    self.log.warning("Skipping classifier %s due to missing VLAN", name)
         except Exception as e:
             self.log.warning("Failed to parse classifiers", reason=str(e))
             raise NsiException(GenericRmError, "Failed to parse classifiers") from e
@@ -485,7 +489,7 @@ class Backend(BaseBackend):
         return classifiers
 
     def _parse_forwarding_domains(self) -> dict:
-        """Parse existing forwarding domains on the device
+        """Parse existing forwarding domains on the device.
 
         Return Example:
           "FD-opennsa-19-20-111-111": {
@@ -511,7 +515,7 @@ class Backend(BaseBackend):
         return fds
 
     def _parse_flow_points(self) -> dict:
-        """Parse existing flow points on the device
+        """Parse existing flow points on the device.
 
         Return Example:
           "FP-opennsa-19-111": {
@@ -550,7 +554,7 @@ class Backend(BaseBackend):
         return fps
 
     def _delete_classifier(self, name: str) -> None:
-        """Delete a classifier on the device"""
+        """Delete a classifier on the device."""
         self.log.info("Deleting classifier", name=name)
         try:
             self._get_manager().edit_config(target=self._get_target(), config=Ciena8190.delete_classifier(name=name))
@@ -561,7 +565,7 @@ class Backend(BaseBackend):
         self.log.info("Classifier deleted successfully", name=name)
 
     def _delete_forwarding_domain(self, name: str) -> None:
-        """Delete a forwarding domain on the device"""
+        """Delete a forwarding domain on the device."""
         self.log.info("Deleting forwarding domain", name=name)
         try:
             self._get_manager().edit_config(
@@ -575,7 +579,7 @@ class Backend(BaseBackend):
         self.log.info("Forwarding domain deleted successfully", name=name)
 
     def _delete_flow_point(self, name: str) -> None:
-        """Delete a flow point on the device"""
+        """Delete a flow point on the device."""
         self.log.info("Deleting flow point", name=name)
         try:
             self._get_manager().edit_config(target=self._get_target(), config=Ciena8190.delete_flow_point(name=name))
@@ -586,7 +590,7 @@ class Backend(BaseBackend):
         self.log.info("Flow point deleted successfully", name=name)
 
     def _disable_flow_point(self, name: str) -> None:
-        """Disable a flow point on the device"""
+        """Disable a flow point on the device."""
         self.log.info("Disabling flow point", name=name)
         try:
             self._get_manager().edit_config(
@@ -600,7 +604,7 @@ class Backend(BaseBackend):
         self.log.info("Flow point disabled successfully", name=name)
 
     def _get_lookup(self) -> dict:
-        """Get lookup table of existing resources on the device
+        """Get lookup table of existing resources on the device.
 
         Return Example:
           {
@@ -621,7 +625,7 @@ class Backend(BaseBackend):
             fps = self._parse_flow_points()
 
             # NOTE: No current support for multiple classifiers on a flow point
-            if any([len(v["classifiers"]) != 1 for _, v in fps.items()]):
+            if any(len(v["classifiers"]) != 1 for _, v in fps.items()):
                 raise NsiException(
                     GenericRmError,
                     "Multiple classifiers configured on the single flow point: {fp}".format(
@@ -681,7 +685,7 @@ class Backend(BaseBackend):
                 values = {
                     "fd": fd["name"],
                     "flow_points": set(fd["flow_points"].keys()),
-                    "classifiers": set([e for fp in fd["flow_points"].values() for e in fp["classifiers"]]),
+                    "classifiers": {e for fp in fd["flow_points"].values() for e in fp["classifiers"]},
                 }
                 lookup[(port1, vlan1, port2, vlan2)] = values
                 lookup[(port2, vlan2, port1, vlan1)] = values
@@ -699,7 +703,7 @@ class Backend(BaseBackend):
         dst_vlan: int,
         circuit_id: str,
     ) -> str:
-        """Activate resources on the device"""
+        """Activate resources on the device."""
         if not src_vlan == dst_vlan:
             raise NsiException(GenericRmError, "VLANs must match")
 
@@ -764,7 +768,7 @@ class Backend(BaseBackend):
         dst_vlan: int,
         circuit_id: str,
     ) -> None:
-        """Deactivate resources on the device, instead of deleting"""
+        """Deactivate resources on the device, instead of deleting."""
         self.log.info(
             "Lookup for the link to deactivate",
             src_port_id=src_port_id,
@@ -802,8 +806,6 @@ class Backend(BaseBackend):
             dst_vlan=dst_vlan,
             circuit_id=circuit_id,
         )
-        # Returning None keeps the circuit ID as is
-        return None
 
     def terminate(
         self,
@@ -815,7 +817,7 @@ class Backend(BaseBackend):
         dst_vlan: int,
         circuit_id: str,
     ) -> None:
-        """Terminate resources"""
+        """Terminate resources."""
         self.log.info(
             "Lookup for the link to delete",
             src_port_id=src_port_id,
