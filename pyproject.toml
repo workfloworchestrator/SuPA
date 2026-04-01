@@ -6,7 +6,7 @@
 requires = [
     "setuptools>=65.5.0",
     "wheel",
-    "grpcio-tools==1.78.0",
+    "grpcio-tools==1.80.0",
     "mypy_protobuf",
 ]
 build-backend = "buildtools.backend"
@@ -37,7 +37,7 @@ dependencies = [
   "htmlgen==2.0.0",
   "paramiko==4.0.0",
   "pytz==2026.1.post1",
-  "grpcio-tools==1.78.0",
+  "grpcio-tools==1.80.0",
   "psycopg2-binary==2.9.11",
 ]
 requires-python = ">=3.12,<3.15"
@@ -81,7 +81,7 @@ Issues = "https://github.com/workfloworchestrator/SuPA/issues"
 dev = [
     "bandit==1.9.4",
     "grpc-stubs==1.53.0.6",
-    "grpcio-tools==1.78.0",
+    "grpcio-tools==1.80.0",
     "mypy==1.20.0",
     "pip-tools==7.5.3",
     "pre-commit==4.5.1",
