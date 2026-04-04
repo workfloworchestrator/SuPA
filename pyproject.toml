@@ -94,7 +94,7 @@ dev = [
     "types-paramiko==4.0.0.20260402",
     "types-pytz==2026.1.1.20260402",
     "types-requests==2.33.0.20260402",
-    "types-setuptools==82.0.0.20260210",
+    "types-setuptools==82.0.0.20260402",
     "types-tabulate==0.10.0.20260308",
     "tzdata==2025.3",
 ]
