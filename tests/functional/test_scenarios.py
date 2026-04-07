@@ -405,13 +405,13 @@ def test_cannot_reserve_held_or_reserved_resources(provider: ConnectionProviderS
 
 def test_reserve_commit_modify_terminate(provider: ConnectionProviderStub) -> None:
     """Verify that available resources can be committed, modified and terminated."""
-    start_time = datetime.now() + timedelta(minutes=30)
+    start_time = datetime.now(timezone.utc) + timedelta(minutes=30)
     reserve_response = reserve(provider, version=1, start_time=start_time)
     reserve_commit_response = reserve_commit(provider, reserve_response.connection_id)
     start_time += timedelta(minutes=15)
     modify_response = modify(provider, reserve_response.connection_id, version=2, start_time=start_time)
     assert modify_response.criteria.version == 2
-    assert modify_response.criteria.schedule.start_time.ToDatetime() == start_time
+    assert modify_response.criteria.schedule.start_time.ToDatetime().replace(tzinfo=timezone.utc) == start_time
     terminate_response = terminate(provider, reserve_response.connection_id)
     assert reserve_response.connection_id == reserve_commit_response.connection_id
     assert reserve_response.connection_id == modify_response.connection_id
