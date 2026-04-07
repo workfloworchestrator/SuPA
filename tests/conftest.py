@@ -729,3 +729,47 @@ def modified_bandwidth(connection_id: Column) -> None:
         new_p2p_criteria.bandwidth = new_p2p_criteria.bandwidth + 10
         reservation.p2p_criteria_list.append(new_p2p_criteria)
         reservation.version = reservation.version + 1
+
+
+@pytest.fixture
+def modified_bandwidth_auto_end(connection_id: Column) -> None:
+    """Add P2PCriteria with modified bandwidth on connection set to Provisioned and AutoEnd."""
+    from supa.db.session import db_session
+
+    with db_session() as session:
+        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
+        reservation.data_plane_state = DataPlaneStateMachine.AutoEnd.value
+        reservation.provision_state = ProvisionStateMachine.Provisioned.value
+        reservation.schedules.append(
+            Schedule(
+                version=1,
+                start_time=reservation.schedule.start_time,
+                end_time=reservation.schedule.end_time,
+            )
+        )
+        new_p2p_criteria = p2p_criteria_from_p2_criteria(reservation.p2p_criteria)
+        new_p2p_criteria.bandwidth = new_p2p_criteria.bandwidth + 10
+        reservation.p2p_criteria_list.append(new_p2p_criteria)
+        reservation.version = reservation.version + 1
+
+
+@pytest.fixture
+def modified_bandwidth_deactivated(connection_id: Column) -> None:
+    """Add P2PCriteria with modified bandwidth on connection set to Provisioned and Deactivated."""
+    from supa.db.session import db_session
+
+    with db_session() as session:
+        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
+        reservation.data_plane_state = DataPlaneStateMachine.Deactivated.value
+        reservation.provision_state = ProvisionStateMachine.Provisioned.value
+        reservation.schedules.append(
+            Schedule(
+                version=1,
+                start_time=reservation.schedule.start_time,
+                end_time=reservation.schedule.end_time,
+            )
+        )
+        new_p2p_criteria = p2p_criteria_from_p2_criteria(reservation.p2p_criteria)
+        new_p2p_criteria.bandwidth = new_p2p_criteria.bandwidth + 10
+        reservation.p2p_criteria_list.append(new_p2p_criteria)
+        reservation.version = reservation.version + 1

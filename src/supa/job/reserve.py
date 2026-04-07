@@ -507,8 +507,8 @@ class ReserveCommitJob(Job):
             if len(reservation.schedules) > 1:  # modify reservation
                 old_bandwidth = reservation.p2p_criteria_list[-2].bandwidth
                 data_plane_active = (
-                    dpsm.current_state == DataPlaneStateMachine.Activated
-                    or dpsm.current_state == DataPlaneStateMachine.AutoEnd
+                    DataPlaneStateMachine.Activated in dpsm.configuration
+                    or DataPlaneStateMachine.AutoEnd in dpsm.configuration
                 )
             else:
                 old_bandwidth = new_bandwidth
@@ -556,8 +556,8 @@ class ReserveCommitJob(Job):
                     #    - if the reservation was provisioned then reschedule a AutoStartJob with new start time
                     if (
                         new_start_time != old_start_time
-                        and psm.current_state == ProvisionStateMachine.Provisioned
-                        and dpsm.current_state == DataPlaneStateMachine.AutoStart
+                        and ProvisionStateMachine.Provisioned in psm.configuration
+                        and DataPlaneStateMachine.AutoStart in dpsm.configuration
                     ):
                         self.log.info(
                             "Reschedule auto start", job="AutoStartJob", start_time=new_start_time.isoformat()
@@ -574,12 +574,12 @@ class ReserveCommitJob(Job):
                     #      - otherwise reschedule AutoEndJob
                     #    - if the data plane was active with NO_END_DATA then now schedule AutoEndJob
                     #    - in all other cases the AutoStartJob or ProvisionJob will take the new end time into account
-                    if new_end_time != old_end_time and psm.current_state == ProvisionStateMachine.Provisioned:
-                        if dpsm.current_state == DataPlaneStateMachine.AutoEnd:
+                    if new_end_time != old_end_time and ProvisionStateMachine.Provisioned in psm.configuration:
+                        if DataPlaneStateMachine.AutoEnd in dpsm.configuration:
                             dpsm.cancel_auto_end_request()
                             self.log.info("Cancel previous auto end")
                             scheduler.remove_job(job_id=AutoEndJob(self.connection_id).job_id)
-                        if dpsm.current_state == DataPlaneStateMachine.Activated and new_end_time != NO_END_DATE:
+                        if DataPlaneStateMachine.Activated in dpsm.configuration and new_end_time != NO_END_DATE:
                             dpsm.auto_end_request()
                             self.log.info("Schedule new auto end", job="AutoEndJob", end_time=new_end_time.isoformat())
                             scheduler.add_job(
@@ -780,7 +780,11 @@ class ReserveTimeoutJob(Job):
                 rsm.reserve_timeout_notification()
             except TransitionNotAllowed as tna:
                 # Reservation is already in another state turning this into a no-op.
-                self.log.warning("Reserve timeout failed", reason=str(tna), state=rsm.current_state.id)
+                self.log.warning(
+                    "Reserve timeout failed",
+                    reason=str(tna),
+                    state=str(rsm.configuration_values),
+                )
                 return
         try:
             circuit_id = backend.reserve_timeout(**backend_args)
