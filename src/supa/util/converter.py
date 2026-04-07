@@ -311,7 +311,7 @@ def to_data_plane_state_change_request(reservation: model.Reservation) -> DataPl
     pb_dpsc_req.notification.CopyFrom(to_notification_header(reservation))
     pb_dpsc_req.data_plane_status.version = reservation.version
     pb_dpsc_req.data_plane_status.version_consistent = True  # always True for an uPA
-    pb_dpsc_req.data_plane_status.active = dpsm.current_state == DataPlaneStateMachine.Activated
+    pb_dpsc_req.data_plane_status.active = DataPlaneStateMachine.Activated in dpsm.configuration
 
     return pb_dpsc_req
 

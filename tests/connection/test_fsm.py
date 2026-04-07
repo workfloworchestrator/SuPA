@@ -170,6 +170,7 @@ def test_data_plane_state_machine() -> None:  # noqa: D103
     # activate_request -> activate_confirmed
     #
     reservation.data_plane_state = DataPlaneStateMachine.Deactivated.value
+    dpsm = DataPlaneStateMachine(reservation, state_field="data_plane_state")
     dpsm.activate_request()
     assert reservation.data_plane_state == DataPlaneStateMachine.Activating.value
     dpsm.activate_confirmed()
@@ -177,7 +178,6 @@ def test_data_plane_state_machine() -> None:  # noqa: D103
     #
     # auto_end_request -> deactivate_request -> deactivate_failed
     #
-    reservation.data_plane_state = DataPlaneStateMachine.Activated.value
     dpsm.auto_end_request()
     assert reservation.data_plane_state == DataPlaneStateMachine.AutoEnd.value
     dpsm.deactivate_request()
@@ -188,6 +188,7 @@ def test_data_plane_state_machine() -> None:  # noqa: D103
     # deactivate_request -> deactivate_confirm
     #
     reservation.data_plane_state = DataPlaneStateMachine.Activated.value
+    dpsm = DataPlaneStateMachine(reservation, state_field="data_plane_state")
     dpsm.deactivate_request()
     assert reservation.data_plane_state == DataPlaneStateMachine.Deactivating.value
     dpsm.deactivate_confirm()

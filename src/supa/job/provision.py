@@ -95,7 +95,7 @@ class ProvisionJob(Job):
                 # the NRM successfully provisioned the reservation,
                 # check if reservation is not terminated and data plane can be activated,
                 # if start time has already passed schedule a ActivateJob otherwise a AutoStartJob
-                if lsm.current_state != LifecycleStateMachine.Created:
+                if LifecycleStateMachine.Created not in lsm.configuration:
                     self.log.info("No auto start or activate data plane", reason="Reservation already terminated")
                     nsi_exception = NsiException(
                         GenericConnectionError,
@@ -256,7 +256,7 @@ class ReleaseJob(Job):
                 # check if reservation is not terminated,
                 # cancel the AutoStartJob or AutoEndJob,
                 # and schedule a DeactivateJob if the data plane is active
-                if lsm.current_state != LifecycleStateMachine.Created:
+                if LifecycleStateMachine.Created not in lsm.configuration:
                     self.log.info("No deactivate data plane", reason="Reservation already terminated")
                     nsi_exception = NsiException(
                         GenericConnectionError,
