@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: pull-request-action
-        uses: vsoch/pull-request-action@1.1.1
+        uses: vsoch/pull-request-action@882391869b75196e039a732df05085312c456995 # 1.1.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRANCH_PREFIX: ""

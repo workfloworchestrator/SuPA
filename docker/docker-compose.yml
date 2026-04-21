@@ -3,7 +3,7 @@ services:
   # SuPA
   #
   supa:
-    image: ghcr.io/workfloworchestrator/supa:latest
+    image: ghcr.io/workfloworchestrator/supa:latest@sha256:92675cf8d4c5200088df9ead970823dbfa0616501c5972affeac805354e1a1ee
     configs:
       - source: supa.env
         target: /usr/local/etc/supa/supa.env
@@ -20,7 +20,7 @@ services:
   # PolyNSI
   #
   polynsi:
-    image: ghcr.io/workfloworchestrator/polynsi:latest
+    image: ghcr.io/workfloworchestrator/polynsi:latest@sha256:ecd07d7278dac227b87fe0a00913503aa79652f68662066dd515c488ade45ca2
     ports:
       - "8443:8443"
     configs:
@@ -36,7 +36,7 @@ services:
   # create SuPA database folder
   #
   create-database-folder:
-    image: 'busybox:latest'
+    image: 'busybox:latest@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e'
     command: ["sh", "-c", "test -d /usr/local/var/db || mkdir /usr/local/var/db"]
     volumes:
       - .:/usr/local/var
