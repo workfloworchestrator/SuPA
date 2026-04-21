@@ -7,7 +7,8 @@
   "internalChecksFilter": "strict",
   "rebaseWhen": "behindbase",
   "lockFileMaintenance": {
-    "enabled": false
+    "enabled": true,
+    "automerge": true
   },
   "packageRules": [
     {
