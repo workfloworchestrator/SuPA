@@ -3,7 +3,7 @@
   "extends": [
     "config:best-practices"
   ],
-  "minimumReleaseAge": "14 days",
+  "minimumReleaseAge": "8 days",
   "internalChecksFilter": "strict",
   "rebaseWhen": "behindbase",
   "lockFileMaintenance": {
