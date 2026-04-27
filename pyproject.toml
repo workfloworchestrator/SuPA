@@ -90,7 +90,7 @@ dev = [
     "pytest-cov==7.1.0",
     "pytest-grpc==0.8.0",
     "pytest-xdist==3.8.0",
-    "ruff==0.15.10",
+    "ruff==0.15.11",
     "types-paramiko==4.0.0.20260408",
     "types-pytz==2026.1.1.20260408",
     "types-requests==2.33.0.20260408",
