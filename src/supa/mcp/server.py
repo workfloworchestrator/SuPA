@@ -53,7 +53,7 @@ def create_server(mcp_settings: McpSettings) -> FastMCP:
 
     register_tools(mcp, port_resolver)
 
-    @mcp.custom_route("/health", methods=["GET"])
+    @mcp.custom_route("/health", methods=["GET"])  # type: ignore[untyped-decorator]
     async def health(request: Request) -> JSONResponse:
         return JSONResponse({"status": "ok"})
 

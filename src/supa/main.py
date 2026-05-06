@@ -323,6 +323,32 @@ def cli() -> None:
     type=int,
     help="The interval between health checks of all active connections in the NRM.",
 )
+@click.option(
+    "--mcp-enable/--no-mcp-enable",
+    "mcp_enable",
+    default=None,
+    help="Start the MCP server alongside supa serve. Overrides SUPA_MCP_ENABLE env var.",
+)
+@click.option(
+    "--mcp-host",
+    "mcp_host",
+    default=None,
+    help="MCP server host. Overrides SUPA_MCP_HOST env var (default: 127.0.0.1).",
+)
+@click.option(
+    "--mcp-port",
+    "mcp_port",
+    default=None,
+    type=int,
+    help="MCP server port. Overrides SUPA_MCP_PORT env var (default: 8765).",
+)
+@click.option(
+    "--mcp-port-mapping-file",
+    "mcp_port_mapping_file",
+    default=None,
+    type=click.Path(exists=False, path_type=Path),
+    help="Path to YAML file mapping NRM port_id to device hostname and interface.",
+)
 @common_options  # type: ignore
 def serve(
     grpc_server_max_workers: int,
@@ -356,6 +382,10 @@ def serve(
     topology_freshness: int,
     healthcheck_with_topology: bool,
     backend_health_check_interval: int,
+    mcp_enable: bool | None,
+    mcp_host: str | None,
+    mcp_port: int | None,
+    mcp_port_mapping_file: Path | None,
 ) -> None:
     """Start the gRPC server and listen for incoming requests."""
     # Command-line options take precedence.
@@ -392,6 +422,25 @@ def serve(
     settings.backend_health_check_interval = backend_health_check_interval
 
     init_app()
+
+    from supa.mcp.config import McpSettings
+    from supa.mcp.server import start_mcp_background
+
+    mcp_overrides: dict[str, object] = {}
+    if mcp_enable is not None:
+        mcp_overrides["enable"] = mcp_enable
+    if mcp_host is not None:
+        mcp_overrides["host"] = mcp_host
+        mcp_overrides.setdefault("enable", True)
+    if mcp_port is not None:
+        mcp_overrides["port"] = mcp_port
+        mcp_overrides.setdefault("enable", True)
+    if mcp_port_mapping_file is not None:
+        mcp_overrides["port_mapping_file"] = mcp_port_mapping_file
+
+    mcp_settings = McpSettings(**mcp_overrides)
+    if mcp_settings.enable:
+        start_mcp_background(mcp_settings)
 
     grpc_server = grpc.server(futures.ThreadPoolExecutor(max_workers=settings.grpc_server_max_workers))
 

@@ -94,6 +94,7 @@ dev = [
     "ruff==0.15.12",
     "types-paramiko==4.0.0.20260408",
     "types-pytz==2026.1.1.20260408",
+    "types-pyyaml>=6.0.12.20260408",
     "types-requests==2.33.0.20260408",
     "types-setuptools==82.0.0.20260408",
     "types-tabulate==0.10.0.20260408",
