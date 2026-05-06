@@ -1,4 +1,8 @@
-# tests/test_mcp_import.py
+"""Smoke test to verify the MCP SDK is importable."""
+
+from mcp.server.fastmcp import FastMCP
+
+
 def test_fastmcp_import() -> None:
-    from mcp.server.fastmcp import FastMCP
+    """Verify FastMCP can be imported from the mcp SDK."""
     assert FastMCP is not None

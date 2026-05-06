@@ -39,8 +39,8 @@ dependencies = [
   "pytz==2026.1.post1",
   "grpcio-tools==1.80.0",
   "psycopg2-binary==2.9.12",
-  "mcp[cli]>=1.9",
-  "pyyaml>=6.0",
+  "mcp[cli]==1.27.0",
+  "pyyaml==6.0.3",
 ]
 requires-python = ">=3.12,<3.15"
 authors = [
