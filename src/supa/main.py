@@ -426,19 +426,14 @@ def serve(
     from supa.mcp.config import McpSettings
     from supa.mcp.server import start_mcp_background
 
-    mcp_overrides: dict[str, object] = {}
-    if mcp_enable is not None:
-        mcp_overrides["enable"] = mcp_enable
-    if mcp_host is not None:
-        mcp_overrides["host"] = mcp_host
-        mcp_overrides.setdefault("enable", True)
-    if mcp_port is not None:
-        mcp_overrides["port"] = mcp_port
-        mcp_overrides.setdefault("enable", True)
-    if mcp_port_mapping_file is not None:
-        mcp_overrides["port_mapping_file"] = mcp_port_mapping_file
-
-    mcp_settings = McpSettings(**mcp_overrides)
+    _defaults = McpSettings()
+    auto_enable = (mcp_host is not None or mcp_port is not None) and mcp_enable is not False
+    mcp_settings = McpSettings(
+        enable=mcp_enable if mcp_enable is not None else (_defaults.enable or auto_enable),
+        host=mcp_host if mcp_host is not None else _defaults.host,
+        port=mcp_port if mcp_port is not None else _defaults.port,
+        port_mapping_file=mcp_port_mapping_file if mcp_port_mapping_file is not None else _defaults.port_mapping_file,
+    )
     if mcp_settings.enable:
         start_mcp_background(mcp_settings)
 

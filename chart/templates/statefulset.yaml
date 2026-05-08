@@ -44,6 +44,18 @@ spec:
               value: {{ .value | quote }}
             {{- end }}
           {{- end }}
+          {{- if .Values.mcp.enabled }}
+            - name: SUPA_MCP_ENABLE
+              value: "true"
+            - name: SUPA_MCP_HOST
+              value: {{ .Values.mcp.host | quote }}
+            - name: SUPA_MCP_PORT
+              value: {{ .Values.mcp.port | quote }}
+            {{- if .Values.mcp.portMapping }}
+            - name: SUPA_MCP_PORT_MAPPING_FILE
+              value: "/usr/local/etc/supa-mcp/port_mapping.yaml"
+            {{- end }}
+          {{- end }}
           envFrom:
           {{- if .Values.secretProviderClass.enabled }}
             - secretRef:
@@ -57,6 +69,11 @@ spec:
             - name: http-alt
               containerPort: 8080
               protocol: TCP
+            {{- if .Values.mcp.enabled }}
+            - name: mcp
+              containerPort: {{ .Values.mcp.port }}
+              protocol: TCP
+            {{- end }}
           livenessProbe:
             httpGet:
               path: /healthcheck
@@ -85,6 +102,11 @@ spec:
             - name: config
               mountPath: "/usr/local/etc/supa"
               readOnly: true
+          {{- if and .Values.mcp.enabled .Values.mcp.portMapping }}
+            - name: mcp-port-mapping
+              mountPath: /usr/local/etc/supa-mcp
+              readOnly: true
+          {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -101,6 +123,11 @@ spec:
         - name: config
           configMap:
             name: {{ printf "%s-config" (include "SuPA.fullname" .) }}
+        {{- if and .Values.mcp.enabled .Values.mcp.portMapping }}
+        - name: mcp-port-mapping
+          configMap:
+            name: {{ printf "%s-mcp-port-mapping" (include "SuPA.fullname" .) }}
+        {{- end }}
         {{- if .Values.secretProviderClass.enabled }}
         - name: secret-store
           csi:

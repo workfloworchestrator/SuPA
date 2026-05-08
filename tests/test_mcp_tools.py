@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -18,14 +19,19 @@ def make_mcp() -> FastMCP:
     return FastMCP("test-supa")
 
 
-async def call_tool(mcp: FastMCP, name: str, **kwargs) -> str:  # type: ignore[return]
+async def call_tool(mcp: FastMCP, name: str, **kwargs: object) -> str:
     """Call a named tool on the FastMCP instance and return the text result.
 
-    FastMCP.call_tool returns a tuple of (List[ContentBlock], dict). We extract
-    the text from the first ContentBlock.
+    FastMCP.call_tool returns a (list[ContentBlock], dict) tuple at runtime.
+    The stub types it as Sequence[ContentBlock] | dict, so we capture as Any.
     """
-    contents, _raw = await mcp.call_tool(name, kwargs)
-    return contents[0].text
+    from mcp.types import TextContent
+
+    raw: Any = await mcp.call_tool(name, kwargs)
+    contents, _meta = raw
+    block = contents[0]
+    assert isinstance(block, TextContent)
+    return block.text
 
 
 @pytest.fixture

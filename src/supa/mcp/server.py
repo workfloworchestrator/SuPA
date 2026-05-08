@@ -6,8 +6,6 @@ import threading
 
 import structlog
 from mcp.server.fastmcp import FastMCP
-from starlette.requests import Request
-from starlette.responses import JSONResponse
 
 from supa.mcp.config import McpSettings
 from supa.mcp.port_mapping import PortResolver
@@ -52,10 +50,6 @@ def create_server(mcp_settings: McpSettings) -> FastMCP:
     )
 
     register_tools(mcp, port_resolver)
-
-    @mcp.custom_route("/health", methods=["GET"])  # type: ignore[untyped-decorator]
-    async def health(request: Request) -> JSONResponse:
-        return JSONResponse({"status": "ok"})
 
     return mcp
 

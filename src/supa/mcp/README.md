@@ -90,7 +90,6 @@ Once running:
 | Path | Description |
 |---|---|
 | `POST /mcp` | MCP streamable HTTP endpoint (used by MCP clients) |
-| `GET /health` | Returns `{"status": "ok"}` |
 
 ## MCP client configuration
 
