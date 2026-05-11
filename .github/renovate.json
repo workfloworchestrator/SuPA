@@ -19,6 +19,7 @@
     },
     {
       "matchUpdateTypes": ["pin", "digest"],
+      "minimumReleaseAge": "0 days",
       "automerge": true
     },
     {
