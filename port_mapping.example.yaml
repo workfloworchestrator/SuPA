@@ -1,0 +1,10 @@
+# port_mapping.example.yaml
+# Copy to port_mapping.yaml and fill in your NRM port IDs.
+# port_id values match Connection.src_port_id / Connection.dst_port_id in the SuPA DB.
+port_mapping:
+  "example-port-1":
+    device: "router1.example.net"
+    interface: "ge-0/0/1"
+  "example-port-2":
+    device: "router2.example.net"
+    interface: "et-0/0/2"

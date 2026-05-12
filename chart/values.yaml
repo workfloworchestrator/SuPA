@@ -124,6 +124,23 @@ config:
       customer_id=1a6f361b-2d8b-48a8-bbcc-74e4bcff6c21
       product_id=6ef76caa-5564-4740-9c83-c0e6d09176c4
 
+mcp:
+  enabled: false
+  host: "0.0.0.0"
+  port: 8765
+  # portMapping: inline content for port_mapping.yaml.
+  # When set, a ConfigMap is created and mounted at /usr/local/etc/supa-mcp/port_mapping.yaml.
+  # Leave empty (or omit entirely) if not using static port-to-device mapping.
+  portMapping: {}
+  # portMapping:
+  #   port_mapping:
+  #     "urn:ogf:network:example.net:topology:port1":
+  #       device: "router1.example.net"
+  #       interface: "et-0/0/0"
+  #     "urn:ogf:network:example.net:topology:port2":
+  #       device: "router2.example.net"
+  #       interface: "ge-0/0/1"
+
 # list of environment variables exposed in the pod,
 # note that configuration done via environment variables will take precedence over .env files
 #env:

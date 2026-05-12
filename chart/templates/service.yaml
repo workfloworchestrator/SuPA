@@ -29,3 +29,21 @@ spec:
       name: grpc
   selector:
     {{- include "SuPA.selectorLabels" . | nindent 4 }}
+{{- if .Values.mcp.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ printf "%s-mcp" (include "SuPA.fullname" .) }}
+  labels:
+    {{- include "SuPA.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.mcp.port }}
+      targetPort: mcp
+      protocol: TCP
+      name: mcp
+  selector:
+    {{- include "SuPA.selectorLabels" . | nindent 4 }}
+{{- end }}
