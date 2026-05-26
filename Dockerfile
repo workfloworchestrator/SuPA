@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1@sha256:2780b5c3bab67f1f76c781860de469442999ed1a0d7992a5efdf2cffc0e3d769
+# syntax=docker/dockerfile:1@sha256:87999aa3d42bdc6bea60565083ee17e86d1f3339802f543c0d03998580f9cb89
 #
 # Build stage
 FROM ghcr.io/astral-sh/uv:python3.14-alpine@sha256:4ee7a28b72cca1e67b77e86170ab941db4748cea9e8b77eeac3fd0738a1ee57d AS build
