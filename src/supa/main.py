@@ -346,7 +346,7 @@ def cli() -> None:
     "--mcp-port-mapping-file",
     "mcp_port_mapping_file",
     default=None,
-    type=click.Path(exists=False, path_type=Path),
+    type=click.Path(dir_okay=False, path_type=Path),
     help="Path to YAML file mapping NRM port_id to device hostname and interface.",
 )
 @common_options  # type: ignore

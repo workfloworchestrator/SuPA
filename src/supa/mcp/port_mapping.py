@@ -22,14 +22,25 @@ class PortResolver:
 
         Args:
             mapping_file: Path to YAML file with port_mapping key, or None to disable.
+
+        Raises:
+            FileNotFoundError: ``mapping_file`` is configured but does not exist.
+                Silently ignoring a typo means the operator sees no warning while
+                every ``get_circuit_endpoints`` call omits ``device``/``interface``.
+            ValueError: An entry in the file is missing ``device`` or ``interface``.
         """
         self._mapping: dict[str, _PortInfo] = {}
-        if mapping_file is not None and mapping_file.exists():
-            self._load(mapping_file)
+        if mapping_file is None:
+            return
+        if not mapping_file.exists():
+            raise FileNotFoundError(f"MCP port mapping file does not exist: {mapping_file}")
+        self._load(mapping_file)
 
     def _load(self, path: Path) -> None:
         data = yaml.safe_load(path.read_text())
         for port_id, info in (data.get("port_mapping") or {}).items():
+            if not isinstance(info, dict) or "device" not in info or "interface" not in info:
+                raise ValueError(f"MCP port mapping entry for {port_id!r} in {path} is missing 'device' or 'interface'")
             self._mapping[port_id] = _PortInfo(
                 device=info["device"],
                 interface=info["interface"],
