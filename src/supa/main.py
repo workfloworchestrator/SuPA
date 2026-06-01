@@ -327,20 +327,20 @@ def cli() -> None:
     "--mcp-enable/--no-mcp-enable",
     "mcp_enable",
     default=None,
-    help="Start the MCP server alongside supa serve. Overrides SUPA_MCP_ENABLE env var.",
+    help="Start the MCP server alongside supa serve.",
 )
 @click.option(
     "--mcp-host",
     "mcp_host",
     default=None,
-    help="MCP server host. Overrides SUPA_MCP_HOST env var (default: 127.0.0.1).",
+    help="MCP server host.",
 )
 @click.option(
     "--mcp-port",
     "mcp_port",
     default=None,
     type=int,
-    help="MCP server port. Overrides SUPA_MCP_PORT env var (default: 8765).",
+    help="MCP server port.",
 )
 @click.option(
     "--mcp-port-mapping-file",
@@ -421,21 +421,26 @@ def serve(
     settings.healthcheck_with_topology = healthcheck_with_topology
     settings.backend_health_check_interval = backend_health_check_interval
 
+    # MCP server CLI overrides — env/file values stay in `settings` unless the operator
+    # passes a flag explicitly.
+    if mcp_host is not None:
+        settings.mcp_host = mcp_host
+    if mcp_port is not None:
+        settings.mcp_port = mcp_port
+    if mcp_port_mapping_file is not None:
+        settings.mcp_port_mapping_file = mcp_port_mapping_file
+    auto_enable = (mcp_host is not None or mcp_port is not None) and mcp_enable is not False
+    if mcp_enable is not None:
+        settings.mcp_enable = mcp_enable
+    elif auto_enable:
+        settings.mcp_enable = True
+
     init_app()
 
-    from supa.mcp.config import McpSettings
     from supa.mcp.server import start_mcp_background
 
-    _defaults = McpSettings()
-    auto_enable = (mcp_host is not None or mcp_port is not None) and mcp_enable is not False
-    mcp_settings = McpSettings(
-        enable=mcp_enable if mcp_enable is not None else (_defaults.enable or auto_enable),
-        host=mcp_host if mcp_host is not None else _defaults.host,
-        port=mcp_port if mcp_port is not None else _defaults.port,
-        port_mapping_file=mcp_port_mapping_file if mcp_port_mapping_file is not None else _defaults.port_mapping_file,
-    )
-    if mcp_settings.enable:
-        start_mcp_background(mcp_settings)
+    if settings.mcp_enable:
+        start_mcp_background()
 
     grpc_server = grpc.server(futures.ThreadPoolExecutor(max_workers=settings.grpc_server_max_workers))
 

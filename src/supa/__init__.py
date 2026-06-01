@@ -224,6 +224,13 @@ class Settings(BaseSettings):
 
     backend_health_check_interval: int = 60
 
+    # MCP server (read-only HTTP endpoint that exposes circuit data to LLM agents)
+    mcp_enable: bool = False
+    mcp_host: str = "127.0.0.1"
+    mcp_port: int = 8765
+    mcp_log_level: str = "INFO"
+    mcp_port_mapping_file: Path | None = None
+
     @property
     def nsa_exposed_url(self) -> str:
         """Return URL that NSA is exposed on constructed from nsa_scheme, nsa_host and nsa_port."""

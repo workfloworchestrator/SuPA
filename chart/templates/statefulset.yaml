@@ -45,14 +45,14 @@ spec:
             {{- end }}
           {{- end }}
           {{- if .Values.mcp.enabled }}
-            - name: SUPA_MCP_ENABLE
+            - name: MCP_ENABLE
               value: "true"
-            - name: SUPA_MCP_HOST
+            - name: MCP_HOST
               value: {{ .Values.mcp.host | quote }}
-            - name: SUPA_MCP_PORT
+            - name: MCP_PORT
               value: {{ .Values.mcp.port | quote }}
             {{- if .Values.mcp.portMapping }}
-            - name: SUPA_MCP_PORT_MAPPING_FILE
+            - name: MCP_PORT_MAPPING_FILE
               value: "/usr/local/etc/supa-mcp/port_mapping.yaml"
             {{- end }}
           {{- end }}

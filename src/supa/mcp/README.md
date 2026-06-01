@@ -45,15 +45,19 @@ The MCP server is disabled by default. Enable it via environment variable or CLI
 
 ### Environment variables
 
-All variables use the `SUPA_MCP_` prefix and can be set in `supa.env` or the environment.
+All settings live in the global SuPA `Settings` class and can be set in `supa.env`
+or as environment variables, alongside every other SuPA setting. Names are
+case-insensitive — `mcp_enable`, `MCP_ENABLE`, and `Mcp_Enable` all resolve to the
+same field. Lowercase matches `supa.env` style; uppercase is conventional in
+Kubernetes/container manifests.
 
 | Variable | Default | Description |
 |---|---|---|
-| `SUPA_MCP_ENABLE` | `false` | Set to `true` to start the MCP server |
-| `SUPA_MCP_HOST` | `127.0.0.1` | Bind host. Use `0.0.0.0` to expose on all interfaces. |
-| `SUPA_MCP_PORT` | `8765` | HTTP port for the MCP endpoint |
-| `SUPA_MCP_LOG_LEVEL` | `INFO` | Log level (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
-| `SUPA_MCP_PORT_MAPPING_FILE` | _(none)_ | Path to a YAML port mapping file (see below) |
+| `mcp_enable` | `false` | Set to `true` to start the MCP server |
+| `mcp_host` | `127.0.0.1` | Bind host. Use `0.0.0.0` to expose on all interfaces. |
+| `mcp_port` | `8765` | HTTP port for the MCP endpoint |
+| `mcp_log_level` | `INFO` | Log level (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
+| `mcp_port_mapping_file` | _(none)_ | Path to a YAML port mapping file (see below) |
 
 ### CLI flags
 
@@ -75,11 +79,11 @@ No change to the container `CMD` is required. Set environment variables in the d
 
 ```yaml
 env:
-  - name: SUPA_MCP_ENABLE
+  - name: MCP_ENABLE
     value: "true"
-  - name: SUPA_MCP_HOST
+  - name: MCP_HOST
     value: "0.0.0.0"
-  - name: SUPA_MCP_PORT
+  - name: MCP_PORT
     value: "8765"
 ```
 

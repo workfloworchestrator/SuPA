@@ -7,7 +7,7 @@ import threading
 import structlog
 from mcp.server.fastmcp import FastMCP
 
-from supa.mcp.config import McpSettings
+from supa import settings
 from supa.mcp.port_mapping import PortResolver
 from supa.mcp.tools import register_tools
 
@@ -31,22 +31,15 @@ The most useful filter for finding active circuits is provision_state="PROVISION
 """
 
 
-def create_server(mcp_settings: McpSettings) -> FastMCP:
-    """Create and configure the FastMCP server instance. Does not start it.
-
-    Args:
-        mcp_settings: MCP server configuration (host, port, port_mapping_file).
-
-    Returns:
-        Configured FastMCP instance with all SuPA tools registered.
-    """
-    port_resolver = PortResolver(mcp_settings.port_mapping_file)
+def create_server() -> FastMCP:
+    """Create and configure the FastMCP server instance from global settings. Does not start it."""
+    port_resolver = PortResolver(settings.mcp_port_mapping_file)
 
     mcp = FastMCP(
         "supa-mcp",
         instructions=_INSTRUCTIONS,
-        host=mcp_settings.host,
-        port=mcp_settings.port,
+        host=settings.mcp_host,
+        port=settings.mcp_port,
     )
 
     register_tools(mcp, port_resolver)
@@ -54,21 +47,17 @@ def create_server(mcp_settings: McpSettings) -> FastMCP:
     return mcp
 
 
-def start_mcp_background(mcp_settings: McpSettings) -> None:
+def start_mcp_background() -> None:
     """Start the MCP server in a background daemon thread alongside supa serve.
 
     The thread is daemon so it exits automatically when the main process exits.
-    No explicit shutdown is needed — supa serve's signal handling terminates the process.
-
-    Args:
-        mcp_settings: MCP server configuration.
     """
-    mcp = create_server(mcp_settings)
+    mcp = create_server()
     logger.info(
         "starting mcp server in background thread",
-        host=mcp_settings.host,
-        port=mcp_settings.port,
-        port_mapping_file=str(mcp_settings.port_mapping_file),
+        host=settings.mcp_host,
+        port=settings.mcp_port,
+        port_mapping_file=str(settings.mcp_port_mapping_file),
     )
     thread = threading.Thread(
         target=mcp.run,
@@ -79,22 +68,15 @@ def start_mcp_background(mcp_settings: McpSettings) -> None:
     thread.start()
 
 
-def run_server(mcp_settings: McpSettings) -> None:
-    """Initialize SuPA DB and run the MCP server in the foreground.
-
-    This is the development/standalone entrypoint. For production, use
-    start_mcp_background() inside supa serve.
-
-    Args:
-        mcp_settings: MCP server configuration.
-    """
+def run_server() -> None:
+    """Initialize SuPA DB and run the MCP server in the foreground."""
     from supa import init_app
 
     logger.info(
         "starting supa mcp server",
-        host=mcp_settings.host,
-        port=mcp_settings.port,
+        host=settings.mcp_host,
+        port=settings.mcp_port,
     )
     init_app(with_scheduler=False)
-    mcp = create_server(mcp_settings)
+    mcp = create_server()
     mcp.run(transport="streamable-http")
