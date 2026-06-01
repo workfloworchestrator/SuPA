@@ -56,12 +56,13 @@ class TestListCircuitsTool:
         assert data[0]["reservation_state"] == "RESERVE_HELD"
 
     @pytest.mark.anyio
-    async def test_returns_error_string_on_exception(self, mcp_with_tools: FastMCP) -> None:
-        """Returns error string (not exception) on DB failure."""
-        with patch("supa.mcp.tools.list_circuits_query", side_effect=Exception("db error")):
+    async def test_returns_generic_error_on_exception(self, mcp_with_tools: FastMCP) -> None:
+        """Returns a generic error with a correlation id; does not leak the raw exception."""
+        with patch("supa.mcp.tools.list_circuits_query", side_effect=Exception("schema.table leak")):
             result = await call_tool(mcp_with_tools, "list_circuits")
-        assert "Error" in result
-        assert "db error" in result
+        assert "Internal error" in result
+        assert "correlation_id=" in result
+        assert "schema.table leak" not in result
 
 
 class TestGetCircuitTool:

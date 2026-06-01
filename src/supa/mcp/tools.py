@@ -14,6 +14,17 @@ from supa.mcp.queries import get_circuit_endpoints_query, get_circuit_query, lis
 logger = structlog.get_logger(__name__)
 
 
+def _internal_error(operation: str) -> tuple[str, str]:
+    """Return a generic error message and the correlation id used to find it in the logs.
+
+    Internal exception messages (SQLAlchemy errors, file paths, stack frames) must
+    never reach the MCP client. The correlation id is the only handle the operator
+    has to tie the client-visible message back to the structlog entry.
+    """
+    correlation_id = uuid.uuid4().hex[:12]
+    return f"Internal error {operation} (correlation_id={correlation_id})", correlation_id
+
+
 def register_tools(mcp: FastMCP, port_resolver: PortResolver) -> None:
     """Register all SuPA read-only tools on the FastMCP instance.
 
@@ -69,9 +80,10 @@ def register_tools(mcp: FastMCP, port_resolver: PortResolver) -> None:
             )
             logger.info("tool ok", tool="list_circuits", count=len(circuits))
             return json.dumps(circuits, indent=2)
-        except Exception as e:
-            logger.error("tool error", tool="list_circuits", error=str(e))
-            return f"Error listing circuits: {e}"
+        except Exception:
+            message, correlation_id = _internal_error("listing circuits")
+            logger.exception("tool error", tool="list_circuits", correlation_id=correlation_id)
+            return message
 
     @mcp.tool()
     async def get_circuit(connection_id: str) -> str:
@@ -101,9 +113,10 @@ def register_tools(mcp: FastMCP, port_resolver: PortResolver) -> None:
                 return f"Circuit not found: {connection_id}"
             logger.info("tool ok", tool="get_circuit")
             return json.dumps(circuit, indent=2)
-        except Exception as e:
-            logger.error("tool error", tool="get_circuit", error=str(e))
-            return f"Error retrieving circuit: {e}"
+        except Exception:
+            message, correlation_id = _internal_error("retrieving circuit")
+            logger.exception("tool error", tool="get_circuit", correlation_id=correlation_id)
+            return message
 
     @mcp.tool()
     async def get_circuit_endpoints(connection_id: str) -> str:
@@ -144,6 +157,7 @@ def register_tools(mcp: FastMCP, port_resolver: PortResolver) -> None:
                 )
             logger.info("tool ok", tool="get_circuit_endpoints")
             return json.dumps(endpoints, indent=2)
-        except Exception as e:
-            logger.error("tool error", tool="get_circuit_endpoints", error=str(e))
-            return f"Error retrieving circuit endpoints: {e}"
+        except Exception:
+            message, correlation_id = _internal_error("retrieving circuit endpoints")
+            logger.exception("tool error", tool="get_circuit_endpoints", correlation_id=correlation_id)
+            return message
