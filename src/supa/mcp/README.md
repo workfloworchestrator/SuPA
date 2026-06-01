@@ -71,7 +71,7 @@ supa serve \
   --mcp-port-mapping-file /etc/supa/port_mapping.yaml
 ```
 
-Passing `--mcp-host` or `--mcp-port` without `--mcp-enable` also enables the server automatically.
+The server only starts when `mcp_enable` is true — passing `--mcp-host` or `--mcp-port` on their own changes the bind address but does not enable the server.
 
 ### Container deployment
 

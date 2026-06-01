@@ -422,18 +422,15 @@ def serve(
     settings.backend_health_check_interval = backend_health_check_interval
 
     # MCP server CLI overrides — env/file values stay in `settings` unless the operator
-    # passes a flag explicitly.
+    # passes a flag explicitly. Startup is gated solely on `mcp_enable`.
     if mcp_host is not None:
         settings.mcp_host = mcp_host
     if mcp_port is not None:
         settings.mcp_port = mcp_port
     if mcp_port_mapping_file is not None:
         settings.mcp_port_mapping_file = mcp_port_mapping_file
-    auto_enable = (mcp_host is not None or mcp_port is not None) and mcp_enable is not False
     if mcp_enable is not None:
         settings.mcp_enable = mcp_enable
-    elif auto_enable:
-        settings.mcp_enable = True
 
     init_app()
 
