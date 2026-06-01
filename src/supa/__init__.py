@@ -41,7 +41,7 @@ from datetime import datetime
 from enum import Enum
 from importlib import import_module
 from pathlib import Path
-from typing import Union
+from typing import Literal, Union
 from urllib.parse import urlparse
 
 import pytz
@@ -228,7 +228,7 @@ class Settings(BaseSettings):
     mcp_enable: bool = False
     mcp_host: str = "127.0.0.1"
     mcp_port: int = 8765
-    mcp_log_level: str = "INFO"
+    mcp_log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     mcp_port_mapping_file: Path | None = None
 
     @property

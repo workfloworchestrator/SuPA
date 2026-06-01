@@ -437,10 +437,10 @@ def serve(
 
     init_app()
 
-    from supa.mcp.server import start_mcp_background
+    from supa.mcp.server import start_mcp, stop_mcp
 
     if settings.mcp_enable:
-        start_mcp_background()
+        start_mcp()
 
     grpc_server = grpc.server(futures.ThreadPoolExecutor(max_workers=settings.grpc_server_max_workers))
 
@@ -467,6 +467,9 @@ def serve(
         logger.info("Caught signal, starting graceful shutdown", signal=signum)
         from supa import scheduler
 
+        # Signal the MCP uvicorn server to drop out of its serve loop so the
+        # scheduler job returns and `scheduler.shutdown(wait=True)` does not hang.
+        stop_mcp()
         scheduler.shutdown(wait=True)
         grpc_server.stop(grace=None)
         webengine.graceful()
