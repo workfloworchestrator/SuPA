@@ -7,7 +7,7 @@ import time
 import uuid
 
 import structlog
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import Context, FastMCP
 
 from supa.mcp.port_mapping import PortResolver
 from supa.mcp.queries import get_circuit_endpoints_query, get_circuit_query, list_circuits_query
@@ -40,7 +40,8 @@ def register_tools(mcp: FastMCP, port_resolver: PortResolver) -> None:
     """
 
     @mcp.tool()
-    async def list_circuits(
+    async def list_circuits(  # noqa: D417 — `ctx` is injected by FastMCP and hidden from the LLM schema.
+        ctx: Context,
         reservation_state: str | None = None,
         provision_state: str | None = None,
         lifecycle_state: str | None = None,
@@ -79,23 +80,24 @@ def register_tools(mcp: FastMCP, port_resolver: PortResolver) -> None:
             }.items()
             if v is not None
         }
-        logger.info("list_circuits called", **filters)
+        log = logger.bind(request_id=ctx.request_id)
+        log.info("list_circuits called", **filters)
         t0 = time.perf_counter()
         try:
             circuits = list_circuits_query(**filters)
         except Exception:
             message, correlation_id = _internal_error("listing circuits")
-            logger.exception(
+            log.exception(
                 "list_circuits failed",
                 correlation_id=correlation_id,
                 duration_ms=_elapsed_ms(t0),
             )
             return message
-        logger.info("list_circuits completed", count=len(circuits), duration_ms=_elapsed_ms(t0))
+        log.info("list_circuits completed", count=len(circuits), duration_ms=_elapsed_ms(t0))
         return json.dumps(circuits, indent=2)
 
     @mcp.tool()
-    async def get_circuit(connection_id: str) -> str:
+    async def get_circuit(ctx: Context, connection_id: str) -> str:  # noqa: D417 — `ctx` is FastMCP-injected.
         """Get full details for a single NSI circuit by its UUID (connection_id).
 
         Returns JSON with all four state machine values, bandwidth, schedule (start/end time),
@@ -110,19 +112,20 @@ def register_tools(mcp: FastMCP, port_resolver: PortResolver) -> None:
         Returns:
             JSON object string with circuit details, or error message string.
         """
-        logger.info("get_circuit called", connection_id=connection_id)
+        log = logger.bind(request_id=ctx.request_id)
+        log.info("get_circuit called", connection_id=connection_id)
         t0 = time.perf_counter()
         try:
             connection_uuid = uuid.UUID(connection_id)
         except ValueError:
-            logger.info("get_circuit invalid_uuid", connection_id=connection_id, duration_ms=_elapsed_ms(t0))
+            log.info("get_circuit invalid_uuid", connection_id=connection_id, duration_ms=_elapsed_ms(t0))
             return f"Invalid UUID: {connection_id!r}"
 
         try:
             circuit = get_circuit_query(connection_uuid)
         except Exception:
             message, correlation_id = _internal_error("retrieving circuit")
-            logger.exception(
+            log.exception(
                 "get_circuit failed",
                 correlation_id=correlation_id,
                 connection_id=connection_id,
@@ -130,13 +133,13 @@ def register_tools(mcp: FastMCP, port_resolver: PortResolver) -> None:
             )
             return message
         if circuit is None:
-            logger.info("get_circuit not_found", connection_id=connection_id, duration_ms=_elapsed_ms(t0))
+            log.info("get_circuit not_found", connection_id=connection_id, duration_ms=_elapsed_ms(t0))
             return f"Circuit not found: {connection_id}"
-        logger.info("get_circuit completed", connection_id=connection_id, duration_ms=_elapsed_ms(t0))
+        log.info("get_circuit completed", connection_id=connection_id, duration_ms=_elapsed_ms(t0))
         return json.dumps(circuit, indent=2)
 
     @mcp.tool()
-    async def get_circuit_endpoints(connection_id: str) -> str:
+    async def get_circuit_endpoints(ctx: Context, connection_id: str) -> str:  # noqa: D417 — `ctx` is FastMCP-injected.
         """Get device and interface information for a circuit's source and destination endpoints.
 
         Returns JSON with src and dst endpoint objects, each containing:
@@ -159,12 +162,13 @@ def register_tools(mcp: FastMCP, port_resolver: PortResolver) -> None:
         Returns:
             JSON object string with endpoint details, or error message string.
         """
-        logger.info("get_circuit_endpoints called", connection_id=connection_id)
+        log = logger.bind(request_id=ctx.request_id)
+        log.info("get_circuit_endpoints called", connection_id=connection_id)
         t0 = time.perf_counter()
         try:
             connection_uuid = uuid.UUID(connection_id)
         except ValueError:
-            logger.info(
+            log.info(
                 "get_circuit_endpoints invalid_uuid",
                 connection_id=connection_id,
                 duration_ms=_elapsed_ms(t0),
@@ -175,7 +179,7 @@ def register_tools(mcp: FastMCP, port_resolver: PortResolver) -> None:
             endpoints = get_circuit_endpoints_query(connection_uuid, port_resolver)
         except Exception:
             message, correlation_id = _internal_error("retrieving circuit endpoints")
-            logger.exception(
+            log.exception(
                 "get_circuit_endpoints failed",
                 correlation_id=correlation_id,
                 connection_id=connection_id,
@@ -183,7 +187,7 @@ def register_tools(mcp: FastMCP, port_resolver: PortResolver) -> None:
             )
             return message
         if endpoints is None:
-            logger.info(
+            log.info(
                 "get_circuit_endpoints not_found",
                 connection_id=connection_id,
                 duration_ms=_elapsed_ms(t0),
@@ -193,7 +197,7 @@ def register_tools(mcp: FastMCP, port_resolver: PortResolver) -> None:
                 "Endpoint data is only available after the reservation is committed."
             )
         ports_resolved = sum(1 for side in (endpoints["src"], endpoints["dst"]) if "device" in side)
-        logger.info(
+        log.info(
             "get_circuit_endpoints completed",
             connection_id=connection_id,
             ports_resolved=ports_resolved,

@@ -4,14 +4,16 @@ from __future__ import annotations
 
 import json
 import uuid
-from typing import Any
-from unittest.mock import patch
+from typing import Any, Generator
+from unittest.mock import PropertyMock, patch
 
 import pytest
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import Context, FastMCP
 
 from supa.mcp.port_mapping import PortResolver
 from supa.mcp.tools import register_tools
+
+TEST_REQUEST_ID = "test-request-id-42"
 
 
 def make_mcp() -> FastMCP:
@@ -32,6 +34,19 @@ async def call_tool(mcp: FastMCP, name: str, **kwargs: object) -> str:
     block = contents[0]
     assert isinstance(block, TextContent)
     return block.text
+
+
+@pytest.fixture(autouse=True)
+def fake_request_context() -> Generator[None, None, None]:
+    """Provide a stable ``ctx.request_id`` to tool invocations during tests.
+
+    FastMCP.call_tool does not bind a request context outside a live transport,
+    so ``Context.request_id`` raises by default. Patching the property keeps the
+    tools' ``logger.bind(request_id=ctx.request_id)`` working under the same
+    public entry point real clients use.
+    """
+    with patch.object(Context, "request_id", new_callable=PropertyMock, return_value=TEST_REQUEST_ID):
+        yield
 
 
 @pytest.fixture
@@ -273,3 +288,57 @@ async def test_invalid_uuid_logs_distinct_event(mcp_with_tools: FastMCP, tool: s
     with structlog.testing.capture_logs() as logs:
         await call_tool(mcp_with_tools, tool, connection_id="not-a-uuid")
     assert any(entry["event"] == f"{tool} invalid_uuid" for entry in logs)
+
+
+# request_id correlation: every tool-emitted log entry carries the JSON-RPC request id
+# from the FastMCP Context, so an operator can grep one identifier and find every line
+# the tool produced for a given call.
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "tool,query_func,kwargs,query_return,events",
+    [
+        pytest.param(
+            "list_circuits",
+            "list_circuits_query",
+            {},
+            [],
+            ["list_circuits called", "list_circuits completed"],
+            id="list_circuits",
+        ),
+        pytest.param(
+            "get_circuit",
+            "get_circuit_query",
+            {"connection_id": "11111111-1111-1111-1111-111111111111"},
+            {"connection_id": "11111111-1111-1111-1111-111111111111"},
+            ["get_circuit called", "get_circuit completed"],
+            id="get_circuit",
+        ),
+        pytest.param(
+            "get_circuit_endpoints",
+            "get_circuit_endpoints_query",
+            {"connection_id": "11111111-1111-1111-1111-111111111111"},
+            {"src": {"port_id": "a"}, "dst": {"port_id": "b"}},
+            ["get_circuit_endpoints called", "get_circuit_endpoints completed"],
+            id="get_circuit_endpoints",
+        ),
+    ],
+)
+async def test_tool_log_entries_carry_request_id(
+    mcp_with_tools: FastMCP,
+    tool: str,
+    query_func: str,
+    kwargs: dict[str, str],
+    query_return: object,
+    events: list[str],
+) -> None:
+    """Every log entry emitted by the tool carries request_id from the Context."""
+    import structlog.testing
+
+    with patch(f"supa.mcp.tools.{query_func}", return_value=query_return):
+        with structlog.testing.capture_logs() as logs:
+            await call_tool(mcp_with_tools, tool, **kwargs)
+    matching = [entry for entry in logs if entry["event"] in events]
+    assert matching, f"expected at least one of {events} in {[e['event'] for e in logs]}"
+    assert all(entry.get("request_id") == TEST_REQUEST_ID for entry in matching)
