@@ -95,6 +95,16 @@ Once running:
 |---|---|
 | `POST /mcp` | MCP streamable HTTP endpoint (used by MCP clients) |
 
+## Security
+
+The MCP endpoint has **no authentication** — any client that can reach the listening socket can invoke every tool and read every circuit record SuPA has. The tools are read-only, but circuit data includes endpoint identifiers, VLANs, schedules, and (with a port mapping file) device hostnames and interface names.
+
+Operational guidance:
+
+- The default bind address is `127.0.0.1`. Do not change it to `0.0.0.0` unless you also restrict access in front of SuPA.
+- In the Helm chart the bind address is `0.0.0.0` and a ClusterIP `Service` (`<release>-mcp`) is created. Ingress is not provisioned, so by default the endpoint is in-cluster only — but any pod in the cluster can reach it. Add a `NetworkPolicy` selecting just the intended clients before exposing it to a shared cluster.
+- Do not put the endpoint behind a public ingress without an authenticating proxy in front of it.
+
 ## MCP client configuration
 
 Example for Claude Desktop or Cursor:
