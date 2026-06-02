@@ -14,20 +14,6 @@ from supa.mcp.port_mapping import PortResolver
 logger = structlog.get_logger(__name__)
 
 
-def _str(val: Any) -> str | None:
-    """Safely convert a state value (string or enum) to string.
-
-    Args:
-        val: State value — may be a string or an object with a .value attribute.
-
-    Returns:
-        String representation, or None if val is None.
-    """
-    if val is None:
-        return None
-    return val.value if hasattr(val, "value") else str(val)
-
-
 def list_circuits_query(
     reservation_state: str | None = None,
     provision_state: str | None = None,
@@ -63,10 +49,10 @@ def list_circuits_query(
                 "connection_id": str(r.connection_id),
                 "description": r.description,
                 "global_reservation_id": r.global_reservation_id,
-                "reservation_state": _str(r.reservation_state),
-                "provision_state": _str(r.provision_state),
-                "lifecycle_state": _str(r.lifecycle_state),
-                "data_plane_state": _str(r.data_plane_state),
+                "reservation_state": r.reservation_state,
+                "provision_state": r.provision_state,
+                "lifecycle_state": r.lifecycle_state,
+                "data_plane_state": r.data_plane_state,
                 "create_date": r.create_date.isoformat() if r.create_date else None,
             }
             for r in reservations
@@ -92,10 +78,10 @@ def get_circuit_query(connection_id: uuid.UUID) -> dict[str, Any] | None:
             "description": reservation.description,
             "global_reservation_id": reservation.global_reservation_id,
             "requester_nsa": reservation.requester_nsa,
-            "reservation_state": _str(reservation.reservation_state),
-            "provision_state": _str(reservation.provision_state),
-            "lifecycle_state": _str(reservation.lifecycle_state),
-            "data_plane_state": _str(reservation.data_plane_state),
+            "reservation_state": reservation.reservation_state,
+            "provision_state": reservation.provision_state,
+            "lifecycle_state": reservation.lifecycle_state,
+            "data_plane_state": reservation.data_plane_state,
             "create_date": reservation.create_date.isoformat() if reservation.create_date else None,
         }
 
