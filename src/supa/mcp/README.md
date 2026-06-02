@@ -95,6 +95,12 @@ Once running:
 |---|---|
 | `POST /mcp` | MCP streamable HTTP endpoint (used by MCP clients) |
 
+## Kubernetes probes
+
+The container `livenessProbe` and `readinessProbe` in the Helm chart hit `/healthcheck` on the document-server port. They do **not** cover the MCP port — if the MCP server crashes, the pod stays `Ready` and Kubernetes will not restart it. A second `httpGet` probe is not an option (each container only allows one of each probe type), and FastMCP does not expose a health-check route that returns a 2xx on `GET`.
+
+If you need MCP-aware health checking, run an external probe (for example a CronJob that issues `POST /mcp` with a `tools/list` request) and alert on failure.
+
 ## Security
 
 The MCP endpoint has **no authentication** — any client that can reach the listening socket can invoke every tool and read every circuit record SuPA has. The tools are read-only, but circuit data includes endpoint identifiers, VLANs, schedules, and (with a port mapping file) device hostnames and interface names.
