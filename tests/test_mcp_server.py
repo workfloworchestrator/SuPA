@@ -83,6 +83,16 @@ class TestStartMcp:
             mcp_server.start_mcp()
         assert mcp_server._uvicorn_server is fake_server
 
+    def test_disables_uvicorn_logging_config(self) -> None:
+        """uvicorn.Config must receive log_config=None so SuPA's structlog setup is preserved."""
+        with (
+            patch("supa.scheduler"),
+            patch("uvicorn.Server", return_value=MagicMock()),
+            patch("uvicorn.Config") as fake_config,
+        ):
+            mcp_server.start_mcp()
+        assert fake_config.call_args.kwargs["log_config"] is None
+
 
 class TestServe:
     """Tests for _serve."""

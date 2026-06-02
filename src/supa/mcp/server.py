@@ -77,6 +77,7 @@ def start_mcp() -> None:
         host=settings.mcp_host,
         port=settings.mcp_port,
         log_level=settings.mcp_log_level.lower(),
+        log_config=None,
     )
     global _uvicorn_server
     _uvicorn_server = uvicorn.Server(config)
