@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from datetime import datetime, timezone
 
 import structlog
@@ -79,6 +80,9 @@ def start_mcp() -> None:
         log_level=settings.mcp_log_level.lower(),
         log_config=None,
     )
+    # Quiet per-request access lines (`POST /mcp HTTP/1.1 200 OK`) without losing
+    # warnings/errors from the same logger.
+    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
     global _uvicorn_server
     _uvicorn_server = uvicorn.Server(config)
 

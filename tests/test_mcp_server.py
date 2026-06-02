@@ -93,6 +93,24 @@ class TestStartMcp:
             mcp_server.start_mcp()
         assert fake_config.call_args.kwargs["log_config"] is None
 
+    def test_raises_uvicorn_access_logger_to_warning(self) -> None:
+        """uvicorn.access INFO lines are silenced; warnings/errors still surface."""
+        import logging
+
+        access_logger = logging.getLogger("uvicorn.access")
+        original_level = access_logger.level
+        try:
+            access_logger.setLevel(logging.NOTSET)
+            with (
+                patch("supa.scheduler"),
+                patch("uvicorn.Server", return_value=MagicMock()),
+                patch("uvicorn.Config"),
+            ):
+                mcp_server.start_mcp()
+            assert access_logger.level == logging.WARNING
+        finally:
+            access_logger.setLevel(original_level)
+
 
 class TestServe:
     """Tests for _serve."""
