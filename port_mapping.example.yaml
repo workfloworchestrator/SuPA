@@ -1,13 +1,15 @@
 # port_mapping.example.yaml
 # Copy to port_mapping.yaml and fill in your NRM port IDs.
-# port_id values must match Connection.src_port_id / Connection.dst_port_id in
-# the SuPA DB exactly — that format depends on the configured NRM backend and is
-# typically a URN. Call get_circuit_endpoints without a mapping file to see the
-# exact strings your backend stores.
+#
+# port_id keys must match Connection.src_port_id / Connection.dst_port_id in the
+# SuPA database exactly. The exact format is defined by the configured NRM
+# backend — common examples are a vendor interface name (Ciena 8190) or a UUID
+# (SURF). Call get_circuit_endpoints without a mapping file to see the literal
+# strings your backend stores.
 port_mapping:
-  "urn:ogf:network:example.net:topology:port1":
+  "2d35f97c-7e90-4f2d-bc52-d22d05d972f4":
     device: "router1.example.net"
     interface: "et-0/0/0"
-  "urn:ogf:network:example.net:topology:port2":
+  "et-0/0/19":
     device: "router2.example.net"
     interface: "ge-0/0/1"

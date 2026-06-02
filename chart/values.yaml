@@ -134,10 +134,10 @@ mcp:
   portMapping: {}
   # portMapping:
   #   port_mapping:
-  #     "urn:ogf:network:example.net:topology:port1":
+  #     "2d35f97c-7e90-4f2d-bc52-d22d05d972f4":
   #       device: "router1.example.net"
   #       interface: "et-0/0/0"
-  #     "urn:ogf:network:example.net:topology:port2":
+  #     "et-0/0/19":
   #       device: "router2.example.net"
   #       interface: "ge-0/0/1"
 
