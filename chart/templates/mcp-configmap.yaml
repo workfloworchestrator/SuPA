@@ -1,0 +1,11 @@
+{{- if and .Values.mcp.enabled .Values.mcp.portMapping }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ printf "%s-mcp-port-mapping" (include "SuPA.fullname" .) }}
+  labels:
+    {{- include "SuPA.labels" . | nindent 4 }}
+data:
+  port_mapping.yaml: |
+    {{- .Values.mcp.portMapping | toYaml | nindent 4 }}
+{{- end }}

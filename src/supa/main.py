@@ -323,6 +323,32 @@ def cli() -> None:
     type=int,
     help="The interval between health checks of all active connections in the NRM.",
 )
+@click.option(
+    "--mcp-enable/--no-mcp-enable",
+    "mcp_enable",
+    default=None,
+    help="Start the MCP server alongside supa serve.",
+)
+@click.option(
+    "--mcp-host",
+    "mcp_host",
+    default=None,
+    help="MCP server host.",
+)
+@click.option(
+    "--mcp-port",
+    "mcp_port",
+    default=None,
+    type=int,
+    help="MCP server port.",
+)
+@click.option(
+    "--mcp-port-mapping-file",
+    "mcp_port_mapping_file",
+    default=None,
+    type=click.Path(dir_okay=False, path_type=Path),
+    help="Path to YAML file mapping NRM port_id to device hostname and interface.",
+)
 @common_options  # type: ignore
 def serve(
     grpc_server_max_workers: int,
@@ -356,6 +382,10 @@ def serve(
     topology_freshness: int,
     healthcheck_with_topology: bool,
     backend_health_check_interval: int,
+    mcp_enable: bool | None,
+    mcp_host: str | None,
+    mcp_port: int | None,
+    mcp_port_mapping_file: Path | None,
 ) -> None:
     """Start the gRPC server and listen for incoming requests."""
     # Command-line options take precedence.
@@ -391,7 +421,23 @@ def serve(
     settings.healthcheck_with_topology = healthcheck_with_topology
     settings.backend_health_check_interval = backend_health_check_interval
 
+    # MCP server CLI overrides — env/file values stay in `settings` unless the operator
+    # passes a flag explicitly. Startup is gated solely on `mcp_enable`.
+    if mcp_host is not None:
+        settings.mcp_host = mcp_host
+    if mcp_port is not None:
+        settings.mcp_port = mcp_port
+    if mcp_port_mapping_file is not None:
+        settings.mcp_port_mapping_file = mcp_port_mapping_file
+    if mcp_enable is not None:
+        settings.mcp_enable = mcp_enable
+
     init_app()
+
+    from supa.mcp.server import start_mcp, stop_mcp
+
+    if settings.mcp_enable:
+        start_mcp()
 
     grpc_server = grpc.server(futures.ThreadPoolExecutor(max_workers=settings.grpc_server_max_workers))
 
@@ -418,6 +464,9 @@ def serve(
         logger.info("Caught signal, starting graceful shutdown", signal=signum)
         from supa import scheduler
 
+        # Signal the MCP uvicorn server to drop out of its serve loop so the
+        # scheduler job returns and `scheduler.shutdown(wait=True)` does not hang.
+        stop_mcp()
         scheduler.shutdown(wait=True)
         grpc_server.stop(grace=None)
         webengine.graceful()

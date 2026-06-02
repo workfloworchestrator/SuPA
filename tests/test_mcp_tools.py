@@ -1,0 +1,143 @@
+"""Tests for MCP tool definitions."""
+
+from __future__ import annotations
+
+import json
+import uuid
+from typing import Any
+from unittest.mock import patch
+
+import pytest
+from mcp.server.fastmcp import FastMCP
+
+from supa.mcp.port_mapping import PortResolver
+from supa.mcp.tools import register_tools
+
+
+def make_mcp() -> FastMCP:
+    """Create a minimal FastMCP instance for testing."""
+    return FastMCP("test-supa")
+
+
+async def call_tool(mcp: FastMCP, name: str, **kwargs: object) -> str:
+    """Call a named tool on the FastMCP instance and return the text result.
+
+    FastMCP.call_tool returns a (list[ContentBlock], dict) tuple at runtime.
+    The stub types it as Sequence[ContentBlock] | dict, so we capture as Any.
+    """
+    from mcp.types import TextContent
+
+    raw: Any = await mcp.call_tool(name, kwargs)
+    contents, _meta = raw
+    block = contents[0]
+    assert isinstance(block, TextContent)
+    return block.text
+
+
+@pytest.fixture
+def mcp_with_tools() -> FastMCP:
+    """FastMCP instance with all SuPA tools registered."""
+    mcp = make_mcp()
+    register_tools(mcp, PortResolver(None))
+    return mcp
+
+
+# Success paths: each tool returns a different JSON shape, so each gets its own test.
+
+
+@pytest.mark.anyio
+async def test_list_circuits_returns_json_list(mcp_with_tools: FastMCP) -> None:
+    """list_circuits returns a JSON array of circuit summaries."""
+    circuits = [{"connection_id": str(uuid.uuid4()), "reservation_state": "RESERVE_HELD"}]
+    with patch("supa.mcp.tools.list_circuits_query", return_value=circuits):
+        result = await call_tool(mcp_with_tools, "list_circuits")
+    data = json.loads(result)
+    assert isinstance(data, list)
+    assert data[0]["reservation_state"] == "RESERVE_HELD"
+
+
+@pytest.mark.anyio
+async def test_get_circuit_returns_json_dict(mcp_with_tools: FastMCP) -> None:
+    """get_circuit returns a JSON dict for a found circuit."""
+    cid = str(uuid.uuid4())
+    circuit = {"connection_id": cid, "reservation_state": "RESERVE_HELD"}
+    with patch("supa.mcp.tools.get_circuit_query", return_value=circuit):
+        result = await call_tool(mcp_with_tools, "get_circuit", connection_id=cid)
+    data = json.loads(result)
+    assert data["connection_id"] == cid
+
+
+@pytest.mark.anyio
+async def test_get_circuit_endpoints_returns_json_dict(mcp_with_tools: FastMCP) -> None:
+    """get_circuit_endpoints returns a JSON dict with src and dst endpoint info."""
+    cid = str(uuid.uuid4())
+    endpoints = {
+        "connection_id": cid,
+        "circuit_id": "sub-xyz",
+        "bandwidth_mbps": 1000,
+        "src": {"port_id": "port-a1", "vlan": 100},
+        "dst": {"port_id": "port-b2", "vlan": 200},
+    }
+    with patch("supa.mcp.tools.get_circuit_endpoints_query", return_value=endpoints):
+        result = await call_tool(mcp_with_tools, "get_circuit_endpoints", connection_id=cid)
+    data = json.loads(result)
+    assert data["src"]["port_id"] == "port-a1"
+
+
+# Error paths share identical structure across tools, so they are parametrized.
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "tool,query_func,kwargs",
+    [
+        pytest.param("list_circuits", "list_circuits_query", {}, id="list_circuits"),
+        pytest.param(
+            "get_circuit",
+            "get_circuit_query",
+            {"connection_id": "11111111-1111-1111-1111-111111111111"},
+            id="get_circuit",
+        ),
+        pytest.param(
+            "get_circuit_endpoints",
+            "get_circuit_endpoints_query",
+            {"connection_id": "11111111-1111-1111-1111-111111111111"},
+            id="get_circuit_endpoints",
+        ),
+    ],
+)
+async def test_query_exception_returns_generic_error(
+    mcp_with_tools: FastMCP, tool: str, query_func: str, kwargs: dict[str, str]
+) -> None:
+    """Returns a generic error with correlation id; never leaks the raw exception text."""
+    with patch(f"supa.mcp.tools.{query_func}", side_effect=Exception("schema.table leak")):
+        result = await call_tool(mcp_with_tools, tool, **kwargs)
+    assert "Internal error" in result
+    assert "correlation_id=" in result
+    assert "schema.table leak" not in result
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "tool,query_func",
+    [
+        pytest.param("get_circuit", "get_circuit_query", id="get_circuit"),
+        pytest.param("get_circuit_endpoints", "get_circuit_endpoints_query", id="get_circuit_endpoints"),
+    ],
+)
+async def test_returns_not_found_message_when_query_returns_none(
+    mcp_with_tools: FastMCP, tool: str, query_func: str
+) -> None:
+    """Returns 'not found' message when the query function yields None."""
+    cid = str(uuid.uuid4())
+    with patch(f"supa.mcp.tools.{query_func}", return_value=None):
+        result = await call_tool(mcp_with_tools, tool, connection_id=cid)
+    assert "not found" in result.lower()
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("tool", ["get_circuit", "get_circuit_endpoints"])
+async def test_invalid_uuid_returns_invalid_uuid_message(mcp_with_tools: FastMCP, tool: str) -> None:
+    """Returns 'Invalid UUID' for a malformed connection_id string."""
+    result = await call_tool(mcp_with_tools, tool, connection_id="not-a-uuid")
+    assert "Invalid UUID" in result
