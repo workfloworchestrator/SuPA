@@ -92,6 +92,16 @@ class TestGetCircuitTool:
         result = await call_tool(mcp_with_tools, "get_circuit", connection_id="not-a-uuid")
         assert "Invalid UUID" in result
 
+    @pytest.mark.anyio
+    async def test_returns_generic_error_on_exception(self, mcp_with_tools: FastMCP) -> None:
+        """Returns a generic error with a correlation id; does not leak the raw exception."""
+        cid = str(uuid.uuid4())
+        with patch("supa.mcp.tools.get_circuit_query", side_effect=Exception("schema.table leak")):
+            result = await call_tool(mcp_with_tools, "get_circuit", connection_id=cid)
+        assert "Internal error" in result
+        assert "correlation_id=" in result
+        assert "schema.table leak" not in result
+
 
 class TestGetCircuitEndpointsTool:
     """Tests for the get_circuit_endpoints MCP tool."""
@@ -119,3 +129,19 @@ class TestGetCircuitEndpointsTool:
         with patch("supa.mcp.tools.get_circuit_endpoints_query", return_value=None):
             result = await call_tool(mcp_with_tools, "get_circuit_endpoints", connection_id=cid)
         assert "not found" in result.lower()
+
+    @pytest.mark.anyio
+    async def test_returns_error_for_invalid_uuid(self, mcp_with_tools: FastMCP) -> None:
+        """Returns 'Invalid UUID' message for malformed UUID string."""
+        result = await call_tool(mcp_with_tools, "get_circuit_endpoints", connection_id="not-a-uuid")
+        assert "Invalid UUID" in result
+
+    @pytest.mark.anyio
+    async def test_returns_generic_error_on_exception(self, mcp_with_tools: FastMCP) -> None:
+        """Returns a generic error with a correlation id; does not leak the raw exception."""
+        cid = str(uuid.uuid4())
+        with patch("supa.mcp.tools.get_circuit_endpoints_query", side_effect=Exception("schema.table leak")):
+            result = await call_tool(mcp_with_tools, "get_circuit_endpoints", connection_id=cid)
+        assert "Internal error" in result
+        assert "correlation_id=" in result
+        assert "schema.table leak" not in result

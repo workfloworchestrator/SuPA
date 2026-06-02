@@ -50,6 +50,18 @@ def test_list_circuits_query_filter_excludes_non_matching(connection_id: UUID) -
     assert all(c["connection_id"] != str(connection_id) for c in circuits)
 
 
+def test_list_circuits_query_filter_by_provision_state(connection_id: UUID, released: None) -> None:
+    """provision_state filter round-trips through SQLAlchemy."""
+    circuits = list_circuits_query(provision_state="RELEASED")
+    assert any(c["connection_id"] == str(connection_id) for c in circuits)
+
+
+def test_list_circuits_query_filter_by_data_plane_state(connection_id: UUID, activated: None) -> None:
+    """data_plane_state filter round-trips through SQLAlchemy."""
+    circuits = list_circuits_query(data_plane_state="ACTIVATED")
+    assert any(c["connection_id"] == str(connection_id) for c in circuits)
+
+
 def test_get_circuit_query_returns_dict(connection_id: UUID) -> None:
     """Returns a populated dict for an existing reservation, including p2p_criteria and schedule."""
     circuit = get_circuit_query(connection_id)

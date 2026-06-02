@@ -135,6 +135,45 @@ class TestGetCircuitQuery:
 
         assert result is None
 
+    def test_includes_connection_fields_after_commit(self) -> None:
+        """A Connection row contributes NRM port_ids, vlans, and circuit_id to the result."""
+        cid = uuid.uuid4()
+        reservation = _make_reservation(connection_id=cid)
+        reservation.p2p_criteria = _make_p2p()
+        reservation.schedule = _make_schedule()
+        reservation.connection = _make_connection(connection_id=cid)
+        mock_session = MagicMock()
+        mock_session.query.return_value.filter.return_value.one_or_none.return_value = reservation
+
+        with patch("supa.mcp.queries.db_session") as mock_ctx:
+            mock_ctx.return_value.__enter__ = MagicMock(return_value=mock_session)
+            mock_ctx.return_value.__exit__ = MagicMock(return_value=False)
+            result = get_circuit_query(cid)
+
+        assert result is not None
+        assert result["src_port_id"] == "port-a1"
+        assert result["src_vlan"] == 100
+        assert result["dst_port_id"] == "port-b2"
+        assert result["dst_vlan"] == 200
+        assert result["circuit_id"] == "subscription-xyz"
+
+    def test_omits_optional_blocks_when_p2p_and_schedule_absent(self) -> None:
+        """A reservation without p2p_criteria/schedule yields a dict without those keys."""
+        cid = uuid.uuid4()
+        reservation = _make_reservation(connection_id=cid)
+        mock_session = MagicMock()
+        mock_session.query.return_value.filter.return_value.one_or_none.return_value = reservation
+
+        with patch("supa.mcp.queries.db_session") as mock_ctx:
+            mock_ctx.return_value.__enter__ = MagicMock(return_value=mock_session)
+            mock_ctx.return_value.__exit__ = MagicMock(return_value=False)
+            result = get_circuit_query(cid)
+
+        assert result is not None
+        assert "bandwidth_mbps" not in result
+        assert "src_stp_id" not in result
+        assert "schedule" not in result
+
 
 class TestGetCircuitEndpointsQuery:
     """Tests for get_circuit_endpoints_query."""
