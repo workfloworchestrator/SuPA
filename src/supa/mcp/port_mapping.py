@@ -38,13 +38,14 @@ class PortResolver:
 
     def _load(self, path: Path) -> None:
         data = yaml.safe_load(path.read_text())
-        for port_id, info in (data.get("port_mapping") or {}).items():
-            if not isinstance(info, dict) or "device" not in info or "interface" not in info:
-                raise ValueError(f"MCP port mapping entry for {port_id!r} in {path} is missing 'device' or 'interface'")
-            self._mapping[port_id] = _PortInfo(
-                device=info["device"],
-                interface=info["interface"],
-            )
+        entries = (data.get("port_mapping") or {}).items()
+        self._mapping = {port_id: self._parse_entry(port_id, info, path) for port_id, info in entries}
+
+    @staticmethod
+    def _parse_entry(port_id: str, info: object, path: Path) -> _PortInfo:
+        if not isinstance(info, dict) or "device" not in info or "interface" not in info:
+            raise ValueError(f"MCP port mapping entry for {port_id!r} in {path} is missing 'device' or 'interface'")
+        return _PortInfo(device=info["device"], interface=info["interface"])
 
     def resolve(self, port_id: str) -> dict[str, str]:
         """Return device and interface for a port_id, or empty dict if not mapped.

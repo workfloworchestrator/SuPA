@@ -27,8 +27,7 @@ def test_list_circuits_query_returns_reservation(connection_id: UUID) -> None:
     assert entry["global_reservation_id"] == "global reservation id"
     assert entry["lifecycle_state"] == "CREATED"
     # All four state fields must be present even when the column is NULL.
-    for field in ("reservation_state", "provision_state", "lifecycle_state", "data_plane_state"):
-        assert field in entry
+    assert {"reservation_state", "provision_state", "lifecycle_state", "data_plane_state"} <= entry.keys()
 
 
 @pytest.mark.parametrize(
