@@ -1,14 +1,14 @@
 # syntax=docker/dockerfile:1@sha256:87999aa3d42bdc6bea60565083ee17e86d1f3339802f543c0d03998580f9cb89
 #
 # Build stage
-FROM ghcr.io/astral-sh/uv:python3.14-alpine@sha256:4ee7a28b72cca1e67b77e86170ab941db4748cea9e8b77eeac3fd0738a1ee57d AS build
+FROM ghcr.io/astral-sh/uv:python3.14-alpine@sha256:2f454377fa543fce94ef4a374a65a158b20b9259e3c612553cdaa922e61f4985 AS build
 WORKDIR /app
 COPY pyproject.toml LICENSE.txt README.rst supa.env .
 COPY src src
 RUN uv build --no-cache --wheel --out-dir dist
 
 # Final stage
-FROM ghcr.io/astral-sh/uv:python3.14-alpine@sha256:4ee7a28b72cca1e67b77e86170ab941db4748cea9e8b77eeac3fd0738a1ee57d
+FROM ghcr.io/astral-sh/uv:python3.14-alpine@sha256:2f454377fa543fce94ef4a374a65a158b20b9259e3c612553cdaa922e61f4985
 ENV DATABASE_DIR=/usr/local/var/db
 COPY --from=build /app/dist/*.whl /tmp/
 RUN uv pip install --system --no-cache /tmp/*.whl && rm /tmp/*.whl
