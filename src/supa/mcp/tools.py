@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 import uuid
 
 import structlog
@@ -23,6 +24,11 @@ def _internal_error(operation: str) -> tuple[str, str]:
     """
     correlation_id = uuid.uuid4().hex[:12]
     return f"Internal error {operation} (correlation_id={correlation_id})", correlation_id
+
+
+def _elapsed_ms(start: float) -> float:
+    """Wall-clock duration in milliseconds since ``start`` (a ``time.perf_counter()`` value)."""
+    return round((time.perf_counter() - start) * 1000, 1)
 
 
 def register_tools(mcp: FastMCP, port_resolver: PortResolver) -> None:
@@ -63,27 +69,30 @@ def register_tools(mcp: FastMCP, port_resolver: PortResolver) -> None:
         Returns:
             JSON array string of circuit summary dicts.
         """
-        logger.info(
-            "tool called",
-            tool="list_circuits",
-            reservation_state=reservation_state,
-            provision_state=provision_state,
-            lifecycle_state=lifecycle_state,
-            data_plane_state=data_plane_state,
-        )
+        filters = {
+            k: v
+            for k, v in {
+                "reservation_state": reservation_state,
+                "provision_state": provision_state,
+                "lifecycle_state": lifecycle_state,
+                "data_plane_state": data_plane_state,
+            }.items()
+            if v is not None
+        }
+        logger.info("list_circuits called", **filters)
+        t0 = time.perf_counter()
         try:
-            circuits = list_circuits_query(
-                reservation_state=reservation_state,
-                provision_state=provision_state,
-                lifecycle_state=lifecycle_state,
-                data_plane_state=data_plane_state,
-            )
-            logger.info("tool ok", tool="list_circuits", count=len(circuits))
-            return json.dumps(circuits, indent=2)
+            circuits = list_circuits_query(**filters)
         except Exception:
             message, correlation_id = _internal_error("listing circuits")
-            logger.exception("tool error", tool="list_circuits", correlation_id=correlation_id)
+            logger.exception(
+                "list_circuits failed",
+                correlation_id=correlation_id,
+                duration_ms=_elapsed_ms(t0),
+            )
             return message
+        logger.info("list_circuits completed", count=len(circuits), duration_ms=_elapsed_ms(t0))
+        return json.dumps(circuits, indent=2)
 
     @mcp.tool()
     async def get_circuit(connection_id: str) -> str:
@@ -101,22 +110,30 @@ def register_tools(mcp: FastMCP, port_resolver: PortResolver) -> None:
         Returns:
             JSON object string with circuit details, or error message string.
         """
-        logger.info("tool called", tool="get_circuit", connection_id=connection_id)
+        logger.info("get_circuit called", connection_id=connection_id)
+        t0 = time.perf_counter()
         try:
             connection_uuid = uuid.UUID(connection_id)
         except ValueError:
+            logger.info("get_circuit invalid_uuid", connection_id=connection_id, duration_ms=_elapsed_ms(t0))
             return f"Invalid UUID: {connection_id!r}"
 
         try:
             circuit = get_circuit_query(connection_uuid)
-            if circuit is None:
-                return f"Circuit not found: {connection_id}"
-            logger.info("tool ok", tool="get_circuit")
-            return json.dumps(circuit, indent=2)
         except Exception:
             message, correlation_id = _internal_error("retrieving circuit")
-            logger.exception("tool error", tool="get_circuit", correlation_id=correlation_id)
+            logger.exception(
+                "get_circuit failed",
+                correlation_id=correlation_id,
+                connection_id=connection_id,
+                duration_ms=_elapsed_ms(t0),
+            )
             return message
+        if circuit is None:
+            logger.info("get_circuit not_found", connection_id=connection_id, duration_ms=_elapsed_ms(t0))
+            return f"Circuit not found: {connection_id}"
+        logger.info("get_circuit completed", connection_id=connection_id, duration_ms=_elapsed_ms(t0))
+        return json.dumps(circuit, indent=2)
 
     @mcp.tool()
     async def get_circuit_endpoints(connection_id: str) -> str:
@@ -142,22 +159,44 @@ def register_tools(mcp: FastMCP, port_resolver: PortResolver) -> None:
         Returns:
             JSON object string with endpoint details, or error message string.
         """
-        logger.info("tool called", tool="get_circuit_endpoints", connection_id=connection_id)
+        logger.info("get_circuit_endpoints called", connection_id=connection_id)
+        t0 = time.perf_counter()
         try:
             connection_uuid = uuid.UUID(connection_id)
         except ValueError:
+            logger.info(
+                "get_circuit_endpoints invalid_uuid",
+                connection_id=connection_id,
+                duration_ms=_elapsed_ms(t0),
+            )
             return f"Invalid UUID: {connection_id!r}"
 
         try:
             endpoints = get_circuit_endpoints_query(connection_uuid, port_resolver)
-            if endpoints is None:
-                return (
-                    f"Circuit not found or not yet committed: {connection_id}. "
-                    "Endpoint data is only available after the reservation is committed."
-                )
-            logger.info("tool ok", tool="get_circuit_endpoints")
-            return json.dumps(endpoints, indent=2)
         except Exception:
             message, correlation_id = _internal_error("retrieving circuit endpoints")
-            logger.exception("tool error", tool="get_circuit_endpoints", correlation_id=correlation_id)
+            logger.exception(
+                "get_circuit_endpoints failed",
+                correlation_id=correlation_id,
+                connection_id=connection_id,
+                duration_ms=_elapsed_ms(t0),
+            )
             return message
+        if endpoints is None:
+            logger.info(
+                "get_circuit_endpoints not_found",
+                connection_id=connection_id,
+                duration_ms=_elapsed_ms(t0),
+            )
+            return (
+                f"Circuit not found or not yet committed: {connection_id}. "
+                "Endpoint data is only available after the reservation is committed."
+            )
+        ports_resolved = sum(1 for side in (endpoints["src"], endpoints["dst"]) if "device" in side)
+        logger.info(
+            "get_circuit_endpoints completed",
+            connection_id=connection_id,
+            ports_resolved=ports_resolved,
+            duration_ms=_elapsed_ms(t0),
+        )
+        return json.dumps(endpoints, indent=2)

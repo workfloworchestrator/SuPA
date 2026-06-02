@@ -141,3 +141,135 @@ async def test_invalid_uuid_returns_invalid_uuid_message(mcp_with_tools: FastMCP
     """Returns 'Invalid UUID' for a malformed connection_id string."""
     result = await call_tool(mcp_with_tools, tool, connection_id="not-a-uuid")
     assert "Invalid UUID" in result
+
+
+# Logging behaviour: tool-name-as-event, duration_ms on every completion,
+# unset filters omitted from the called event, ports_resolved counted from the resolver output.
+
+
+@pytest.mark.anyio
+async def test_list_circuits_called_event_omits_unset_filters(mcp_with_tools: FastMCP) -> None:
+    """list_circuits called event carries only the filters that were supplied."""
+    import structlog.testing
+
+    with patch("supa.mcp.tools.list_circuits_query", return_value=[]):
+        with structlog.testing.capture_logs() as logs:
+            await call_tool(mcp_with_tools, "list_circuits", provision_state="PROVISIONED")
+    called = next(entry for entry in logs if entry["event"] == "list_circuits called")
+    assert called["provision_state"] == "PROVISIONED"
+    assert "reservation_state" not in called
+    assert "lifecycle_state" not in called
+    assert "data_plane_state" not in called
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "tool,query_func,kwargs,query_return,expected_event",
+    [
+        pytest.param("list_circuits", "list_circuits_query", {}, [], "list_circuits completed", id="list_circuits"),
+        pytest.param(
+            "get_circuit",
+            "get_circuit_query",
+            {"connection_id": "11111111-1111-1111-1111-111111111111"},
+            {"connection_id": "11111111-1111-1111-1111-111111111111"},
+            "get_circuit completed",
+            id="get_circuit",
+        ),
+        pytest.param(
+            "get_circuit_endpoints",
+            "get_circuit_endpoints_query",
+            {"connection_id": "11111111-1111-1111-1111-111111111111"},
+            {"src": {"port_id": "a"}, "dst": {"port_id": "b"}},
+            "get_circuit_endpoints completed",
+            id="get_circuit_endpoints",
+        ),
+    ],
+)
+async def test_completion_event_includes_duration_ms(
+    mcp_with_tools: FastMCP,
+    tool: str,
+    query_func: str,
+    kwargs: dict[str, str],
+    query_return: object,
+    expected_event: str,
+) -> None:
+    """Every tool emits a completion event carrying duration_ms."""
+    import structlog.testing
+
+    with patch(f"supa.mcp.tools.{query_func}", return_value=query_return):
+        with structlog.testing.capture_logs() as logs:
+            await call_tool(mcp_with_tools, tool, **kwargs)
+    completed = next(entry for entry in logs if entry["event"] == expected_event)
+    assert isinstance(completed["duration_ms"], (int, float))
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "src,dst,expected",
+    [
+        pytest.param({"port_id": "a"}, {"port_id": "b"}, 0, id="neither_mapped"),
+        pytest.param({"port_id": "a", "device": "r1", "interface": "et-0"}, {"port_id": "b"}, 1, id="src_mapped"),
+        pytest.param(
+            {"port_id": "a", "device": "r1", "interface": "et-0"},
+            {"port_id": "b", "device": "r2", "interface": "et-1"},
+            2,
+            id="both_mapped",
+        ),
+    ],
+)
+async def test_get_circuit_endpoints_completed_ports_resolved_count(
+    mcp_with_tools: FastMCP, src: dict[str, str], dst: dict[str, str], expected: int
+) -> None:
+    """get_circuit_endpoints completion event reports how many endpoints carry device info."""
+    import structlog.testing
+
+    cid = "11111111-1111-1111-1111-111111111111"
+    endpoints = {"connection_id": cid, "src": src, "dst": dst}
+    with patch("supa.mcp.tools.get_circuit_endpoints_query", return_value=endpoints):
+        with structlog.testing.capture_logs() as logs:
+            await call_tool(mcp_with_tools, "get_circuit_endpoints", connection_id=cid)
+    completed = next(entry for entry in logs if entry["event"] == "get_circuit_endpoints completed")
+    assert completed["ports_resolved"] == expected
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "tool,query_func,kwargs,event",
+    [
+        pytest.param(
+            "get_circuit",
+            "get_circuit_query",
+            {"connection_id": "11111111-1111-1111-1111-111111111111"},
+            "get_circuit not_found",
+            id="get_circuit",
+        ),
+        pytest.param(
+            "get_circuit_endpoints",
+            "get_circuit_endpoints_query",
+            {"connection_id": "11111111-1111-1111-1111-111111111111"},
+            "get_circuit_endpoints not_found",
+            id="get_circuit_endpoints",
+        ),
+    ],
+)
+async def test_not_found_logs_distinct_event(
+    mcp_with_tools: FastMCP, tool: str, query_func: str, kwargs: dict[str, str], event: str
+) -> None:
+    """Per-uuid tools emit a not_found event (distinct from completed) when the query returns None."""
+    import structlog.testing
+
+    with patch(f"supa.mcp.tools.{query_func}", return_value=None):
+        with structlog.testing.capture_logs() as logs:
+            await call_tool(mcp_with_tools, tool, **kwargs)
+    assert any(entry["event"] == event for entry in logs)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("tool", ["get_circuit", "get_circuit_endpoints"])
+async def test_invalid_uuid_logs_distinct_event(mcp_with_tools: FastMCP, tool: str) -> None:
+    """Per-uuid tools emit a tool-specific invalid_uuid event so silent client errors are visible."""
+    import structlog.testing
+
+    with structlog.testing.capture_logs() as logs:
+        await call_tool(mcp_with_tools, tool, connection_id="not-a-uuid")
+    assert any(entry["event"] == f"{tool} invalid_uuid" for entry in logs)
