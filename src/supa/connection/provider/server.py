@@ -48,7 +48,9 @@ from supa.grpc_nsi.connection_requester_pb2 import (
     QueryNotificationConfirmedRequest,
     QueryResultConfirmedRequest,
 )
+from supa.grpc_nsi.policy_pb2 import Path as PbPath
 from supa.grpc_nsi.policy_pb2 import PathTrace
+from supa.grpc_nsi.policy_pb2 import Segment as PbSegment
 from supa.grpc_nsi.services_pb2 import Directionality, PointToPointService
 from supa.job.lifecycle import TerminateJob
 from supa.job.provision import ProvisionJob, ReleaseJob
@@ -148,6 +150,20 @@ def _validate_schedule(pb_schedule: Schedule) -> None:
                     Variable.END_TIME: end_time.isoformat(),
                 },
             )
+
+
+def _to_model_segment(pb_segment: PbSegment) -> model.Segment:
+    """Convert a Protobuf PathTrace segment, with its STPs, to its DB model."""
+    segment = model.Segment(segment_id=pb_segment.id, upa_connection_id=pb_segment.connection_id)
+    segment.stps = [model.Stp(stp_id=pb_stp) for pb_stp in pb_segment.stps]
+    return segment
+
+
+def _to_model_path(pb_path: PbPath) -> model.Path:
+    """Convert a Protobuf PathTrace path, with its segments, to its DB model."""
+    path = model.Path()
+    path.segments = [_to_model_segment(pb_segment) for pb_segment in pb_path.segments]
+    return path
 
 
 def _register_request(
@@ -288,14 +304,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                 path_trace = model.PathTrace(
                     path_trace_id=pb_path_trace.id, ag_connection_id=pb_path_trace.connection_id
                 )
-                for pb_path in pb_path_trace.paths:
-                    path = model.Path()
-                    for pb_segment in pb_path.segments:
-                        segment = model.Segment(segment_id=pb_segment.id, upa_connection_id=pb_segment.connection_id)
-                        for pb_stp in pb_segment.stps:
-                            segment.stps.append(model.Stp(stp_id=pb_stp))
-                        path.segments.append(segment)
-                    path_trace.paths.append(path)
+                path_trace.paths = [_to_model_path(pb_path) for pb_path in pb_path_trace.paths]
                 reservation.path_trace = path_trace
 
             rsm = ReservationStateMachine(reservation, state_field="reservation_state")
