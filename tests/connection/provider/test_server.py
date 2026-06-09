@@ -185,6 +185,33 @@ def test_reserve_request(pb_reserve_request: ReserveRequest, caplog: Any) -> Non
     assert "Schedule reserve timeout" in caplog.text
 
 
+def test_reserve_request_duplicate_correlation_id(pb_reserve_request: ReserveRequest, caplog: Any) -> None:
+    """Test the connection provider Reserve returns MissingParameter when the correlation ID was already seen."""
+    from supa.db.model import Request
+    from supa.db.session import db_session
+    from supa.util.type import RequestType
+
+    # Pre-register a request with the same correlation ID so the incoming reserve is a duplicate.
+    with db_session() as session:
+        session.add(
+            Request(
+                correlation_id=UUID(pb_reserve_request.header.correlation_id),
+                request_type=RequestType.Reserve,
+                request_data=pb_reserve_request.SerializeToString(),
+            )
+        )
+
+    service = ConnectionProviderService()
+    mock_context = unittest.mock.create_autospec(spec=ServicerContext)
+    reserve_response = service.Reserve(pb_reserve_request, mock_context)
+    assert pb_reserve_request.header.correlation_id == reserve_response.header.correlation_id
+    assert not reserve_response.connection_id
+    assert reserve_response.HasField("service_exception")
+    assert reserve_response.service_exception.error_id == "00101"
+    assert reserve_response.service_exception.variables[0].type == "correlationId"
+    assert "correlation ID must be unique" in caplog.text
+
+
 def test_reserve_request_end_time_before_start_time(
     pb_reserve_request_end_time_before_start_time: ReserveRequest, caplog: Any
 ) -> None:

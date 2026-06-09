@@ -26,6 +26,7 @@ from supa.connection.error import (
     GenericMessagePayLoadError,
     GenericServiceError,
     InvalidTransition,
+    MissingParameter,
     ReservationNonExistent,
     UnsupportedParameter,
     Variable,
@@ -116,7 +117,7 @@ def _validate_message_header(header: Header) -> None:
         extra_info = "correlation ID must be unique"
         logger.info(extra_info, correlation_id=header.correlation_id)
         raise NsiException(
-            UnsupportedParameter,
+            MissingParameter,
             extra_info,
             {Variable.CORRELATION_ID: header.correlation_id},
         )
