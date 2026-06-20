@@ -22,7 +22,7 @@ dependencies = [
   "structlog==25.5.0",
   "colorama==0.4.6",
   "click==8.4.1",
-  "pydantic-settings==2.14.1",
+  "pydantic-settings==2.14.2",
   "python-statemachine==3.0.0",
   "sqlalchemy==2.0.50",
   "apscheduler==3.11.2",
