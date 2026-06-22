@@ -229,7 +229,7 @@ class Servicer(ConnectionRequesterServicer):
                 assert request.service_exception.error_id == "00201"
                 assert len(request.service_exception.variables) == 1
                 assert request.service_exception.variables[0].type == "connectionId"
-                assert "Can't activate_request when in ActivateFailed" in request.service_exception.text
+                assert "Can't Activate request when in ActivateFailed" in request.service_exception.text
             # test_release_job_already_terminated()
             if (
                 reservation.provision_state == ProvisionStateMachine.Releasing.value

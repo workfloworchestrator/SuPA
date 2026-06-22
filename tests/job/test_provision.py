@@ -54,7 +54,7 @@ def test_provision_cannot_auto_start(
     provision_job.__call__()
     assert state_machine.is_provisioning(connection_id)
     assert "No auto start" in caplog.text
-    assert "Can't auto_start_request when in Activated" in caplog.text
+    assert "Can't Auto start request when in Activated" in caplog.text
 
 
 def test_provision_cannot_activate(
@@ -71,7 +71,7 @@ def test_provision_cannot_activate(
     provision_job.__call__()
     assert state_machine.is_provisioning(connection_id)
     assert "No activate" in caplog.text
-    assert "Can't activate_request when in ActivateFailed" in caplog.text
+    assert "Can't Activate request when in ActivateFailed" in caplog.text
 
 
 def test_provision_job_recover(connection_id: UUID, provisioning: None, get_stub: None, caplog: Any) -> None:
@@ -133,7 +133,7 @@ def test_release_job_release_confirmed_invalid_data_plane_state(
     release_job = ReleaseJob(connection_id)
     release_job.__call__()
     assert state_machine.is_released(connection_id)
-    assert "Can't deactivate_request when in ActivateFailed" in caplog.text
+    assert "Can't Deactivate request when in ActivateFailed" in caplog.text
     assert "No deactivate" in caplog.text
 
 
