@@ -6,7 +6,7 @@
 requires = [
     "setuptools>=65.5.0",
     "wheel",
-    "grpcio-tools==1.80.0",
+    "grpcio-tools==1.81.0",
     "mypy_protobuf",
 ]
 build-backend = "buildtools.backend"
@@ -15,31 +15,31 @@ backend-path = ["src/supa"]
 
 [project]
 name = "supa"
-version = "0.5.1.dev1"
+version = "0.5.2.dev1"
 dependencies = [
-  "grpcio==1.80.0",
+  "grpcio==1.81.0",
   "mypy-protobuf==5.1.0",
-  "structlog==25.5.0",
+  "structlog==26.1.0",
   "colorama==0.4.6",
-  "click==8.3.3",
-  "pydantic-settings==2.14.1",
+  "click==8.4.1",
+  "pydantic-settings==2.14.2",
   "python-statemachine==3.0.0",
-  "sqlalchemy==2.0.49",
+  "sqlalchemy==2.0.50",
   "apscheduler==3.11.2",
   "tabulate==0.10.0",
-  "more-itertools==11.0.2",
+  "more-itertools==11.1.0",
   "protobuf==6.33.6",
   "python-nso-client==0.1.3",
-  "requests==2.34.0",
-  "lxml==6.1.0",
+  "requests==2.34.2",
+  "lxml==6.1.1",
   "lxml-stubs==0.5.1",
   "cherrypy==18.10.0",
   "htmlgen==2.0.0",
   "paramiko==5.0.0",
   "pytz==2026.2",
-  "grpcio-tools==1.80.0",
+  "grpcio-tools==1.81.0",
   "psycopg2-binary==2.9.12",
-  "mcp[cli]==1.27.0",
+  "mcp[cli]==1.27.2",
   "pyyaml==6.0.3",
 ]
 requires-python = ">=3.12,<3.15"
@@ -83,7 +83,7 @@ Issues = "https://github.com/workfloworchestrator/SuPA/issues"
 dev = [
     "bandit==1.9.4",
     "grpc-stubs==1.53.0.6",
-    "grpcio-tools==1.80.0",
+    "grpcio-tools==1.81.0",
     "mypy==2.1.0",
     "pre-commit==4.6.0",
     "protobuf==6.33.6",
@@ -91,12 +91,12 @@ dev = [
     "pytest-cov==7.1.0",
     "pytest-grpc==0.8.0",
     "pytest-xdist==3.8.0",
-    "ruff==0.15.12",
-    "types-paramiko==4.0.0.20260508",
-    "types-pytz==2026.2.0.20260506",
+    "ruff==0.15.16",
+    "types-paramiko==4.0.0.20260518",
+    "types-pytz==2026.2.0.20260518",
     "types-pyyaml>=6.0.12.20260408",
-    "types-requests==2.33.0.20260508",
-    "types-setuptools==82.0.0.20260508",
+    "types-requests==2.33.0.20260518",
+    "types-setuptools==82.0.0.20260518",
     "types-tabulate==0.10.0.20260508",
     "tzdata==2026.2",
 ]

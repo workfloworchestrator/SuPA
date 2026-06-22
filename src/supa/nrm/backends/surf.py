@@ -76,13 +76,17 @@ class Backend(BaseBackend):
         if self.backend_settings.oauth2_active:
             self.log.debug("retrieve access token")
             start = time.time()
-            token = post(
-                self.backend_settings.oidc_url,
-                auth=HTTPBasicAuth(self.backend_settings.oidc_user, self.backend_settings.oidc_password),
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
-                data="grant_type=client_credentials",
-                timeout=timeout,
-            )
+            try:
+                token = post(
+                    self.backend_settings.oidc_url,
+                    auth=HTTPBasicAuth(self.backend_settings.oidc_user, self.backend_settings.oidc_password),
+                    headers={"Content-Type": "application/x-www-form-urlencoded"},
+                    data="grant_type=client_credentials",
+                    timeout=timeout,
+                )
+            except RequestException as requests_exception:
+                self.log.warning("unable to retrieve access token", reason=str(requests_exception))
+                raise NsiException(GenericRmError, str(requests_exception)) from requests_exception
             self.log.debug("retrieve access token timer", seconds=time.time() - start)
             if token:
                 if token.status_code > 210:

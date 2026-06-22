@@ -3,7 +3,7 @@ services:
   # SuPA
   #
   supa:
-    image: ghcr.io/workfloworchestrator/supa:latest@sha256:92675cf8d4c5200088df9ead970823dbfa0616501c5972affeac805354e1a1ee
+    image: ghcr.io/workfloworchestrator/supa:latest@sha256:27a108b604921f8d136e03e0b44e7d942e9fb418178120a46f2d10ca588bb03c
     configs:
       - source: supa.env
         target: /usr/local/etc/supa/supa.env
@@ -20,7 +20,7 @@ services:
   # PolyNSI
   #
   polynsi:
-    image: ghcr.io/workfloworchestrator/polynsi:latest@sha256:ecd07d7278dac227b87fe0a00913503aa79652f68662066dd515c488ade45ca2
+    image: ghcr.io/workfloworchestrator/polynsi:latest@sha256:a701cd3f6c39d8358cb270c9572998f5d71b8d98eaa849ca6e5eed8123aea1f5
     ports:
       - "8443:8443"
     configs:

@@ -6,7 +6,7 @@ image:
   repository: ghcr.io/workfloworchestrator/supa
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "@sha256:978f105955fa32b54aa3e8ff76e1f475655bbb8b0cdc0ed5b753da3155dd9b21"
+  tag: "@sha256:27a108b604921f8d136e03e0b44e7d942e9fb418178120a46f2d10ca588bb03c"
 
 # optional configmap with environment variables mounted into the pod
 #env:
