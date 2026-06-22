@@ -1,8 +1,9 @@
 [build-system]
 # Part of the installation process is the generation of Python code from protobuf/gRPC definitions.
-# For that we need to have `grpcio-tools` around *before* `setup.py` is executed. The version number of `grpcio-tools`
-# should match that of `grpcio` in `setup.cfg`. Actual code generation is done from within `setup.py` in a custom
-# Command class.
+# `grpcio-tools` is a build-time-only dependency: the custom build backend (src/supa/buildtools/backend.py)
+# invokes its bundled protoc during the build. It is deliberately NOT a runtime/dev dependency, because every
+# stable grpcio-tools caps `protobuf<7`, which would block the protobuf 7.x runtime. Keeping it isolated to the
+# build environment lets the runtime use protobuf 7.x while the generated (protobuf 6.x) code stays compatible.
 requires = [
     "setuptools>=65.5.0",
     "wheel",
@@ -37,7 +38,6 @@ dependencies = [
   "htmlgen==2.0.0",
   "paramiko==5.0.0",
   "pytz==2026.2",
-  "grpcio-tools==1.81.0",
   "psycopg2-binary==2.9.12",
   "mcp[cli]==1.27.2",
   "pyyaml==6.0.3",
@@ -83,7 +83,6 @@ Issues = "https://github.com/workfloworchestrator/SuPA/issues"
 dev = [
     "bandit==1.9.4",
     "grpc-stubs==1.53.0.6",
-    "grpcio-tools==1.81.0",
     "mypy==2.1.0",
     "pre-commit==4.6.0",
     "protobuf==7.35.1",
