@@ -19,7 +19,7 @@ version = "0.5.2.dev1"
 dependencies = [
   "grpcio==1.81.0",
   "mypy-protobuf==5.1.0",
-  "structlog==25.5.0",
+  "structlog==26.1.0",
   "colorama==0.4.6",
   "click==8.4.1",
   "pydantic-settings==2.14.2",
