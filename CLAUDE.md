@@ -27,8 +27,11 @@ uv run pytest --cov-report term-missing --cov=src tests  # With coverage
 # Run the application
 uv run supa serve
 
-# Regenerate protobuf/gRPC Python code from .proto files
-python src/supa/buildtools/backend.py
+# Regenerate protobuf/gRPC Python code from .proto files.
+# grpcio-tools is a build-time-only dependency (it caps protobuf<7, the runtime uses protobuf 7.x),
+# so run it in an isolated env rather than the project venv:
+uv run --isolated --no-project --with grpcio-tools==1.81.0 --with mypy-protobuf --with setuptools \
+  python src/supa/buildtools/backend.py
 
 # Build documentation
 uv sync --link-mode=copy --group dev --group doc
@@ -55,7 +58,7 @@ Pluggable backends in `nrm/backends/` implement `nrm/backend.py:BaseBackend`. Av
 
 ### Custom Build Backend
 
-`src/supa/buildtools/backend.py` implements PEP 517/518 hooks that auto-compile `.proto` files (in `protos/`) to Python (in `grpc_nsi/`) using `grpc_tools.protoc` and post-processes imports.
+`src/supa/buildtools/backend.py` implements PEP 517/518 hooks that auto-compile `.proto` files (in `protos/`) to Python (in `grpc_nsi/`) using `grpc_tools.protoc` and post-processes imports. `grpcio-tools` lives only in `[build-system].requires` (the isolated build env), not in the runtime/dev dependencies: every stable `grpcio-tools` caps `protobuf<7`, so isolating it lets the runtime use protobuf 7.x while the generated (protobuf 6.x) code stays compatible.
 
 ### Configuration
 
