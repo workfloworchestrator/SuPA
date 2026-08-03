@@ -1,11 +1,11 @@
 {
-  "$schema": "https://renovatebot.com",
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:best-practices"
   ],
   "minimumReleaseAge": "8 days",
   "internalChecksFilter": "strict",
-  "rebaseWhen": "behindbase",
+  "rebaseWhen": "behind-base-branch",
   "lockFileMaintenance": {
     "enabled": true,
     "automerge": true
