@@ -91,11 +91,11 @@ dev = [
     "pytest-grpc==0.8.0",
     "pytest-xdist==3.8.0",
     "ruff==0.15.18",
-    "types-paramiko==4.0.0.20260518",
+    "types-paramiko==5.0.0.20260724",
     "types-pytz==2026.2.0.20260518",
     "types-pyyaml>=6.0.12.20260408",
     "types-requests==2.33.0.20260518",
-    "types-setuptools==82.0.0.20260518",
+    "types-setuptools==83.0.0.20260724",
     "types-tabulate==0.10.0.20260508",
     "tzdata==2026.2",
 ]
