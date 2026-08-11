@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import json
 import uuid
-from typing import Any, Generator
+from typing import Generator
 from unittest.mock import PropertyMock, patch
 
 import pytest
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 
 from supa.mcp.port_mapping import PortResolver
 from supa.mcp.tools import register_tools
@@ -16,22 +16,18 @@ from supa.mcp.tools import register_tools
 TEST_REQUEST_ID = "test-request-id-42"
 
 
-def make_mcp() -> FastMCP:
-    """Create a minimal FastMCP instance for testing."""
-    return FastMCP("test-supa")
+def make_mcp() -> MCPServer:
+    """Create a minimal MCPServer instance for testing."""
+    return MCPServer("test-supa")
 
 
-async def call_tool(mcp: FastMCP, name: str, **kwargs: object) -> str:
-    """Call a named tool on the FastMCP instance and return the text result.
+async def call_tool(mcp: MCPServer, name: str, **kwargs: object) -> str:
+    """Call a named tool on the MCPServer instance and return the text result."""
+    from mcp.types import CallToolResult, TextContent
 
-    FastMCP.call_tool returns a (list[ContentBlock], dict) tuple at runtime.
-    The stub types it as Sequence[ContentBlock] | dict, so we capture as Any.
-    """
-    from mcp.types import TextContent
-
-    raw: Any = await mcp.call_tool(name, kwargs)
-    contents, _meta = raw
-    block = contents[0]
+    result = await mcp.call_tool(name, kwargs)
+    assert isinstance(result, CallToolResult)
+    block = result.content[0]
     assert isinstance(block, TextContent)
     return block.text
 
@@ -40,7 +36,7 @@ async def call_tool(mcp: FastMCP, name: str, **kwargs: object) -> str:
 def fake_request_context() -> Generator[None, None, None]:
     """Provide a stable ``ctx.request_id`` to tool invocations during tests.
 
-    FastMCP.call_tool does not bind a request context outside a live transport,
+    MCPServer.call_tool does not bind a request context outside a live transport,
     so ``Context.request_id`` raises by default. Patching the property keeps the
     tools' ``logger.bind(request_id=ctx.request_id)`` working under the same
     public entry point real clients use.
@@ -50,8 +46,8 @@ def fake_request_context() -> Generator[None, None, None]:
 
 
 @pytest.fixture
-def mcp_with_tools() -> FastMCP:
-    """FastMCP instance with all SuPA tools registered."""
+def mcp_with_tools() -> MCPServer:
+    """MCPServer instance with all SuPA tools registered."""
     mcp = make_mcp()
     register_tools(mcp, PortResolver(None))
     return mcp
@@ -61,7 +57,7 @@ def mcp_with_tools() -> FastMCP:
 
 
 @pytest.mark.anyio
-async def test_list_circuits_returns_json_list(mcp_with_tools: FastMCP) -> None:
+async def test_list_circuits_returns_json_list(mcp_with_tools: MCPServer) -> None:
     """list_circuits returns a JSON array of circuit summaries."""
     circuits = [{"connection_id": str(uuid.uuid4()), "reservation_state": "RESERVE_HELD"}]
     with patch("supa.mcp.tools.list_circuits_query", return_value=circuits):
@@ -72,7 +68,7 @@ async def test_list_circuits_returns_json_list(mcp_with_tools: FastMCP) -> None:
 
 
 @pytest.mark.anyio
-async def test_get_circuit_returns_json_dict(mcp_with_tools: FastMCP) -> None:
+async def test_get_circuit_returns_json_dict(mcp_with_tools: MCPServer) -> None:
     """get_circuit returns a JSON dict for a found circuit."""
     cid = str(uuid.uuid4())
     circuit = {"connection_id": cid, "reservation_state": "RESERVE_HELD"}
@@ -83,7 +79,7 @@ async def test_get_circuit_returns_json_dict(mcp_with_tools: FastMCP) -> None:
 
 
 @pytest.mark.anyio
-async def test_get_circuit_endpoints_returns_json_dict(mcp_with_tools: FastMCP) -> None:
+async def test_get_circuit_endpoints_returns_json_dict(mcp_with_tools: MCPServer) -> None:
     """get_circuit_endpoints returns a JSON dict with src and dst endpoint info."""
     cid = str(uuid.uuid4())
     endpoints = {
@@ -122,7 +118,7 @@ async def test_get_circuit_endpoints_returns_json_dict(mcp_with_tools: FastMCP) 
     ],
 )
 async def test_query_exception_returns_generic_error(
-    mcp_with_tools: FastMCP, tool: str, query_func: str, kwargs: dict[str, str]
+    mcp_with_tools: MCPServer, tool: str, query_func: str, kwargs: dict[str, str]
 ) -> None:
     """Returns a generic error with correlation id; never leaks the raw exception text."""
     with patch(f"supa.mcp.tools.{query_func}", side_effect=Exception("schema.table leak")):
@@ -141,7 +137,7 @@ async def test_query_exception_returns_generic_error(
     ],
 )
 async def test_returns_not_found_message_when_query_returns_none(
-    mcp_with_tools: FastMCP, tool: str, query_func: str
+    mcp_with_tools: MCPServer, tool: str, query_func: str
 ) -> None:
     """Returns 'not found' message when the query function yields None."""
     cid = str(uuid.uuid4())
@@ -152,7 +148,7 @@ async def test_returns_not_found_message_when_query_returns_none(
 
 @pytest.mark.anyio
 @pytest.mark.parametrize("tool", ["get_circuit", "get_circuit_endpoints"])
-async def test_invalid_uuid_returns_invalid_uuid_message(mcp_with_tools: FastMCP, tool: str) -> None:
+async def test_invalid_uuid_returns_invalid_uuid_message(mcp_with_tools: MCPServer, tool: str) -> None:
     """Returns 'Invalid UUID' for a malformed connection_id string."""
     result = await call_tool(mcp_with_tools, tool, connection_id="not-a-uuid")
     assert "Invalid UUID" in result
@@ -163,7 +159,7 @@ async def test_invalid_uuid_returns_invalid_uuid_message(mcp_with_tools: FastMCP
 
 
 @pytest.mark.anyio
-async def test_list_circuits_called_event_omits_unset_filters(mcp_with_tools: FastMCP) -> None:
+async def test_list_circuits_called_event_omits_unset_filters(mcp_with_tools: MCPServer) -> None:
     """list_circuits called event carries only the filters that were supplied."""
     import structlog.testing
 
@@ -201,7 +197,7 @@ async def test_list_circuits_called_event_omits_unset_filters(mcp_with_tools: Fa
     ],
 )
 async def test_completion_event_includes_duration_ms(
-    mcp_with_tools: FastMCP,
+    mcp_with_tools: MCPServer,
     tool: str,
     query_func: str,
     kwargs: dict[str, str],
@@ -233,7 +229,7 @@ async def test_completion_event_includes_duration_ms(
     ],
 )
 async def test_get_circuit_endpoints_completed_ports_resolved_count(
-    mcp_with_tools: FastMCP, src: dict[str, str], dst: dict[str, str], expected: int
+    mcp_with_tools: MCPServer, src: dict[str, str], dst: dict[str, str], expected: int
 ) -> None:
     """get_circuit_endpoints completion event reports how many endpoints carry device info."""
     import structlog.testing
@@ -268,7 +264,7 @@ async def test_get_circuit_endpoints_completed_ports_resolved_count(
     ],
 )
 async def test_not_found_logs_distinct_event(
-    mcp_with_tools: FastMCP, tool: str, query_func: str, kwargs: dict[str, str], event: str
+    mcp_with_tools: MCPServer, tool: str, query_func: str, kwargs: dict[str, str], event: str
 ) -> None:
     """Per-uuid tools emit a not_found event (distinct from completed) when the query returns None."""
     import structlog.testing
@@ -281,7 +277,7 @@ async def test_not_found_logs_distinct_event(
 
 @pytest.mark.anyio
 @pytest.mark.parametrize("tool", ["get_circuit", "get_circuit_endpoints"])
-async def test_invalid_uuid_logs_distinct_event(mcp_with_tools: FastMCP, tool: str) -> None:
+async def test_invalid_uuid_logs_distinct_event(mcp_with_tools: MCPServer, tool: str) -> None:
     """Per-uuid tools emit a tool-specific invalid_uuid event so silent client errors are visible."""
     import structlog.testing
 
@@ -291,7 +287,7 @@ async def test_invalid_uuid_logs_distinct_event(mcp_with_tools: FastMCP, tool: s
 
 
 # request_id correlation: every tool-emitted log entry carries the JSON-RPC request id
-# from the FastMCP Context, so an operator can grep one identifier and find every line
+# from the MCP Context, so an operator can grep one identifier and find every line
 # the tool produced for a given call.
 
 
@@ -326,7 +322,7 @@ async def test_invalid_uuid_logs_distinct_event(mcp_with_tools: FastMCP, tool: s
     ],
 )
 async def test_tool_log_entries_carry_request_id(
-    mcp_with_tools: FastMCP,
+    mcp_with_tools: MCPServer,
     tool: str,
     query_func: str,
     kwargs: dict[str, str],
