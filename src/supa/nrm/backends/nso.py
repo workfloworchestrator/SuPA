@@ -14,8 +14,8 @@
 from typing import Any, List, Optional
 from uuid import UUID
 
-import httpx
-from httpx import BasicAuth
+import httpx2
+from httpx2 import BasicAuth
 from nso_client import NSOClient, YangData
 from pydantic_settings import BaseSettings
 from sqlalchemy import select
@@ -65,7 +65,7 @@ class Backend(BaseBackend):
             ),
             verify=self.backend_settings.nso_verify_ssl,
             logger=self.log,
-            timeout=httpx.Timeout(
+            timeout=httpx2.Timeout(
                 connect=self.backend_settings.nso_connect_timeout,
                 read=self.backend_settings.nso_read_timeout,
                 write=self.backend_settings.nso_write_timeout,
