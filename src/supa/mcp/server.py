@@ -1,14 +1,15 @@
-"""FastMCP server wiring for SuPA read-only circuit data."""
+"""MCP server wiring for SuPA read-only circuit data."""
 
 from __future__ import annotations
 
 import asyncio
+import importlib.metadata
 import logging
 from datetime import datetime, timezone
 
 import structlog
 import uvicorn
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from supa import settings
 from supa.mcp.port_mapping import PortResolver
@@ -36,15 +37,15 @@ The most useful filter for finding active circuits is provision_state="PROVISION
 _uvicorn_server: uvicorn.Server | None = None
 
 
-def create_server() -> FastMCP:
-    """Create and configure the FastMCP server instance from global settings. Does not start it."""
+def create_server() -> MCPServer:
+    """Create and configure the MCP server instance from global settings. Does not start it."""
     port_resolver = PortResolver(settings.mcp_port_mapping_file)
 
-    mcp = FastMCP(
+    mcp = MCPServer(
         "supa-mcp",
         instructions=_INSTRUCTIONS,
-        host=settings.mcp_host,
-        port=settings.mcp_port,
+        # v1 reported the SDK's own version here; v2 defaults to the empty string, so report SuPA's.
+        version=importlib.metadata.version("SuPA"),
         log_level=settings.mcp_log_level,
     )
 
@@ -74,7 +75,9 @@ def start_mcp() -> None:
 
     mcp = create_server()
     config = uvicorn.Config(
-        mcp.streamable_http_app(),
+        # `host` is not the bind address (uvicorn owns that): the SDK turns on DNS rebinding
+        # protection for loopback hosts only, so it must match what SuPA is configured to bind.
+        mcp.streamable_http_app(host=settings.mcp_host),
         host=settings.mcp_host,
         port=settings.mcp_port,
         log_level=settings.mcp_log_level.lower(),

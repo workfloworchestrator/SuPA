@@ -7,7 +7,7 @@ import time
 import uuid
 
 import structlog
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 
 from supa.mcp.port_mapping import PortResolver
 from supa.mcp.queries import get_circuit_endpoints_query, get_circuit_query, list_circuits_query
@@ -31,16 +31,16 @@ def _elapsed_ms(start: float) -> float:
     return round((time.perf_counter() - start) * 1000, 1)
 
 
-def register_tools(mcp: FastMCP, port_resolver: PortResolver) -> None:
-    """Register all SuPA read-only tools on the FastMCP instance.
+def register_tools(mcp: MCPServer, port_resolver: PortResolver) -> None:
+    """Register all SuPA read-only tools on the MCP server instance.
 
     Args:
-        mcp: FastMCP server instance to register tools on.
+        mcp: MCP server instance to register tools on.
         port_resolver: Resolver for mapping NRM port_id to device and interface.
     """
 
     @mcp.tool()
-    async def list_circuits(  # noqa: D417 — `ctx` is injected by FastMCP and hidden from the LLM schema.
+    async def list_circuits(  # noqa: D417 — `ctx` is injected by the SDK and hidden from the LLM schema.
         ctx: Context,
         reservation_state: str | None = None,
         provision_state: str | None = None,
@@ -97,7 +97,7 @@ def register_tools(mcp: FastMCP, port_resolver: PortResolver) -> None:
         return json.dumps(circuits, indent=2)
 
     @mcp.tool()
-    async def get_circuit(ctx: Context, connection_id: str) -> str:  # noqa: D417 — `ctx` is FastMCP-injected.
+    async def get_circuit(ctx: Context, connection_id: str) -> str:  # noqa: D417 — `ctx` is SDK-injected.
         """Get full details for a single NSI circuit by its UUID (connection_id).
 
         Returns JSON with all four state machine values, bandwidth, schedule (start/end time),
@@ -139,7 +139,7 @@ def register_tools(mcp: FastMCP, port_resolver: PortResolver) -> None:
         return json.dumps(circuit, indent=2)
 
     @mcp.tool()
-    async def get_circuit_endpoints(ctx: Context, connection_id: str) -> str:  # noqa: D417 — `ctx` is FastMCP-injected.
+    async def get_circuit_endpoints(ctx: Context, connection_id: str) -> str:  # noqa: D417 — `ctx` is SDK-injected.
         """Get device and interface information for a circuit's source and destination endpoints.
 
         Returns JSON with src and dst endpoint objects, each containing:

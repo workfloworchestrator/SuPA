@@ -39,7 +39,7 @@ dependencies = [
   "paramiko==5.0.0",
   "pytz==2026.2",
   "psycopg2-binary==2.9.12",
-  "mcp[cli]==1.28.1",
+  "mcp[cli]==2.0.0",
   "pyyaml==6.0.3",
 ]
 requires-python = ">=3.12,<3.15"
