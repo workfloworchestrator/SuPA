@@ -7,7 +7,7 @@
 requires = [
     "setuptools>=65.5.0",
     "wheel",
-    "grpcio-tools==1.81.1",
+    "grpcio-tools==1.83.0",
     "mypy_protobuf",
 ]
 build-backend = "buildtools.backend"
@@ -18,15 +18,15 @@ backend-path = ["src/supa"]
 name = "supa"
 version = "0.5.2.dev1"
 dependencies = [
-  "grpcio==1.81.1",
+  "grpcio==1.83.0",
   "mypy-protobuf==5.1.0",
   "structlog==26.1.0",
   "colorama==0.4.6",
-  "click==8.4.1",
+  "click==8.4.2",
   "pydantic-settings==2.14.2",
-  "python-statemachine==3.2.0",
+  "python-statemachine==3.2.1",
   "sqlalchemy==2.0.51",
-  "apscheduler==3.11.2",
+  "apscheduler==3.11.3",
   "tabulate==0.10.0",
   "more-itertools==11.1.0",
   "protobuf==7.35.1",
@@ -37,7 +37,7 @@ dependencies = [
   "cherrypy==18.10.0",
   "htmlgen==2.0.0",
   "paramiko==5.0.0",
-  "pytz==2026.2",
+  "pytz==2026.3.post1",
   "psycopg2-binary==2.9.12",
   "mcp[cli]==2.0.0",
   "pyyaml==6.0.3",
@@ -83,21 +83,21 @@ Issues = "https://github.com/workfloworchestrator/SuPA/issues"
 dev = [
     "bandit==1.9.4",
     "grpc-stubs==1.53.0.6",
-    "mypy==2.1.0",
-    "pre-commit==4.6.0",
+    "mypy==2.3.0",
+    "pre-commit==4.6.1",
     "protobuf==7.35.1",
     "pytest==9.1.1",
     "pytest-cov==7.1.0",
     "pytest-grpc==0.8.0",
     "pytest-xdist==3.8.0",
-    "ruff==0.15.18",
+    "ruff==0.16.1",
     "types-paramiko==5.0.0.20260724",
-    "types-pytz==2026.2.0.20260518",
+    "types-pytz==2026.3.1.20260727",
     "types-pyyaml>=6.0.12.20260408",
-    "types-requests==2.33.0.20260518",
+    "types-requests==2.33.0.20260712",
     "types-setuptools==83.0.0.20260724",
     "types-tabulate==0.10.0.20260508",
-    "tzdata==2026.2",
+    "tzdata==2026.3",
 ]
 doc = [
     "sphinx==9.1.0",
