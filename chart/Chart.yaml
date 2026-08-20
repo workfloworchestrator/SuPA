@@ -12,13 +12,14 @@ description: SURF Network Service Interface ultimate Provider Agent
 # pipeline. Library charts do not define any templates and therefore cannot be deployed.
 type: application
 
-# This is the chart version. This version number should be incremented each time you make changes
-# to the chart and its templates, including the app version.
-# Versions are expected to follow Semantic Versioning (https://semver.org/)
-version: 0.0.16
+# Placeholders only. The chart version and appVersion are both the release git
+# tag, injected by .github/workflows/chart.yml:
+#     helm package --version $TAG --app-version $TAG
+# Do not maintain these numbers by hand. 0.0.0 sorts below every release and
+# names an image tag that does not exist, so a mis-built chart fails loudly.
+version: 0.0.0
 
-# This is the version number of the application being deployed. This version number should be
-# incremented each time you make changes to the application. Versions are not expected to
-# follow Semantic Versioning. They should reflect the version the application is using.
-# It is recommended to use it with quotes.
-appVersion: "latest"
+appVersion: "0.0.0"
+
+annotations:
+  org.opencontainers.image.source: https://github.com/workfloworchestrator/SuPA

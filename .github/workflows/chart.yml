@@ -1,0 +1,69 @@
+name: Chart
+
+# Chart version == app version == git tag. The numbers in Chart.yaml are
+# placeholders; the real version is injected here from the tag.
+on:
+  push:
+    tags: ["[0-9]+.[0-9]+.[0-9]+*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Semver to publish (no leading v). Use only to re-publish."
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      CHART_DIR: chart
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Resolve version and registry
+        id: cfg
+        run: |
+          set -euo pipefail
+          v="${{ inputs.version || github.ref_name }}"
+          v="${v#v}"
+          if ! printf '%s' "$v" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+'; then
+            echo "::error::'$v' is not a semver version"; exit 1
+          fi
+          # OCI repository paths must be lowercase; the owner may not be.
+          owner="$(printf '%s' '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          echo "version=$v"                        >> "$GITHUB_OUTPUT"
+          echo "oci=oci://ghcr.io/${owner}/charts" >> "$GITHUB_OUTPUT"
+
+      - run: helm version
+
+      # Subchart dependencies are vendored and committed. Never run
+      # `helm dependency update` — it resolves from indexes that no longer
+      # serve the pinned versions.
+      - run: helm dependency list "$CHART_DIR"
+
+      - run: helm lint "$CHART_DIR"
+
+      - name: Package
+        run: |
+          set -euo pipefail
+          helm package "$CHART_DIR" --destination dist \
+            --version     "${{ steps.cfg.outputs.version }}" \
+            --app-version "${{ steps.cfg.outputs.version }}"
+          ls -l dist
+
+      - name: Log in to GHCR
+        run: |
+          printf '%s' '${{ secrets.GITHUB_TOKEN }}' \
+            | helm registry login ghcr.io -u '${{ github.actor }}' --password-stdin
+
+      - name: Push
+        run: helm push dist/*.tgz "${{ steps.cfg.outputs.oci }}"
+
+      - name: Log out of GHCR
+        if: always()
+        run: helm registry logout ghcr.io || true
