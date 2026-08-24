@@ -2079,7 +2079,6 @@ wheels = [
 
 [[package]]
 name = "supa"
-version = "0.5.2.dev1"
 source = { editable = "." }
 dependencies = [
     { name = "apscheduler" },

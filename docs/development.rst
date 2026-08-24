@@ -111,8 +111,23 @@ Some rules
     - ``flake8``
     - ``pytest -n auto --cov``
     - ``pytest --doctest-module src``
-- Each MR should probably result in a version bump (``VERSION.txt``)
-  and an update to ``CHANGES.rst``
+- Each MR should probably result in an update to ``CHANGES.rst``
+
+Versioning
+----------
+
+The release git tag is the only place a version is written by hand. ``pyproject.toml`` declares
+``dynamic = ["version"]`` and setuptools-scm derives it: a tag builds ``0.5.2``, any other commit
+builds the next patch as a dev release with its commit, ``0.5.3.dev3+g1a2b3c4``. SuPA exposes that
+version via ``importlib.metadata.version("SuPA")``.
+
+The container build has no ``.git``, so ``.github/workflows/build-push-container.yml`` checks out
+with ``fetch-depth: 0``, resolves the version on the runner, and passes it as
+``--build-arg VERSION=...``, which the ``Dockerfile`` hands to setuptools-scm as
+``SETUPTOOLS_SCM_PRETEND_VERSION_FOR_SUPA``. A build without that argument fails rather than
+producing a mislabelled image::
+
+    % docker build --build-arg VERSION="$(uvx --from setuptools-scm python -m setuptools_scm)" -t supa .
 
 Importing new protobuf/gRPC definitions
 ---------------------------------------

@@ -2,6 +2,8 @@
 #
 # Build stage
 FROM ghcr.io/astral-sh/uv:python3.14-alpine@sha256:56b2e7ad659cd4b8d3abb5e67556a1e7ac53adf3a13eb8c292696df9c1e70b67 AS build
+ARG VERSION
+ENV SETUPTOOLS_SCM_PRETEND_VERSION_FOR_SUPA=${VERSION}
 WORKDIR /app
 COPY pyproject.toml LICENSE.txt README.rst supa.env .
 COPY src src

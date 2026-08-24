@@ -9,14 +9,17 @@ requires = [
     "wheel",
     "grpcio-tools==1.83.0",
     "mypy_protobuf",
+    "setuptools-scm>=8",
 ]
 build-backend = "buildtools.backend"
 backend-path = ["src/supa"]
 
+[tool.setuptools_scm]
+
 
 [project]
 name = "supa"
-version = "0.5.2.dev1"
+dynamic = ["version"]
 dependencies = [
   "grpcio==1.83.0",
   "mypy-protobuf==5.1.0",

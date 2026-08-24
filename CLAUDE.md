@@ -72,6 +72,15 @@ SQLAlchemy ORM with composite/natural keys. Default SQLite (WAL mode), optional 
 
 CherryPy serves NSI Discovery and Topology XML documents on a separate HTTP port from the gRPC server.
 
+## Versioning
+
+The version is the git tag; never edit it. `pyproject.toml` is `dynamic = ["version"]` with
+setuptools-scm, so a tag builds `0.5.2` and any other commit builds `0.5.3.dev<n>+g<sha>`. The
+container build has no `.git`, so `build-push-container.yml` resolves the version on the runner and
+passes `--build-arg VERSION`, which the `Dockerfile` exports as
+`SETUPTOOLS_SCM_PRETEND_VERSION_FOR_SUPA`. Omitting it fails the build by design. `uv.lock` records
+the project as `(dynamic)` and so does not churn per commit.
+
 ## Code Style
 
 - **Line length**: 120 characters
