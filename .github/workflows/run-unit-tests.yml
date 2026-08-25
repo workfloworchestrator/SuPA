@@ -16,7 +16,7 @@ jobs:
       - name: Install git so the checkout is a git clone
         run: |
           apt update
-          apt install --no-install-recommends --yes git
+          apt install --no-install-recommends --yes ca-certificates git
 
       - name: Check out repository code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
