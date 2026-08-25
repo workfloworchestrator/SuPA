@@ -13,6 +13,11 @@ jobs:
       fail-fast: true
     container: ubuntu:latest@sha256:6df9e8dd1eac389ebfef692c9648449adeb815d01e16e29cd6f3e50fe64ba9a6
     steps:
+      - name: Install git so the checkout is a git clone
+        run: |
+          apt update
+          apt install --no-install-recommends --yes git
+
       - name: Check out repository code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
