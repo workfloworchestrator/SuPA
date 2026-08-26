@@ -10,13 +10,59 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
+"""Backend for a Workflow Orchestrator (orchestrator-core).
+
+The transport, OAuth2, process polling and subscription lookups are generic: they only use
+endpoints that orchestrator-core ships.  Two methods carry the shape of *your* orchestrator's
+product and workflows; override them in a module on ``PYTHONPATH`` and set ``backend=my_wfo``::
+
+    # my_wfo.py
+    from typing import Any, Dict, List
+
+    from supa.nrm.backend import STP
+    from supa.nrm.backends.wfo import Backend as WfoBackend
+
+    class Backend(WfoBackend):
+        def _create_form(
+            self, src_port_id: str, src_vlan: int, dst_port_id: str, dst_vlan: int, bandwidth: int
+        ) -> List[Dict[str, Any]]:
+            # One dict per form page the create workflow yields.
+            return [
+                {"product": self.backend_settings.product_id},
+                {
+                    "circuit_description": "SuPA connection",
+                    "source_stp": src_port_id,
+                    "source_vlan": src_vlan,
+                    "destination_stp": dst_port_id,
+                    "destination_vlan": dst_vlan,
+                    "service_speed": bandwidth,
+                },
+                {},  # summary form
+            ]
+
+        def _stp_from_domain_model(self, domain_model: Dict[str, Any]) -> STP:
+            stp = domain_model["stp"]
+            return STP(
+                stp_id=stp["stp_id"],
+                port_id=domain_model["subscription_id"],
+                vlans=stp["label_group"],
+                description=stp["stp_name"],
+                bandwidth=stp["capacity"],
+            )
+
+A subclass still reads ``wfo.env``, because it inherits ``__init__``.  Put the ``wfo_base_url``,
+``wfo_product_id``, ``wfo_stp_query`` and workflow names of your orchestrator there rather than
+adding a second env file.
+"""
+
 import time
 from json import dumps, loads
 from time import sleep
-from typing import Any, List
+from typing import Any, Dict, List, Optional
+from urllib.parse import quote
 from uuid import UUID
 
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from requests import Response, get, post
 from requests.auth import HTTPBasicAuth
 from requests.exceptions import ConnectionError, HTTPError, RequestException  # noqa: A004
@@ -32,8 +78,10 @@ from supa.util.find import find_file
 class BackendSettings(BaseSettings):
     """Backend settings with default values.
 
-    See also: the ``src/supa/nrm/backends/surf.env`` file
+    See also: the ``src/supa/nrm/backends/wfo.env`` file
     """
+
+    model_config = SettingsConfigDict(env_prefix="wfo_")
 
     base_url: str = "http://localhost"
     oauth2_active: bool = False
@@ -44,31 +92,36 @@ class BackendSettings(BaseSettings):
     terminate_workflow_name: str = ""
     customer_id: str = ""
     product_id: str = ""
+    stp_query: str = "tag:NSISTP status:active"
     connect_timeout: float = 9.05
     read_timeout: float = 12.0
     write_timeout: float = 18.0
 
 
 class Backend(BaseBackend):
-    """SURF backend interface to workflow orchestrator."""
+    """Backend interface to a workflow orchestrator.
+
+    Subclass this and override :meth:`_create_form` and :meth:`_stp_from_domain_model` to match
+    the products and workflows of your own orchestrator; see the module docstring for an example.
+    """
 
     def __init__(self) -> None:
-        """Load properties from 'surf.env'."""
+        """Load properties from 'wfo.env'."""
         super(Backend, self).__init__()
         try:
-            # first look for surf.env directly on the sys path
-            env_file = find_file("surf.env")
+            # first look for wfo.env directly on the sys path
+            env_file = find_file("wfo.env")
         except FileNotFoundError:
             try:
-                # else look for surf.env in an installed supa package
-                env_file = find_file("supa/nrm/backends/surf.env")
+                # else look for wfo.env in an installed supa package
+                env_file = find_file("supa/nrm/backends/wfo.env")
             except FileNotFoundError:
                 env_file = None
         if env_file:
             self.backend_settings = BackendSettings(_env_file=env_file)  # type: ignore[call-arg]
             self.log.info("Read backend properties", path=str(env_file))
         else:
-            raise FileNotFoundError("Backend surf env file not found")
+            raise FileNotFoundError("Backend wfo env file not found")
 
     def _retrieve_access_token(self) -> str:
         access_token = ""  # noqa: S105
@@ -97,7 +150,9 @@ class Backend(BaseBackend):
                         raise NsiException(GenericRmError, str(http_err)) from http_err
                 else:
                     access_token = token.json()["access_token"]
-        self.log.debug("workflow credentials", access_token=access_token, base_url=self.backend_settings.base_url)
+        self.log.debug(
+            "workflow credentials", have_access_token=bool(access_token), base_url=self.backend_settings.base_url
+        )
         return access_token
 
     def _get_url(self, url: str) -> Response:
@@ -124,9 +179,14 @@ class Backend(BaseBackend):
         self.log.debug("post url timer", url=url, seconds=time.time() - start)
         return response
 
-    def _workflow_create(self, src_port_id: str, src_vlan: int, dst_port_id: str, dst_vlan: int, bandwidth: int) -> Any:
-        self.log.info("start workflow create")
-        json = [
+    def _create_form(
+        self, src_port_id: str, src_vlan: int, dst_port_id: str, dst_vlan: int, bandwidth: int
+    ) -> List[Dict[str, Any]]:
+        """Build the input form for the create workflow, one dict per form page.
+
+        This is the shape of a specific orchestrator product; override it to match yours.
+        """
+        return [
             {
                 "product": self.backend_settings.product_id,
             },
@@ -147,6 +207,10 @@ class Backend(BaseBackend):
             },
             {},  # summary form
         ]
+
+    def _workflow_create(self, src_port_id: str, src_vlan: int, dst_port_id: str, dst_vlan: int, bandwidth: int) -> Any:
+        self.log.info("start workflow create")
+        json = self._create_form(src_port_id, src_vlan, dst_port_id, dst_vlan, bandwidth)
         base_url = self.backend_settings.base_url
         create_workflow_name = self.backend_settings.create_workflow_name
         reporter = settings.nsa_host
@@ -194,13 +258,32 @@ class Backend(BaseBackend):
                 raise NsiException(GenericRmError, str(http_err)) from http_err
         return result.json()
 
+    def _get_global_reservation_id(self, connection_id: UUID) -> str:
+        """Look up the global reservation id, which is not among the backend method arguments."""
+        from supa.db.model import Reservation
+        from supa.db.session import db_session
+
+        with db_session() as session:
+            global_reservation_id = (
+                session.query(Reservation.global_reservation_id)
+                .filter(Reservation.connection_id == connection_id)
+                .scalar()
+            )
+        return str(global_reservation_id)
+
     def _add_note(self, connection_id: UUID, subscription_id: str) -> Any:
         self.log.info("start workflow modify note")
+        global_reservation_id = self._get_global_reservation_id(connection_id)
         json = [
             {
                 "subscription_id": subscription_id,
             },
-            {"note": (f"NSI  - host {settings.nsa_host} - NSA ID {settings.nsa_id} - connection ID {connection_id}")},
+            {
+                "note": (
+                    f"NSI  - host {settings.nsa_host} - NSA ID {settings.nsa_id}"
+                    f" - connection ID {connection_id} - global reservation ID {global_reservation_id}"
+                )
+            },
         ]
         base_url = self.backend_settings.base_url
         reporter = settings.nsa_host
@@ -240,11 +323,15 @@ class Backend(BaseBackend):
     def _get_subscription_id(self, process_id: str) -> str:
         process = self._get_url(f"{self.backend_settings.base_url}/api/processes/{process_id}")
         self.log.debug("process status", process_status=process.json()["last_status"])
-        return str(process.json()["current_state"]["subscription"]["subscription_id"])
+        state = process.json()["current_state"]
+        # Workflows either nest the subscription in the state or, like orchestrator-core's
+        # store_process_subscription(), put the bare subscription_id there.
+        subscription = state.get("subscription", state)
+        return str(subscription["subscription_id"])
 
     def _get_nsi_stp_subscriptions(self) -> Any:
         nsi_stp_subscriptions = self._get_url(
-            f"{self.backend_settings.base_url}/api/pythia_legacy/subscriptions/?filter=status,active,tag,NSISTP-NSISTPNL"  # noqa: E501
+            f"{self.backend_settings.base_url}/api/subscriptions/search?query={quote(self.backend_settings.stp_query)}"
         )
         if nsi_stp_subscriptions.status_code != 200:
             try:
@@ -275,39 +362,47 @@ class Backend(BaseBackend):
             self.log.debug("healthy")
             return True
 
+    def _get_domain_model(self, subscription_id: str) -> Any:
+        """Fetch the domain model of a single subscription."""
+        domain_model = self._get_url(
+            f"{self.backend_settings.base_url}/api/subscriptions/domain-model/{subscription_id}"
+        )
+        if domain_model.status_code != 200:
+            try:
+                domain_model.raise_for_status()
+            except HTTPError as http_err:
+                self.log.warning(
+                    "failed to fetch STP domain model",
+                    reason=str(http_err),
+                    nsi_stp_subscription_id=subscription_id,
+                )
+                raise NsiException(GenericRmError, str(http_err)) from http_err
+        return domain_model.json()
+
+    def _stp_from_domain_model(self, domain_model: Dict[str, Any]) -> STP:
+        """Map a subscription domain model onto an :class:`~supa.nrm.backend.STP`.
+
+        This reads the fields of a specific orchestrator product; override it to match yours.
+        """
+        stp_settings = domain_model["settings"]
+        return STP(
+            topology=stp_settings["topology"],
+            stp_id=stp_settings["stp_id"],
+            port_id=stp_settings["sap"]["port"]["owner_subscription_id"],
+            vlans=stp_settings["sap"]["vlanrange"],
+            description=stp_settings["stp_description"],
+            is_alias_in=stp_settings["is_alias_in"],
+            is_alias_out=stp_settings["is_alias_out"],
+            bandwidth=stp_settings["bandwidth"],
+            enabled=stp_settings["expose_in_topology"],
+        )
+
     def _get_topology(self) -> List[STP]:
         self.log.debug("get topology from NRM")
-        ports: List[STP] = []
-        for nsi_stp_sub in self._get_nsi_stp_subscriptions():
-            nsi_stp_dm = self._get_url(
-                f"{self.backend_settings.base_url}/api/subscriptions/domain-model/{nsi_stp_sub['subscription_id']}"
-            )
-            if nsi_stp_dm.status_code != 200:
-                try:
-                    nsi_stp_dm.raise_for_status()
-                except HTTPError as http_err:
-                    self.log.warning(
-                        "failed to fetch NSISTP domain model",
-                        reason=str(http_err),
-                        nsi_stp_subscription_id=nsi_stp_sub["subscription_id"],
-                    )
-                    raise NsiException(GenericRmError, str(http_err)) from http_err
-            else:
-                nsi_stp_dict = nsi_stp_dm.json()
-                ports.append(
-                    STP(
-                        topology=nsi_stp_dict["settings"]["topology"],
-                        stp_id=nsi_stp_dict["settings"]["stp_id"],
-                        port_id=nsi_stp_dict["settings"]["sap"]["port"]["owner_subscription_id"],
-                        vlans=nsi_stp_dict["settings"]["sap"]["vlanrange"],
-                        description=nsi_stp_dict["settings"]["stp_description"],
-                        is_alias_in=nsi_stp_dict["settings"]["is_alias_in"],
-                        is_alias_out=nsi_stp_dict["settings"]["is_alias_out"],
-                        bandwidth=nsi_stp_dict["settings"]["bandwidth"],
-                        enabled=nsi_stp_dict["settings"]["expose_in_topology"],
-                    )
-                )
-        return ports
+        return [
+            self._stp_from_domain_model(self._get_domain_model(nsi_stp_sub["subscription_id"]))
+            for nsi_stp_sub in self._get_nsi_stp_subscriptions()
+        ]
 
     def activate(
         self,
@@ -338,11 +433,15 @@ class Backend(BaseBackend):
         dst_port_id: str,
         dst_vlan: int,
         circuit_id: str,
-    ) -> None:
-        """Deactivate resources in NRM."""
+    ) -> Optional[str]:
+        """Deactivate resources in NRM.
+
+        The subscription is terminated, so there is no circuit_id left to return.
+        """
         self.log = self.log.bind(primitive="deactivate", subscription_id=circuit_id, connection_id=str(connection_id))
         process = self._workflow_terminate(circuit_id)
         self._wait_for_completion(process["id"])
+        return None
 
     def health_check(
         self,

@@ -54,7 +54,9 @@ Four FSMs in `connection/fsm.py` govern each connection's lifecycle, all inherit
 
 ### Network Resource Manager Backends
 
-Pluggable backends in `nrm/backends/` implement `nrm/backend.py:BaseBackend`. Available: `example` (reference), `surf`, `ciena8190`, `nso`. Selected via `backend` setting in `supa.env`.
+Pluggable backends in `nrm/backends/` implement `nrm/backend.py:BaseBackend`. Available: `example` (reference), `wfo`, `ciena8190`, `nso`. Selected via `backend` setting in `supa.env`.
+
+`wfo` talks to any orchestrator-core Workflow Orchestrator over its REST API. Everything except the create form (`_create_form`) and the STP mapping (`_stp_from_domain_model`) is product-agnostic; site-specific products subclass those two methods in a module on `PYTHONPATH`. Its settings live in `wfo.env` with a `wfo_` env prefix.
 
 ### Custom Build Backend
 

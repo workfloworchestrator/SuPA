@@ -1,4 +1,4 @@
-"""Unit tests for the SURF NRM backend topology/auth path.
+"""Unit tests for the WFO NRM backend topology/auth path.
 
 These tests cover the outbound HTTP helpers that the topology refresh depends on
 (``_retrieve_access_token``, ``_get_url``, ``_get_nsi_stp_subscriptions`` and
@@ -6,8 +6,9 @@ These tests cover the outbound HTTP helpers that the topology refresh depends on
 ``post``/``get`` functions so no real HTTP traffic is made.
 """
 
-from typing import Any, Optional
+from typing import Any, Dict, List, Optional, Type
 from unittest.mock import MagicMock, patch
+from uuid import UUID
 
 import pytest
 import structlog
@@ -15,11 +16,47 @@ from requests.exceptions import HTTPError, ReadTimeout
 
 from supa.job.shared import NsiException
 from supa.nrm.backend import STP
-from supa.nrm.backends.surf import Backend, BackendSettings
+from supa.nrm.backends.wfo import Backend, BackendSettings
 
 
-def make_backend(**overrides: Any) -> Backend:
-    """Build a SURF ``Backend`` without depending on ``surf.env`` discovery."""
+class ExampleBackend(Backend):
+    """The subclass from the ``supa.nrm.backends.wfo`` module docstring.
+
+    Kept here verbatim so the published example is exercised by CI and cannot rot.  It maps onto
+    an orchestrator whose product uses ``source_stp``/``service_speed`` on the create form and
+    ``stp_name``/``capacity``/``label_group`` on the STP block.
+    """
+
+    def _create_form(
+        self, src_port_id: str, src_vlan: int, dst_port_id: str, dst_vlan: int, bandwidth: int
+    ) -> List[Dict[str, Any]]:
+        # One dict per form page the create workflow yields.
+        return [
+            {"product": self.backend_settings.product_id},
+            {
+                "circuit_description": "SuPA connection",
+                "source_stp": src_port_id,
+                "source_vlan": src_vlan,
+                "destination_stp": dst_port_id,
+                "destination_vlan": dst_vlan,
+                "service_speed": bandwidth,
+            },
+            {},  # summary form
+        ]
+
+    def _stp_from_domain_model(self, domain_model: Dict[str, Any]) -> STP:
+        stp = domain_model["stp"]
+        return STP(
+            stp_id=stp["stp_id"],
+            port_id=domain_model["subscription_id"],
+            vlans=stp["label_group"],
+            description=stp["stp_name"],
+            bandwidth=stp["capacity"],
+        )
+
+
+def make_backend(backend_class: Type[Backend] = Backend, **overrides: Any) -> Backend:
+    """Build a ``Backend`` without depending on ``wfo.env`` discovery."""
     settings = {
         "base_url": "http://nrm.test",
         "oauth2_active": True,
@@ -28,7 +65,7 @@ def make_backend(**overrides: Any) -> Backend:
         "oidc_password": "password",  # noqa: S106
         **overrides,
     }
-    backend = Backend.__new__(Backend)
+    backend = object.__new__(backend_class)
     backend.log = structlog.get_logger()
     backend.backend_settings = BackendSettings(**settings)
     return backend
@@ -63,7 +100,7 @@ def test_retrieve_access_token_returns_token(
 ) -> None:
     """``_retrieve_access_token`` returns the bearer token, or empty string when it cannot."""
     backend = make_backend(oauth2_active=oauth2_active)
-    with patch("supa.nrm.backends.surf.post") as mock_post:
+    with patch("supa.nrm.backends.wfo.post") as mock_post:
         if status_code is not None:
             mock_post.return_value = make_response(status_code, json_data)
         assert backend._retrieve_access_token() == expected_token
@@ -76,11 +113,11 @@ def test_retrieve_access_token_returns_token(
 def test_retrieve_access_token_timeout_raises_nsi_exception() -> None:
     """A token-endpoint timeout must raise ``NsiException`` rather than a raw ``RequestException``.
 
-    Regression test for the stack-trace-in-logs fix: red before the ``surf.py`` change (a raw
+    Regression test for the stack-trace-in-logs fix: red before the ``wfo.py`` change (a raw
     ``ReadTimeout`` escapes and is rendered as a CherryPy traceback), green after.
     """
     backend = make_backend()
-    with patch("supa.nrm.backends.surf.post", side_effect=ReadTimeout("read timed out")):
+    with patch("supa.nrm.backends.wfo.post", side_effect=ReadTimeout("read timed out")):
         with pytest.raises(NsiException):
             backend._retrieve_access_token()
 
@@ -89,7 +126,7 @@ def test_get_url_success_returns_response() -> None:
     """``_get_url`` returns the response from an authorised GET."""
     backend = make_backend(oauth2_active=False)
     expected = make_response(200, {"ok": True})
-    with patch("supa.nrm.backends.surf.get", return_value=expected) as mock_get:
+    with patch("supa.nrm.backends.wfo.get", return_value=expected) as mock_get:
         assert backend._get_url("http://nrm.test/api/thing") is expected
         mock_get.assert_called_once()
 
@@ -97,7 +134,7 @@ def test_get_url_success_returns_response() -> None:
 def test_get_url_request_exception_raises_nsi_exception() -> None:
     """``_get_url`` converts a ``requests`` transport error into an ``NsiException``."""
     backend = make_backend(oauth2_active=False)
-    with patch("supa.nrm.backends.surf.get", side_effect=ReadTimeout("boom")):
+    with patch("supa.nrm.backends.wfo.get", side_effect=ReadTimeout("boom")):
         with pytest.raises(NsiException):
             backend._get_url("http://nrm.test/api/thing")
 
@@ -106,16 +143,26 @@ def test_get_nsi_stp_subscriptions_success_returns_json() -> None:
     """``_get_nsi_stp_subscriptions`` returns the parsed subscription list on HTTP 200."""
     backend = make_backend(oauth2_active=False)
     subscriptions = [{"subscription_id": "sub-1"}]
-    with patch("supa.nrm.backends.surf.get", return_value=make_response(200, subscriptions)):
+    with patch("supa.nrm.backends.wfo.get", return_value=make_response(200, subscriptions)):
         assert backend._get_nsi_stp_subscriptions() == subscriptions
 
 
 def test_get_nsi_stp_subscriptions_non_200_raises_nsi_exception() -> None:
     """``_get_nsi_stp_subscriptions`` raises ``NsiException`` on a non-200 response."""
     backend = make_backend(oauth2_active=False)
-    with patch("supa.nrm.backends.surf.get", return_value=make_response(500)):
+    with patch("supa.nrm.backends.wfo.get", return_value=make_response(500)):
         with pytest.raises(NsiException):
             backend._get_nsi_stp_subscriptions()
+
+
+def test_get_nsi_stp_subscriptions_uses_configured_stp_query() -> None:
+    """``_get_nsi_stp_subscriptions`` searches core's subscription endpoint with ``stp_query``."""
+    backend = make_backend(oauth2_active=False, stp_query="tag:MYSTP status:active")
+    with patch("supa.nrm.backends.wfo.get", return_value=make_response(200, [])) as mock_get:
+        backend._get_nsi_stp_subscriptions()
+    assert mock_get.call_args.kwargs["url"] == (
+        "http://nrm.test/api/subscriptions/search?query=tag%3AMYSTP%20status%3Aactive"
+    )
 
 
 DOMAIN_MODEL = {
@@ -131,13 +178,29 @@ DOMAIN_MODEL = {
     }
 }
 
+EXAMPLE_DOMAIN_MODEL = {
+    "subscription_id": "port-1",
+    "stp": {"stp_id": "stp-1", "stp_name": "Test STP", "label_group": "100-200", "capacity": 1000},
+}
 
-def test_get_topology_builds_stp_list() -> None:
-    """``_get_topology`` maps a subscription's domain model onto an ``STP``."""
-    backend = make_backend(oauth2_active=False)
+
+@pytest.mark.parametrize(
+    ("backend_class", "domain_model"),
+    [
+        pytest.param(Backend, DOMAIN_MODEL, id="default-nsistp-product"),
+        pytest.param(ExampleBackend, EXAMPLE_DOMAIN_MODEL, id="subclass-overriding-the-mapping"),
+    ],
+)
+def test_get_topology_builds_stp_list(backend_class: Type[Backend], domain_model: Dict[str, Any]) -> None:
+    """``_get_topology`` maps a subscription's domain model onto an ``STP``.
+
+    Both the built-in product shape and a subclass that overrides ``_stp_from_domain_model``
+    must produce the same ``STP``.
+    """
+    backend = make_backend(backend_class, oauth2_active=False)
     with (
         patch.object(backend, "_get_nsi_stp_subscriptions", return_value=[{"subscription_id": "sub-1"}]),
-        patch.object(backend, "_get_url", return_value=make_response(200, DOMAIN_MODEL)),
+        patch.object(backend, "_get_url", return_value=make_response(200, domain_model)),
     ):
         stps = backend._get_topology()
     assert len(stps) == 1
@@ -148,6 +211,36 @@ def test_get_topology_builds_stp_list() -> None:
     assert stp.description == "Test STP"
     assert stp.bandwidth == 1000
     assert stp.enabled is True
+
+
+def test_add_note_ends_with_global_reservation_id(connection_id: UUID) -> None:
+    """The note posted to the orchestrator ends with the global reservation id of the connection.
+
+    ``global_reservation_id`` lives on ``Reservation``, not on ``Connection``, so it is not among
+    the arguments the backend is called with and has to be looked up in the database.
+    """
+    backend = make_backend(oauth2_active=False)
+    with patch("supa.nrm.backends.wfo.post", return_value=make_response(200, {"id": "process-1"})) as mock_post:
+        backend._add_note(connection_id, "sub-1")
+    assert mock_post.call_args.kwargs["json"][1]["note"].endswith(
+        f" - connection ID {connection_id} - global reservation ID global reservation id"
+    )
+
+
+def test_create_form_override_is_used_by_workflow_create() -> None:
+    """``_workflow_create`` posts whatever ``_create_form`` returns, so a subclass can reshape it."""
+    backend = make_backend(ExampleBackend, oauth2_active=False, create_workflow_name="create_thing")
+    with patch("supa.nrm.backends.wfo.post", return_value=make_response(200, {"id": "process-1"})) as mock_post:
+        backend._workflow_create("port-1", 100, "port-2", 200, 1000)
+    assert mock_post.call_args.kwargs["url"].startswith("http://nrm.test/api/processes/create_thing?reporter=")
+    assert mock_post.call_args.kwargs["json"][1] == {
+        "circuit_description": "SuPA connection",
+        "source_stp": "port-1",
+        "source_vlan": 100,
+        "destination_stp": "port-2",
+        "destination_vlan": 200,
+        "service_speed": 1000,
+    }
 
 
 def test_get_topology_domain_model_non_200_raises_nsi_exception() -> None:
@@ -174,10 +267,10 @@ def test_topology_token_timeout_raises_nsi_exception() -> None:
 
     This is the realistic failure that reaches the healthcheck endpoint; surfacing it as an
     ``NsiException`` (rather than a raw ``ReadTimeout``) is what lets ``_check_topology()``
-    return an HTTP 503 instead of leaking a CherryPy stack trace.  Red before the ``surf.py``
+    return an HTTP 503 instead of leaking a CherryPy stack trace.  Red before the ``wfo.py``
     fix, green after.
     """
     backend = make_backend(oauth2_active=True)
-    with patch("supa.nrm.backends.surf.post", side_effect=ReadTimeout("read timed out")):
+    with patch("supa.nrm.backends.wfo.post", side_effect=ReadTimeout("read timed out")):
         with pytest.raises(NsiException):
             backend.topology()

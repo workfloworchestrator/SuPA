@@ -96,6 +96,9 @@ secretProviderClass:
   objects:
     - key: "PASSWORD"
       objectName: "db-password"
+    # Injected as env var WFO_OIDC_PASSWORD, which overrides wfo_oidc_password from wfo.env.
+    - key: "WFO_OIDC_PASSWORD"
+      objectName: "wfo-oidc-password"
 
 # either read config files from folder or use inline data, filesGlob takes precedence over inline.
 config:
@@ -112,17 +115,17 @@ config:
       org_id=example.domain:2001
       nsa_designator=nsa:supa
       log_level=INFO
-      backend=surf
-    surf.env: |-
-      base_url=http://development-orchestrator.development.svc.cluster.local:80
-      oauth2_active=True
-      oidc_url=https://sso.dev.example.domain/realms/development/protocol/openid-connect/token
-      oidc_user=supa-oidc-user
-      oidc_password=kFh9setPa8syRMZoWQIw5Bl4IUDPDXtTuCkdRA3evakt
-      create_workflow_name=create_nsi_light_path
-      terminate_workflow_name=terminate_nsi_light_path
-      customer_id=1a6f361b-2d8b-48a8-bbcc-74e4bcff6c21
-      product_id=6ef76caa-5564-4740-9c83-c0e6d09176c4
+      backend=wfo
+    wfo.env: |-
+      wfo_base_url=http://development-orchestrator.development.svc.cluster.local:80
+      wfo_oauth2_active=True
+      wfo_oidc_url=https://sso.dev.example.domain/realms/development/protocol/openid-connect/token
+      wfo_oidc_user=supa-oidc-user
+      # wfo_oidc_password comes from the secretProviderClass as env var WFO_OIDC_PASSWORD.
+      wfo_create_workflow_name=create_nsi_light_path
+      wfo_terminate_workflow_name=terminate_nsi_light_path
+      wfo_customer_id=1a6f361b-2d8b-48a8-bbcc-74e4bcff6c21
+      wfo_product_id=6ef76caa-5564-4740-9c83-c0e6d09176c4
 
 mcp:
   enabled: false

@@ -168,10 +168,12 @@ supa.nrm.backends.example
 .. automodule:: supa.nrm.backends.example
    :members:
 
-supa.nrm.backends.surf
+.. _supa.nrm.backends.wfo:
+
+supa.nrm.backends.wfo
 --------------
 
-.. automodule:: supa.nrm.backends.surf
+.. automodule:: supa.nrm.backends.wfo
    :members:
 
 supa.documents.discovery
