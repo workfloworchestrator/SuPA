@@ -27,3 +27,9 @@ Backends are just regular Python modules.
 The name of the module to be used as backend can be specified with the ``backend`` configuration option,
 without the ``.py`` file extention of course.
 Just make sure that the the python module can be found somewhere on the `PYTHONPATH <https://docs.python.org/3/using/cmdline.html\#envvar-PYTHONPATH>`_.
+
+When the NRM is a workflow orchestrator,
+start from the ``wfo`` backend instead of ``BaseBackend``:
+it already implements the orchestrator-core REST API,
+and only the create form and the STP mapping of your own products need to be overridden.
+See :ref:`supa.nrm.backends.wfo` for a worked example.

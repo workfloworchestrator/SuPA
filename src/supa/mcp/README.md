@@ -150,7 +150,7 @@ port_mapping:
     interface: "ge-0/0/1"
 ```
 
-The `port_id` keys must exactly match the values stored in `Connection.src_port_id` / `Connection.dst_port_id` in the SuPA database. The exact format is defined by the configured NRM backend — common examples are a vendor interface name (Ciena 8190) or a UUID (SURF). It is **not** the NSI STP URN. You can find the port IDs for a circuit by calling `get_circuit_endpoints` without a mapping file — the `port_id` field is always returned regardless.
+The `port_id` keys must exactly match the values stored in `Connection.src_port_id` / `Connection.dst_port_id` in the SuPA database. The exact format is defined by the configured NRM backend — common examples are a vendor interface name (Ciena 8190) or a subscription UUID (wfo). It is **not** the NSI STP URN. You can find the port IDs for a circuit by calling `get_circuit_endpoints` without a mapping file — the `port_id` field is always returned regardless.
 
 A template file is provided at [`port_mapping.example.yaml`](../../../../port_mapping.example.yaml) in the project root.
 

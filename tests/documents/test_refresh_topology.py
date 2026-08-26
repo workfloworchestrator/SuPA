@@ -183,7 +183,7 @@ def test_refresh_topology_disables_vanished_stp(topology_state: None) -> None:
 def test_check_topology_returns_false_on_nsi_exception(topology_state: None) -> None:
     """The healthcheck maps a topology-fetch ``NsiException`` to ``False`` (HTTP 503), not a raise.
 
-    This is the contract the stack-trace fix relies on: the SURF backend now surfaces a token
+    This is the contract the stack-trace fix relies on: the WFO backend now surfaces a token
     timeout as ``NsiException``, which flows through here to a clean 503 instead of escaping to
     CherryPy as a rendered traceback.
     """
