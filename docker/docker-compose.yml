@@ -20,7 +20,7 @@ services:
   # PolyNSI
   #
   polynsi:
-    image: ghcr.io/workfloworchestrator/polynsi:latest@sha256:2309fe05353d94ba85c2edf8ba95a7ae68bb17221da8a62bfb188ba5bfeb8bfe
+    image: ghcr.io/workfloworchestrator/polynsi:latest@sha256:69327c8ad4fd2eec192efd7a2e84cebe41d20cdc6e43537f367dd1ce02ac503e
     ports:
       - "8443:8443"
     configs:
