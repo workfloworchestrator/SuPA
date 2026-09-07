@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1@sha256:ecfaec9ed6d810b56388c508f4121597bfbba70d41a6dfeee4d8cad5f295fc32
 #
 # Build stage
-FROM ghcr.io/astral-sh/uv:python3.14-alpine@sha256:97c0ea321f702d5c726a829930ea24cab89ce978f024933861d7bcb33f8c6f20 AS build
+FROM ghcr.io/astral-sh/uv:python3.14-alpine@sha256:706cd9faf6d3fa7476fc470463bfca625d4b3ea5e46d6dc166ec1fb8ad3976e6 AS build
 ARG VERSION
 ENV SETUPTOOLS_SCM_PRETEND_VERSION_FOR_SUPA=${VERSION}
 WORKDIR /app
@@ -10,7 +10,7 @@ COPY src src
 RUN uv build --no-cache --wheel --out-dir dist
 
 # Final stage
-FROM ghcr.io/astral-sh/uv:python3.14-alpine@sha256:97c0ea321f702d5c726a829930ea24cab89ce978f024933861d7bcb33f8c6f20
+FROM ghcr.io/astral-sh/uv:python3.14-alpine@sha256:706cd9faf6d3fa7476fc470463bfca625d4b3ea5e46d6dc166ec1fb8ad3976e6
 ENV DATABASE_DIR=/usr/local/var/db
 COPY --from=build /app/dist/*.whl /tmp/
 RUN uv pip install --system --no-cache /tmp/*.whl && rm /tmp/*.whl
