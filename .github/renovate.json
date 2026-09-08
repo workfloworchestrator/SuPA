@@ -19,9 +19,14 @@
       "automerge": true
     },
     {
-      "matchUpdateTypes": ["pin", "digest"],
+      "matchUpdateTypes": ["pin", "digest", "pinDigest"],
       "minimumReleaseAge": "0 days",
       "automerge": true
+    },
+    {
+      "matchManagers": ["helm-values"],
+      "matchPackageNames": ["ghcr.io/workfloworchestrator/supa"],
+      "pinDigests": false
     },
     {
       "matchPackageNames": ["python"],
