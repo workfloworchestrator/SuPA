@@ -1,7 +1,7 @@
 """Unit tests for the WFO NRM backend topology/auth path.
 
 These tests cover the outbound HTTP helpers that the topology refresh depends on
-(``_retrieve_access_token``, ``_get_url``, ``_get_nsi_stp_subscriptions`` and
+(``_retrieve_access_token``, ``_get_url``, ``_get_nsi_stp_subscription_ids``, ``_is_healthy`` and
 ``_get_topology``).  All network access is mocked at the module-level ``requests``
 ``post``/``get`` functions so no real HTTP traffic is made.
 """
@@ -139,30 +139,84 @@ def test_get_url_request_exception_raises_nsi_exception() -> None:
             backend._get_url("http://nrm.test/api/thing")
 
 
-def test_get_nsi_stp_subscriptions_success_returns_json() -> None:
-    """``_get_nsi_stp_subscriptions`` returns the parsed subscription list on HTTP 200."""
-    backend = make_backend(oauth2_active=False)
-    subscriptions = [{"subscription_id": "sub-1"}]
-    with patch("supa.nrm.backends.wfo.get", return_value=make_response(200, subscriptions)):
-        assert backend._get_nsi_stp_subscriptions() == subscriptions
-
-
-def test_get_nsi_stp_subscriptions_non_200_raises_nsi_exception() -> None:
-    """``_get_nsi_stp_subscriptions`` raises ``NsiException`` on a non-200 response."""
-    backend = make_backend(oauth2_active=False)
-    with patch("supa.nrm.backends.wfo.get", return_value=make_response(500)):
-        with pytest.raises(NsiException):
-            backend._get_nsi_stp_subscriptions()
-
-
-def test_get_nsi_stp_subscriptions_uses_configured_stp_query() -> None:
-    """``_get_nsi_stp_subscriptions`` searches core's subscription endpoint with ``stp_query``."""
-    backend = make_backend(oauth2_active=False, stp_query="tag:MYSTP status:active")
-    with patch("supa.nrm.backends.wfo.get", return_value=make_response(200, [])) as mock_get:
-        backend._get_nsi_stp_subscriptions()
-    assert mock_get.call_args.kwargs["url"] == (
-        "http://nrm.test/api/subscriptions/search?query=tag%3AMYSTP%20status%3Aactive"
+def subscriptions_page(subscription_ids: List[str], has_next_page: bool = False) -> MagicMock:
+    """Build a GraphQL ``subscriptions`` response holding one page of subscription ids."""
+    return make_response(
+        200,
+        {
+            "data": {
+                "subscriptions": {
+                    "page": [{"subscriptionId": subscription_id} for subscription_id in subscription_ids],
+                    "pageInfo": {"hasNextPage": has_next_page},
+                }
+            }
+        },
     )
+
+
+def test_get_nsi_stp_subscription_ids_filters_on_configured_tags() -> None:
+    """``_get_nsi_stp_subscription_ids`` queries GraphQL for active subscriptions with ``stp_tags``."""
+    backend = make_backend(oauth2_active=False, stp_tags="MYSTP|MYSTPNL")
+    with patch("supa.nrm.backends.wfo.post", return_value=subscriptions_page(["sub-1"])) as mock_post:
+        assert backend._get_nsi_stp_subscription_ids() == ["sub-1"]
+    assert mock_post.call_args.kwargs["url"] == "http://nrm.test/api/graphql"
+    assert mock_post.call_args.kwargs["json"]["variables"]["filterBy"] == [
+        {"field": "tag", "value": "MYSTP|MYSTPNL"},
+        {"field": "status", "value": "active"},
+    ]
+
+
+def test_get_nsi_stp_subscription_ids_follows_pages() -> None:
+    """``_get_nsi_stp_subscription_ids`` keeps fetching while ``hasNextPage``, offset by what it has."""
+    backend = make_backend(oauth2_active=False)
+    pages = [subscriptions_page(["sub-1", "sub-2"], has_next_page=True), subscriptions_page(["sub-3"])]
+    with patch("supa.nrm.backends.wfo.post", side_effect=pages) as mock_post:
+        assert backend._get_nsi_stp_subscription_ids() == ["sub-1", "sub-2", "sub-3"]
+    assert [call.kwargs["json"]["variables"]["after"] for call in mock_post.call_args_list] == [0, 2]
+
+
+@pytest.mark.parametrize(
+    "post_mock",
+    [
+        pytest.param({"side_effect": ReadTimeout("boom")}, id="transport-error"),
+        pytest.param({"return_value": make_response(500)}, id="http-error"),
+        pytest.param(
+            {"return_value": make_response(200, {"data": None, "errors": [{"message": "Invalid filter arguments"}]})},
+            id="graphql-error",
+        ),
+    ],
+)
+def test_graphql_failure_raises_nsi_exception(post_mock: Dict[str, Any]) -> None:
+    """``_graphql`` raises ``NsiException`` on a transport error, an HTTP error or a GraphQL ``errors`` entry."""
+    backend = make_backend(oauth2_active=False)
+    with patch("supa.nrm.backends.wfo.post", **post_mock):
+        with pytest.raises(NsiException):
+            backend._graphql("query { version }", {})
+
+
+@pytest.mark.parametrize(
+    ("status", "expected"),
+    [
+        pytest.param("ACTIVE", True, id="active"),
+        pytest.param("PROVISIONING", True, id="provisioning"),
+        pytest.param("TERMINATED", False, id="terminated"),
+    ],
+)
+def test_is_healthy_reflects_subscription_status(status: str, expected: bool) -> None:
+    """``_is_healthy`` is ``False`` only for a terminated subscription."""
+    backend = make_backend(oauth2_active=False)
+    response = make_response(200, {"data": {"subscription": {"status": status}}})
+    with patch("supa.nrm.backends.wfo.post", return_value=response) as mock_post:
+        assert backend._is_healthy("sub-1") is expected
+    assert mock_post.call_args.kwargs["json"]["variables"] == {"id": "sub-1"}
+
+
+def test_is_healthy_unknown_subscription_raises_nsi_exception() -> None:
+    """``_is_healthy`` raises ``NsiException`` when the orchestrator does not know the subscription."""
+    backend = make_backend(oauth2_active=False)
+    with patch("supa.nrm.backends.wfo.post", return_value=make_response(200, {"data": {"subscription": None}})):
+        with pytest.raises(NsiException):
+            backend._is_healthy("sub-1")
 
 
 DOMAIN_MODEL = {
@@ -199,7 +253,7 @@ def test_get_topology_builds_stp_list(backend_class: Type[Backend], domain_model
     """
     backend = make_backend(backend_class, oauth2_active=False)
     with (
-        patch.object(backend, "_get_nsi_stp_subscriptions", return_value=[{"subscription_id": "sub-1"}]),
+        patch.object(backend, "_get_nsi_stp_subscription_ids", return_value=["sub-1"]),
         patch.object(backend, "_get_url", return_value=make_response(200, domain_model)),
     ):
         stps = backend._get_topology()
@@ -247,7 +301,7 @@ def test_get_topology_domain_model_non_200_raises_nsi_exception() -> None:
     """``_get_topology`` raises ``NsiException`` when a domain-model fetch fails."""
     backend = make_backend(oauth2_active=False)
     with (
-        patch.object(backend, "_get_nsi_stp_subscriptions", return_value=[{"subscription_id": "sub-1"}]),
+        patch.object(backend, "_get_nsi_stp_subscription_ids", return_value=["sub-1"]),
         patch.object(backend, "_get_url", return_value=make_response(404)),
     ):
         with pytest.raises(NsiException):

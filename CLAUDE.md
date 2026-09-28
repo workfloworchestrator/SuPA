@@ -56,7 +56,7 @@ Four FSMs in `connection/fsm.py` govern each connection's lifecycle, all inherit
 
 Pluggable backends in `nrm/backends/` implement `nrm/backend.py:BaseBackend`. Available: `example` (reference), `wfo`, `ciena8190`, `nso`. Selected via `backend` setting in `supa.env`.
 
-`wfo` talks to any orchestrator-core Workflow Orchestrator over its REST API. Everything except the create form (`_create_form`) and the STP mapping (`_stp_from_domain_model`) is product-agnostic; site-specific products subclass those two methods in a module on `PYTHONPATH`. Its settings live in `wfo.env` with a `wfo_` env prefix.
+`wfo` talks to any orchestrator-core Workflow Orchestrator: workflows and domain models over REST, subscription lookups (STP list by product tag, circuit status for the health check) over GraphQL. Do not use `/api/subscriptions/search` for lookups: it reads the `subscriptions_search` materialized view, whose refresh core throttles to once per 120 s, so a subscription that went active within that window stays indexed as `provisioning` until the next write. Everything except the create form (`_create_form`) and the STP mapping (`_stp_from_domain_model`) is product-agnostic; site-specific products subclass those two methods in a module on `PYTHONPATH`. Its settings live in `wfo.env` with a `wfo_` env prefix.
 
 ### Custom Build Backend
 

@@ -30,6 +30,6 @@ Just make sure that the the python module can be found somewhere on the `PYTHONP
 
 When the NRM is a workflow orchestrator,
 start from the ``wfo`` backend instead of ``BaseBackend``:
-it already implements the orchestrator-core REST API,
+it already implements the orchestrator-core REST and GraphQL APIs,
 and only the create form and the STP mapping of your own products need to be overridden.
 See :ref:`supa.nrm.backends.wfo` for a worked example.
