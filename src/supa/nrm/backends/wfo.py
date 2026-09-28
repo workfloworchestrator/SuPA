@@ -51,7 +51,7 @@ product and workflows; override them in a module on ``PYTHONPATH`` and set ``bac
             )
 
 A subclass still reads ``wfo.env``, because it inherits ``__init__``.  Put the ``wfo_base_url``,
-``wfo_product_id``, ``wfo_stp_query`` and workflow names of your orchestrator there rather than
+``wfo_product_id``, ``wfo_stp_tags`` and workflow names of your orchestrator there rather than
 adding a second env file.
 """
 
@@ -59,7 +59,6 @@ import time
 from json import dumps, loads
 from time import sleep
 from typing import Any, Dict, List, Optional
-from urllib.parse import quote
 from uuid import UUID
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -73,6 +72,23 @@ from supa.connection.error import GenericRmError
 from supa.job.shared import NsiException
 from supa.nrm.backend import STP, BaseBackend
 from supa.util.find import find_file
+
+GRAPHQL_PAGE_SIZE = 100
+
+STP_SUBSCRIPTIONS_QUERY = """
+query StpSubscriptions($filterBy: [GraphqlFilter!], $first: Int!, $after: Int!) {
+  subscriptions(filterBy: $filterBy, sortBy: [{field: "subscriptionId", order: ASC}], first: $first, after: $after) {
+    page { subscriptionId }
+    pageInfo { hasNextPage }
+  }
+}
+"""
+
+SUBSCRIPTION_STATUS_QUERY = """
+query SubscriptionStatus($id: UUID!) {
+  subscription(id: $id) { status }
+}
+"""
 
 
 class BackendSettings(BaseSettings):
@@ -92,7 +108,7 @@ class BackendSettings(BaseSettings):
     terminate_workflow_name: str = ""
     customer_id: str = ""
     product_id: str = ""
-    stp_query: str = "tag:NSISTP status:active"
+    stp_tags: str = "NSISTP"
     connect_timeout: float = 9.05
     read_timeout: float = 12.0
     write_timeout: float = 18.0
@@ -329,33 +345,49 @@ class Backend(BaseBackend):
         subscription = state.get("subscription", state)
         return str(subscription["subscription_id"])
 
-    def _get_nsi_stp_subscriptions(self) -> Any:
-        nsi_stp_subscriptions = self._get_url(
-            f"{self.backend_settings.base_url}/api/subscriptions/search?query={quote(self.backend_settings.stp_query)}"
-        )
-        if nsi_stp_subscriptions.status_code != 200:
-            try:
-                nsi_stp_subscriptions.raise_for_status()
-            except HTTPError as http_err:
-                self.log.warning("failed to fetch NSISTP subscriptions", reason=str(http_err))
-                raise NsiException(GenericRmError, str(http_err)) from http_err
-        return nsi_stp_subscriptions.json()
+    def _graphql(self, query: str, variables: Dict[str, Any]) -> Any:
+        """Run a query against the orchestrator GraphQL API and return its ``data``."""
+        try:
+            response = self._post_url_json(
+                url=f"{self.backend_settings.base_url}/api/graphql", json={"query": query, "variables": variables}
+            )
+        except RequestException as requests_exception:
+            self.log.warning("call to orchestrator failed", reason=str(requests_exception))
+            raise NsiException(GenericRmError, str(requests_exception)) from requests_exception
+        try:
+            response.raise_for_status()
+        except HTTPError as http_err:
+            self.log.warning("graphql query failed", reason=str(http_err))
+            raise NsiException(GenericRmError, str(http_err)) from http_err
+        result = response.json()
+        if errors := result.get("errors"):
+            reason = "; ".join(error["message"] for error in errors)
+            self.log.warning("graphql query failed", reason=reason)
+            raise NsiException(GenericRmError, reason)
+        return result["data"]
+
+    def _get_nsi_stp_subscription_ids(self) -> List[str]:
+        """Return the ids of the active subscriptions with one of the ``stp_tags`` product tags."""
+        filter_by = [
+            {"field": "tag", "value": self.backend_settings.stp_tags},
+            {"field": "status", "value": "active"},
+        ]
+        subscription_ids: List[str] = []
+        has_next_page = True
+        while has_next_page:
+            subscriptions = self._graphql(
+                STP_SUBSCRIPTIONS_QUERY,
+                {"filterBy": filter_by, "first": GRAPHQL_PAGE_SIZE, "after": len(subscription_ids)},
+            )["subscriptions"]
+            subscription_ids += [subscription["subscriptionId"] for subscription in subscriptions["page"]]
+            has_next_page = subscriptions["pageInfo"]["hasNextPage"]
+        return subscription_ids
 
     def _is_healthy(self, circuit_id: str) -> bool:
-        subscription_search = self._get_url(
-            f"{self.backend_settings.base_url}/api/subscriptions/search?query=subscription_id:{circuit_id}"
-        )
-        if subscription_search.status_code != 200:
-            try:
-                subscription_search.raise_for_status()
-            except HTTPError as http_err:
-                raise NsiException(GenericRmError, str(http_err)) from http_err
-        subscriptions = subscription_search.json()
-        if len(subscriptions) != 1:
+        subscription = self._graphql(SUBSCRIPTION_STATUS_QUERY, {"id": circuit_id})["subscription"]
+        if subscription is None:
             raise NsiException(GenericRmError, "cannot find subscription in NRM")
-        if subscriptions[0]["subscription_id"] != circuit_id:  # cannot happen, but we are paranoid
-            raise NsiException(GenericRmError, "subscription_id does not match circuit_id")
-        if subscriptions[0]["status"] == "terminated":  # definitely not active in NRM anymore
+        if subscription["status"].lower() == "terminated":  # definitely not active in NRM anymore
             self.log.warning("unhealthy")
             return False
         else:
@@ -400,8 +432,8 @@ class Backend(BaseBackend):
     def _get_topology(self) -> List[STP]:
         self.log.debug("get topology from NRM")
         return [
-            self._stp_from_domain_model(self._get_domain_model(nsi_stp_sub["subscription_id"]))
-            for nsi_stp_sub in self._get_nsi_stp_subscriptions()
+            self._stp_from_domain_model(self._get_domain_model(subscription_id))
+            for subscription_id in self._get_nsi_stp_subscription_ids()
         ]
 
     def activate(
