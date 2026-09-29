@@ -1,9 +1,8 @@
 [build-system]
 # Part of the installation process is the generation of Python code from protobuf/gRPC definitions.
 # `grpcio-tools` is a build-time-only dependency: the custom build backend (src/supa/buildtools/backend.py)
-# invokes its bundled protoc during the build. It is deliberately NOT a runtime/dev dependency, because every
-# stable grpcio-tools caps `protobuf<7`, which would block the protobuf 7.x runtime. Keeping it isolated to the
-# build environment lets the runtime use protobuf 7.x while the generated (protobuf 6.x) code stays compatible.
+# invokes its bundled protoc during the build. The generated `*_pb2_grpc.py` code refuses to import with a
+# `grpcio` older than the `grpcio-tools` that generated it, so keep `grpcio` below at the same version.
 requires = [
     "setuptools>=65.5.0",
     "wheel",
@@ -21,7 +20,7 @@ backend-path = ["src/supa"]
 name = "supa"
 dynamic = ["version"]
 dependencies = [
-  "grpcio==1.83.1",
+  "grpcio==1.84.0",
   "mypy-protobuf==5.1.0",
   "structlog==26.1.0",
   "colorama==0.4.6",
