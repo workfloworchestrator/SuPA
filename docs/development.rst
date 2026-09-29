@@ -134,10 +134,10 @@ Importing new protobuf/gRPC definitions
 
 When new NSI protobuf/gRPC definitions are imported into the ``src/supa/protos`` directory
 one should (re)generated the corresponding Python code for it.
-``grpcio-tools`` is a build-time-only dependency (it caps ``protobuf<7`` while the runtime uses
-protobuf 7.x), so run the generator in an isolated environment rather than the project venv::
+``grpcio-tools`` is a build-time-only dependency, so run the generator in an isolated environment
+rather than the project venv, at the version pinned in ``[build-system].requires``::
 
-    % uv run --isolated --no-project --with grpcio-tools==1.81.0 --with mypy-protobuf --with setuptools \
+    % uv run --isolated --no-project --with grpcio-tools==1.84.0 --with mypy-protobuf --with setuptools \
         python src/supa/buildtools/backend.py
 
 The generated code is also (re)built automatically by the PEP 517 build backend on every
