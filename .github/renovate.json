@@ -19,6 +19,12 @@
       "automerge": true
     },
     {
+      "description": "Generated gRPC code rejects a grpcio older than the grpcio-tools that generated it",
+      "matchPackageNames": ["grpcio", "grpcio-tools"],
+      "groupName": "grpcio",
+      "groupSlug": "grpcio"
+    },
+    {
       "matchUpdateTypes": ["pin", "digest", "pinDigest"],
       "minimumReleaseAge": "0 days",
       "automerge": true
