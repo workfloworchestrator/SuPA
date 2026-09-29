@@ -7,7 +7,7 @@
 requires = [
     "setuptools>=65.5.0",
     "wheel",
-    "grpcio-tools==1.83.1",
+    "grpcio-tools==1.84.0",
     "mypy_protobuf",
     "setuptools-scm>=8",
 ]
@@ -42,7 +42,7 @@ dependencies = [
   "paramiko==5.0.0",
   "pytz==2026.3.post1",
   "psycopg2-binary==2.9.12",
-  "mcp[cli]==2.1.1",
+  "mcp[cli]==2.2.0",
   "pyyaml==6.0.3",
 ]
 requires-python = ">=3.12,<3.15"
@@ -93,14 +93,14 @@ dev = [
     "pytest-cov==7.1.0",
     "pytest-grpc==0.8.0",
     "pytest-xdist==3.8.0",
-    "ruff==0.16.6",
+    "ruff==0.16.8",
     "types-paramiko==5.0.0.20260724",
     "types-pytz==2026.3.1.20260727",
     "types-pyyaml>=6.0.12.20260408",
     "types-requests==2.33.0.20260906",
     "types-setuptools==84.0.0.20260812",
     "types-tabulate==0.10.0.20260508",
-    "tzdata==2026.3",
+    "tzdata==2026.4",
 ]
 doc = [
     "sphinx==9.1.0",
