@@ -1,3 +1,4 @@
+{{- $hasConfig := or .Values.config.filesGlob .Values.config.inline }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -12,7 +13,9 @@ spec:
   template:
     metadata:
       annotations:
+      {{- if $hasConfig }}
         automation.surf.net/config-checksum: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+      {{- end }}
         automation.surf.net/environment-checksum: {{ include (print $.Template.BasePath "/environment-configmap.yaml") . | sha256sum }}
       {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
@@ -99,9 +102,11 @@ spec:
               mountPath: "/mnt/secrets-store"
               readOnly: true
           {{- end }}
+          {{- if $hasConfig }}
             - name: config
               mountPath: "/usr/local/etc/supa"
               readOnly: true
+          {{- end }}
           {{- if and .Values.mcp.enabled .Values.mcp.portMapping }}
             - name: mcp-port-mapping
               mountPath: /usr/local/etc/supa-mcp
@@ -119,10 +124,13 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- if or $hasConfig (and .Values.mcp.enabled .Values.mcp.portMapping) .Values.secretProviderClass.enabled }}
       volumes:
+        {{- if $hasConfig }}
         - name: config
           configMap:
             name: {{ printf "%s-config" (include "SuPA.fullname" .) }}
+        {{- end }}
         {{- if and .Values.mcp.enabled .Values.mcp.portMapping }}
         - name: mcp-port-mapping
           configMap:
@@ -138,6 +146,7 @@ spec:
             nodePublishSecretRef:
               name: {{ .Values.secretProviderClass.nodePublishSecretRefNname }}
         {{- end }}
+      {{- end }}
 {{- if ne ( toString .Values.persistence.enabled ) "false" }}
   volumeClaimTemplates:
     - metadata:
