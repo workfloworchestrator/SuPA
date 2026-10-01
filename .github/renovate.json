@@ -9,9 +9,13 @@
   "lockFileMaintenance": {
     "enabled": true,
     "automerge": true,
-    "minimumReleaseAge": null
+    "schedule": ["* 0-5 * * *"]
   },
   "packageRules": [
+    {
+      "matchUpdateTypes": ["lockFileMaintenance"],
+      "prPriority": 10
+    },
     {
       "matchUpdateTypes": ["minor", "patch"],
       "groupName": "all non-major dependencies",
@@ -38,9 +42,6 @@
       "matchPackageNames": ["python"],
       "enabled": false
     }
-  ],
-  "schedule": [
-    "* 1-5 * * 1-3"
   ],
   "timezone": "Europe/Amsterdam"
 }

@@ -107,6 +107,10 @@ doc = [
     "sphinx-rtd-theme==3.1.0",
 ]
 
+[tool.uv]
+# Skip releases younger than 8 days; keep in sync with minimumReleaseAge in .github/renovate.json.
+exclude-newer = "8 days"
+
 [project.scripts]
 supa = "supa.main:cli"
 
