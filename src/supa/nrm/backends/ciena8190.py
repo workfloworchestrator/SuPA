@@ -817,7 +817,13 @@ class Backend(BaseBackend):
         dst_vlan: int,
         circuit_id: str,
     ) -> None:
-        """Terminate resources."""
+        """Terminate resources.
+
+        Without a circuit_id the connection was never activated, so there is nothing to delete.
+        """
+        if not circuit_id:
+            self.log.info("Connection was never activated, nothing to delete", connection_id=str(connection_id))
+            return
         self.log.info(
             "Lookup for the link to delete",
             src_port_id=src_port_id,
