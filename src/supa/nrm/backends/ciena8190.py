@@ -603,8 +603,10 @@ class Backend(BaseBackend):
             raise NsiException(GenericRmError, "Failed to disable flow point") from e
         self.log.info("Flow point disabled successfully", name=name)
 
-    def _get_lookup(self) -> dict:
+    def _get_lookup(self, refresh: bool = False) -> dict:
         """Get lookup table of existing resources on the device.
+
+        Use refresh to re-read the device, so circuits created or deleted since the previous read are seen.
 
         Return Example:
           {
@@ -620,7 +622,7 @@ class Backend(BaseBackend):
             }
           }
         """
-        if not hasattr(self, "_lookup"):
+        if refresh or not hasattr(self, "_lookup"):
             classifiers = self._parse_classifiers()
             fps = self._parse_flow_points()
 
@@ -777,7 +779,7 @@ class Backend(BaseBackend):
             dst_vlan=dst_vlan,
         )
         try:
-            circuit = self._get_lookup()[(src_port_id, src_vlan, dst_port_id, dst_vlan)]
+            circuit = self._get_lookup(refresh=True)[(src_port_id, src_vlan, dst_port_id, dst_vlan)]
         except KeyError:
             self.log.warning(
                 "No such circuit exists",
@@ -832,7 +834,7 @@ class Backend(BaseBackend):
             dst_vlan=dst_vlan,
         )
         try:
-            circuit = self._get_lookup()[(src_port_id, src_vlan, dst_port_id, dst_vlan)]
+            circuit = self._get_lookup(refresh=True)[(src_port_id, src_vlan, dst_port_id, dst_vlan)]
         except KeyError:
             self.log.warning(
                 "No such circuit exists",
