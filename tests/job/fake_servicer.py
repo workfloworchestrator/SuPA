@@ -240,6 +240,11 @@ class Servicer(ConnectionRequesterServicer):
                 assert len(request.service_exception.variables) == 1
                 assert request.service_exception.variables[0].type == "connectionId"
                 assert "Reservation already terminated" in request.service_exception.text
+            # test_terminate_job_failed_twice()
+            if reservation.lifecycle_state == LifecycleStateMachine.Terminating.value:
+                test_hit_count += 1
+                assert request.service_exception.error_id == "00800"
+                assert "Terminate failed in NRM" in request.service_exception.text
         assert test_hit_count == 1
 
         return GenericAcknowledgment(header=request.header)

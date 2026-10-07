@@ -52,6 +52,29 @@ def test_terminate_job_activated(
     assert "Schedule deactivate" in caplog.text
 
 
+def test_terminate_job_failed_twice(
+    connection_id: UUID, connection: None, terminating: None, get_stub: None, monkeypatch: Any
+) -> None:
+    """Test TerminateJob that fails again after recovery to replace the result of its earlier run."""
+    from supa.connection.error import GenericRmError
+    from supa.db.model import Result
+    from supa.db.session import db_session
+    from supa.job.shared import NsiException
+    from supa.nrm.backend import BaseBackend
+
+    def mocked_terminate(self: BaseBackend, **kwargs: Any) -> None:
+        raise NsiException(GenericRmError, "Terminate failed in NRM")
+
+    monkeypatch.setattr(BaseBackend, "terminate", mocked_terminate)
+
+    TerminateJob(connection_id).__call__()
+    TerminateJob(connection_id).__call__()
+    assert state_machine.is_terminating(connection_id)
+    with db_session() as session:
+        results = session.query(Result).filter(Result.connection_id == connection_id).all()
+        assert [result.result_type for result in results] == ["Error"]
+
+
 def test_terminate_job_recover(connection_id: UUID, terminating: None, get_stub: None, caplog: Any) -> None:
     """Test TerminateJob to recover reservations in state Terminating."""
     terminate_job = TerminateJob(connection_id)
