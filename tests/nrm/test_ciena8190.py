@@ -318,6 +318,15 @@ def test_circuit_not_on_device(method: str) -> None:
     backend._manager.edit_config.assert_not_called()
 
 
+@pytest.mark.parametrize("circuit_id", [None, ""], ids=["none", "empty"])
+def test_terminate_never_activated(circuit_id: str | None) -> None:
+    """``terminate`` does not contact the device for a connection without a circuit_id."""
+    backend = make_backend()
+    backend.terminate(**connection_args(circuit_id=circuit_id))
+    backend._manager.get.assert_not_called()
+    backend._manager.edit_config.assert_not_called()
+
+
 @pytest.mark.parametrize(
     ("method", "kwargs"),
     [
