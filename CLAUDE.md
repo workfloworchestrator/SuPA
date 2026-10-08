@@ -23,6 +23,7 @@ uv run mypy tests                       # Run separately from src
 uv run pytest tests                     # All tests
 uv run pytest tests/path/test_file.py::test_name  # Single test
 uv run pytest --cov-report term-missing --cov=src tests  # With coverage
+TEST_DATABASE_URI=postgresql://localhost/supa-test uv run pytest tests  # On PostgreSQL; drops and recreates that database
 
 # Run the application
 uv run supa serve
@@ -68,7 +69,7 @@ Pydantic Settings class in `src/supa/__init__.py` with precedence: CLI args > en
 
 ### Database
 
-SQLAlchemy ORM with composite/natural keys. Default SQLite (WAL mode), optional PostgreSQL via `database_uri`. Core chain: Connection -> Reservation (1:N) -> Request -> Schedule, plus P2PCriteria, Topology, STP tables.
+SQLAlchemy ORM with composite/natural keys. Default SQLite (WAL mode), optional PostgreSQL via `database_uri`, through psycopg 3 (SQLAlchemy 2.1's default driver for `postgresql://`). CI runs the unit tests on both. Core chain: Connection -> Reservation (1:N) -> Request -> Schedule, plus P2PCriteria, Topology, STP tables.
 
 ### Web Server
 

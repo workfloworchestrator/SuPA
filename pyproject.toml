@@ -40,7 +40,7 @@ dependencies = [
   "htmlgen==2.0.0",
   "paramiko==5.0.0",
   "pytz==2026.4",
-  "psycopg2-binary==2.9.13",
+  "psycopg[binary]==3.3.6",
   "mcp[cli]==2.2.0",
   "pyyaml==6.0.3",
   "ncclient==0.7.1",

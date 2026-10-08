@@ -5,13 +5,29 @@ on:
 
 jobs:
   container_job:
-    name: Unit tests
+    # The sqlite jobs keep the "Unit tests (3.x)" names that the main branch ruleset requires.
+    name: Unit tests (${{ matrix.python-version }}${{ matrix.database == 'postgresql' && ', postgresql' || '' }})
     runs-on: ubuntu-latest
     strategy:
       matrix:
         python-version: ["3.12", "3.13", "3.14"]
+        database: ["sqlite", "postgresql"]
       fail-fast: true
     container: ubuntu:latest@sha256:f144425ff09be612d6d9ad965196e9cdc23dae1f42110a8a11a3e9a8198759f7
+    services:
+      postgres:
+        image: postgres:18-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
+        env:
+          POSTGRES_USER: supa
+          POSTGRES_PASSWORD: supa
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      # Empty for sqlite, so tests/conftest.py uses a temporary SQLite file.
+      TEST_DATABASE_URI: ${{ matrix.database == 'postgresql' && 'postgresql://supa:supa@postgres/supa-test' || '' }}
     steps:
       - name: Install git so the checkout is a git clone
         run: |
