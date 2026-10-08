@@ -327,6 +327,18 @@ def test_terminate_never_activated(circuit_id: str | None) -> None:
     backend._manager.edit_config.assert_not_called()
 
 
+@pytest.mark.parametrize("method", ["deactivate", "terminate"])
+def test_circuit_created_after_first_lookup(method: str) -> None:
+    """``deactivate`` and ``terminate`` re-read the device, so they find a circuit created after the first read."""
+    no_fds = '<data><fds xmlns="urn:ciena:params:xml:ns:yang:ciena-pn:ciena-mef-fd"/></data>'
+    device = {**DEVICE, Ciena8190.GET_FORWARDING_DOMAINS: no_fds}
+    backend = make_backend(device)
+    assert backend._get_lookup() == {}
+    device[Ciena8190.GET_FORWARDING_DOMAINS] = FORWARDING_DOMAINS_XML
+    getattr(backend, method)(**connection_args())
+    backend._manager.commit.assert_called_once()
+
+
 @pytest.mark.parametrize(
     ("method", "kwargs"),
     [
