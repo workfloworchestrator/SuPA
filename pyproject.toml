@@ -43,6 +43,8 @@ dependencies = [
   "psycopg2-binary==2.9.13",
   "mcp[cli]==2.2.0",
   "pyyaml==6.0.3",
+  "ncclient==0.7.1",
+  "xmltodict==1.0.4",
 ]
 requires-python = ">=3.12,<3.15"
 authors = [
@@ -86,7 +88,6 @@ dev = [
     "bandit==1.9.4",
     "grpc-stubs==1.53.0.6",
     "mypy==2.3.1",
-    "ncclient==0.7.1",
     "pre-commit==4.6.2",
     "protobuf==7.36.2",
     "pytest==9.1.1",
@@ -101,7 +102,6 @@ dev = [
     "types-setuptools==84.0.0.20260812",
     "types-tabulate==0.10.0.20260508",
     "tzdata==2026.4",
-    "xmltodict==1.0.4",
 ]
 doc = [
     "sphinx==9.1.0",

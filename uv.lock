@@ -2146,6 +2146,7 @@ dependencies = [
     { name = "mcp", extra = ["cli"] },
     { name = "more-itertools" },
     { name = "mypy-protobuf" },
+    { name = "ncclient" },
     { name = "paramiko" },
     { name = "protobuf" },
     { name = "psycopg2-binary" },
@@ -2158,6 +2159,7 @@ dependencies = [
     { name = "sqlalchemy" },
     { name = "structlog" },
     { name = "tabulate" },
+    { name = "xmltodict" },
 ]
 
 [package.dev-dependencies]
@@ -2165,7 +2167,6 @@ dev = [
     { name = "bandit" },
     { name = "grpc-stubs" },
     { name = "mypy" },
-    { name = "ncclient" },
     { name = "pre-commit" },
     { name = "protobuf" },
     { name = "pytest" },
@@ -2180,7 +2181,6 @@ dev = [
     { name = "types-setuptools" },
     { name = "types-tabulate" },
     { name = "tzdata" },
-    { name = "xmltodict" },
 ]
 doc = [
     { name = "sphinx" },
@@ -2201,6 +2201,7 @@ requires-dist = [
     { name = "mcp", extras = ["cli"], specifier = "==2.2.0" },
     { name = "more-itertools", specifier = "==11.1.0" },
     { name = "mypy-protobuf", specifier = "==5.1.0" },
+    { name = "ncclient", specifier = "==0.7.1" },
     { name = "paramiko", specifier = "==5.0.0" },
     { name = "protobuf", specifier = "==7.36.2" },
     { name = "psycopg2-binary", specifier = "==2.9.13" },
@@ -2213,6 +2214,7 @@ requires-dist = [
     { name = "sqlalchemy", specifier = "==2.1.1" },
     { name = "structlog", specifier = "==26.1.0" },
     { name = "tabulate", specifier = "==0.10.0" },
+    { name = "xmltodict", specifier = "==1.0.4" },
 ]
 
 [package.metadata.requires-dev]
@@ -2220,7 +2222,6 @@ dev = [
     { name = "bandit", specifier = "==1.9.4" },
     { name = "grpc-stubs", specifier = "==1.53.0.6" },
     { name = "mypy", specifier = "==2.3.1" },
-    { name = "ncclient", specifier = "==0.7.1" },
     { name = "pre-commit", specifier = "==4.6.2" },
     { name = "protobuf", specifier = "==7.36.2" },
     { name = "pytest", specifier = "==9.1.1" },
@@ -2235,7 +2236,6 @@ dev = [
     { name = "types-setuptools", specifier = "==84.0.0.20260812" },
     { name = "types-tabulate", specifier = "==0.10.0.20260508" },
     { name = "tzdata", specifier = "==2026.4" },
-    { name = "xmltodict", specifier = "==1.0.4" },
 ]
 doc = [
     { name = "sphinx", specifier = "==9.1.0" },
