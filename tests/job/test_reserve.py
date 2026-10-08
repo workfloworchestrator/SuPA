@@ -7,8 +7,9 @@ import pytest
 import tests.shared.state_machine as state_machine
 from supa.db.model import Connection, Reservation
 from supa.db.session import db_session
-from supa.job.reserve import ReserveAbortJob, ReserveCommitJob, ReserveJob, ReserveTimeoutJob
+from supa.job.reserve import ReserveAbortJob, ReserveCommitJob, ReserveJob, ReserveTimeoutJob, _select_vlans
 from supa.util.timestamp import current_timestamp
+from supa.util.vlan import VlanRanges
 
 
 def test_reserve_job_reserve_confirmed(connection_id: UUID, reserve_checking: None, get_stub: None) -> None:
@@ -212,6 +213,36 @@ def test_reserve_job_stp_resources_in_use_provisioned_passed_end_time(
     with db_session() as session:
         ports = reserve_job._stp_resources_in_use(session)
     assert len(ports) == 0
+
+
+@pytest.mark.parametrize(
+    ("src_vlans", "dst_vlans", "allowed"),
+    [
+        pytest.param("100", "100", {(100, 100)}, id="same-single"),
+        pytest.param("100", "90-110", {(100, 100)}, id="src-single-in-dst"),
+        pytest.param("90-110", "100", {(100, 100)}, id="dst-single-in-src"),
+        pytest.param("100-102", "101-105", {(101, 101), (102, 102)}, id="overlapping-ranges"),
+        pytest.param("100", "200-201", {(100, 200), (100, 201)}, id="disjoint"),
+    ],
+)
+def test_select_vlans(src_vlans: str, dst_vlans: str, allowed: set[tuple[int, int]]) -> None:
+    """``_select_vlans`` uses one VLAN on both ends when both have it, else one VLAN from each end."""
+    assert _select_vlans(VlanRanges(src_vlans), VlanRanges(dst_vlans)) in allowed
+
+
+def test_reserve_job_selects_same_vlan(
+    connection_id: UUID, reserve_checking: None, reserve_timeout_job: None, get_stub: None
+) -> None:
+    """ReserveJob selects the same VLAN on both STPs when both request a range."""
+    with db_session() as session:
+        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
+        reservation.p2p_criteria.src_vlans = "1779-1799"
+        reservation.p2p_criteria.dst_vlans = "1779-1799"
+    ReserveJob(connection_id).__call__()
+    assert state_machine.is_reserve_held(connection_id)
+    with db_session() as session:
+        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
+        assert reservation.p2p_criteria.src_selected_vlan == reservation.p2p_criteria.dst_selected_vlan
 
 
 def test_reserve_job_recover(connection_id: UUID, reserve_checking: None, get_stub: None, caplog: Any) -> None:
