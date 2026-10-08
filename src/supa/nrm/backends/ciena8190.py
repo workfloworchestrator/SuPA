@@ -603,10 +603,8 @@ class Backend(BaseBackend):
             raise NsiException(GenericRmError, "Failed to disable flow point") from e
         self.log.info("Flow point disabled successfully", name=name)
 
-    def _get_lookup(self, refresh: bool = False) -> dict:
+    def _get_lookup(self) -> dict:
         """Get lookup table of existing resources on the device.
-
-        Use refresh to re-read the device, so circuits created or deleted since the previous read are seen.
 
         Return Example:
           {
@@ -622,78 +620,76 @@ class Backend(BaseBackend):
             }
           }
         """
-        if refresh or not hasattr(self, "_lookup"):
-            classifiers = self._parse_classifiers()
-            fps = self._parse_flow_points()
+        classifiers = self._parse_classifiers()
+        fps = self._parse_flow_points()
 
-            # NOTE: No current support for multiple classifiers on a flow point
-            if any(len(v["classifiers"]) != 1 for _, v in fps.items()):
-                raise NsiException(
-                    GenericRmError,
-                    "Multiple classifiers configured on the single flow point: {fp}".format(
-                        fp=next(fd for fd, v in fps.items() if len(v["classifiers"]) != 1)
-                    ),
-                )
+        # NOTE: No current support for multiple classifiers on a flow point
+        if any(len(v["classifiers"]) != 1 for _, v in fps.items()):
+            raise NsiException(
+                GenericRmError,
+                "Multiple classifiers configured on the single flow point: {fp}".format(
+                    fp=next(fd for fd, v in fps.items() if len(v["classifiers"]) != 1)
+                ),
+            )
 
-            fds = {
-                fd_name: {
-                    **fd,
-                    "flow_points": {fp_name: fp for fp_name, fp in fps.items() if fp["fd"] == fd_name},
-                }
-                for fd_name, fd in self._parse_forwarding_domains().items()
+        fds = {
+            fd_name: {
+                **fd,
+                "flow_points": {fp_name: fp for fp_name, fp in fps.items() if fp["fd"] == fd_name},
             }
+            for fd_name, fd in self._parse_forwarding_domains().items()
+        }
 
-            # Filter out only forwarding domains that have two flow points
-            fds = {fd_name: fd for fd_name, fd in fds.items() if len(fd["flow_points"]) == 2}
+        # Filter out only forwarding domains that have two flow points
+        fds = {fd_name: fd for fd_name, fd in fds.items() if len(fd["flow_points"]) == 2}
 
-            # NOTE: There is option to filter classifiers, flow points and
-            # forwarding domains based on their name.
+        # NOTE: There is option to filter classifiers, flow points and
+        # forwarding domains based on their name.
 
-            """
-            Example of fds key/value after parsing:
-              "FD-opennsa-19-20-111-111": {
-                "name": "FD-opennsa-19-20-111-111",
-                "flow_points": {
-                  "FP-opennsa-19-111": {
-                    "name": "FP-opennsa-19-111",
-                    "admin_state": false,
-                    "port": "19",
-                    "fd": "FD-opennsa-19-20-111-111",
-                    "classifiers": [
-                      "CL-opennsa-19-111"
-                    ]
-                  },
-                  "FP-opennsa-20-111": {
-                    "name": "FP-opennsa-20-111",
-                    "admin_state": true,
-                    "port": "20",
-                    "fd": "FD-opennsa-19-20-111-111",
-                    "classifiers": [
-                      "CL-opennsa-20-111"
-                    ]
-                  }
-                }
+        """
+        Example of fds key/value after parsing:
+          "FD-opennsa-19-20-111-111": {
+            "name": "FD-opennsa-19-20-111-111",
+            "flow_points": {
+              "FP-opennsa-19-111": {
+                "name": "FP-opennsa-19-111",
+                "admin_state": false,
+                "port": "19",
+                "fd": "FD-opennsa-19-20-111-111",
+                "classifiers": [
+                  "CL-opennsa-19-111"
+                ]
+              },
+              "FP-opennsa-20-111": {
+                "name": "FP-opennsa-20-111",
+                "admin_state": true,
+                "port": "20",
+                "fd": "FD-opennsa-19-20-111-111",
+                "classifiers": [
+                  "CL-opennsa-20-111"
+                ]
               }
-            """
+            }
+          }
+        """
 
-            # Forming lookup table
-            lookup = {}
-            for _, fd in fds.items():
-                _fps = list(fd["flow_points"].values())
-                port1 = _fps[0]["port"]
-                port2 = _fps[1]["port"]
-                vlan1 = classifiers[_fps[0]["classifiers"][0]]["vlan"]
-                vlan2 = classifiers[_fps[1]["classifiers"][0]]["vlan"]
-                values = {
-                    "fd": fd["name"],
-                    "flow_points": set(fd["flow_points"].keys()),
-                    "classifiers": {e for fp in fd["flow_points"].values() for e in fp["classifiers"]},
-                }
-                lookup[(port1, vlan1, port2, vlan2)] = values
-                lookup[(port2, vlan2, port1, vlan1)] = values
+        # Forming lookup table
+        lookup = {}
+        for _, fd in fds.items():
+            _fps = list(fd["flow_points"].values())
+            port1 = _fps[0]["port"]
+            port2 = _fps[1]["port"]
+            vlan1 = classifiers[_fps[0]["classifiers"][0]]["vlan"]
+            vlan2 = classifiers[_fps[1]["classifiers"][0]]["vlan"]
+            values = {
+                "fd": fd["name"],
+                "flow_points": set(fd["flow_points"].keys()),
+                "classifiers": {e for fp in fd["flow_points"].values() for e in fp["classifiers"]},
+            }
+            lookup[(port1, vlan1, port2, vlan2)] = values
+            lookup[(port2, vlan2, port1, vlan1)] = values
 
-            self._lookup = lookup
-        return self._lookup
+        return lookup
 
     def activate(
         self,
@@ -779,7 +775,7 @@ class Backend(BaseBackend):
             dst_vlan=dst_vlan,
         )
         try:
-            circuit = self._get_lookup(refresh=True)[(src_port_id, src_vlan, dst_port_id, dst_vlan)]
+            circuit = self._get_lookup()[(src_port_id, src_vlan, dst_port_id, dst_vlan)]
         except KeyError:
             self.log.warning(
                 "No such circuit exists",
@@ -834,7 +830,7 @@ class Backend(BaseBackend):
             dst_vlan=dst_vlan,
         )
         try:
-            circuit = self._get_lookup(refresh=True)[(src_port_id, src_vlan, dst_port_id, dst_vlan)]
+            circuit = self._get_lookup()[(src_port_id, src_vlan, dst_port_id, dst_vlan)]
         except KeyError:
             self.log.warning(
                 "No such circuit exists",
