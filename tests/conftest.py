@@ -1,3 +1,4 @@
+import os
 import time
 from concurrent import futures
 from datetime import datetime, timedelta, timezone
@@ -7,7 +8,7 @@ from uuid import UUID, uuid4
 import grpc
 import pytest
 from apscheduler.jobstores.base import JobLookupError
-from sqlalchemy import Column
+from sqlalchemy import Column, create_engine, make_url, text
 from sqlalchemy.orm import aliased
 
 from supa import init_app, settings
@@ -25,6 +26,16 @@ from supa.util.timestamp import NO_END_DATE, current_timestamp
 from supa.util.type import RequestType
 
 
+def _recreate_database(database_uri: str) -> None:
+    """Drop and create the PostgreSQL database in ``database_uri``."""
+    url = make_url(database_uri)
+    admin_engine = create_engine(url.set(database="postgres"), isolation_level="AUTOCOMMIT")
+    with admin_engine.connect() as connection:
+        connection.execute(text(f'DROP DATABASE IF EXISTS "{url.database}" WITH (FORCE)'))
+        connection.execute(text(f'CREATE DATABASE "{url.database}"'))
+    admin_engine.dispose()
+
+
 @pytest.fixture(scope="session")
 def thread_pool_executor() -> futures.ThreadPoolExecutor:
     """Create a thread pool executor fixture to be used throughout all tests."""
@@ -33,9 +44,15 @@ def thread_pool_executor() -> futures.ThreadPoolExecutor:
 
 @pytest.fixture(autouse=True, scope="session")
 def init(tmp_path_factory: pytest.TempPathFactory, thread_pool_executor: futures.ThreadPoolExecutor) -> Generator:
-    """Initialize application and start the connection provider gRPC server."""
-    settings.database_file = tmp_path_factory.mktemp("supa") / "supa.db"
-    # settings.database_uri = "postgresql://supa:supa@localhost:5432/pytest"
+    """Initialize application and start the connection provider gRPC server.
+
+    Tests run on a temporary SQLite file, or on the PostgreSQL database in ``TEST_DATABASE_URI``, recreated empty.
+    """
+    if test_database_uri := os.environ.get("TEST_DATABASE_URI"):
+        _recreate_database(test_database_uri)
+        settings.database_uri = test_database_uri
+    else:
+        settings.database_uri = f"sqlite:///{tmp_path_factory.mktemp('supa') / 'supa.db'}"
     init_app()
     server = grpc.server(thread_pool_executor)
 

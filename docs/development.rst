@@ -113,6 +113,16 @@ Some rules
     - ``pytest --doctest-module src``
 - Each MR should probably result in an update to ``CHANGES.rst``
 
+Testing on PostgreSQL
+---------------------
+
+The tests run on a temporary SQLite file by default. Set ``TEST_DATABASE_URI`` to run them on
+PostgreSQL instead; the database in the URI is dropped and created empty at the start::
+
+    % TEST_DATABASE_URI=postgresql://localhost/supa-test uv run pytest tests
+
+CI runs the tests on both databases.
+
 Versioning
 ----------
 
