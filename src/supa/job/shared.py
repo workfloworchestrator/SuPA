@@ -31,6 +31,7 @@ from supa.grpc_nsi.connection_requester_pb2 import (
     ReserveConfirmedRequest,
     ReserveTimeoutRequest,
 )
+from supa.util.timestamp import current_timestamp
 from supa.util.type import NotificationType, ResultType
 
 
@@ -216,7 +217,10 @@ def register_result(
     request: ReserveConfirmedRequest | GenericConfirmedRequest | GenericFailedRequest | ErrorRequest,
     result_type: ResultType,
 ) -> None:
-    """Register result against connection_id in the database."""
+    """Register result against connection_id in the database.
+
+    A request has one result, so a recovered job that runs again replaces the result of its earlier run.
+    """
     from supa.db.session import db_session
 
     # The connection_id on ErrorRequest is located in service_exception.
@@ -225,6 +229,13 @@ def register_result(
     else:
         connection_id = request.connection_id
     with db_session() as session:
+        if result := (
+            session.query(Result).filter(Result.correlation_id == UUID(request.header.correlation_id)).one_or_none()
+        ):
+            result.timestamp = current_timestamp()
+            result.result_type = result_type.value
+            result.result_data = request.SerializeToString()
+            return
         try:
             # find the highest result ID for this connection ID and increment by 1
             result_id = (
