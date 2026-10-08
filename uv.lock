@@ -1205,6 +1205,19 @@ wheels = [
 ]
 
 [[package]]
+name = "ncclient"
+version = "0.7.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "lxml" },
+    { name = "paramiko" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ef/92/e36995ee7ce151814335583571bed95f1a5a491b7ea4d5487cb67377800a/ncclient-0.7.1.tar.gz", hash = "sha256:60dabb6ac1a2d84fbc3349cb104ef7d0c5d12cf8eee43fefc715410d70410ddc", size = 123086, upload-time = "2026-03-15T16:05:49.317Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5b/7c/c0c06d1696b03b901fa5a854b03e16f35c5c5cc8f00a0f43217dc467cd39/ncclient-0.7.1-py3-none-any.whl", hash = "sha256:47beeeee6074bd70a9215c4d353b51c7237af3c5c15269d81692810f2aa15147", size = 94833, upload-time = "2026-03-15T16:05:47.879Z" },
+]
+
+[[package]]
 name = "nodeenv"
 version = "1.10.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2152,6 +2165,7 @@ dev = [
     { name = "bandit" },
     { name = "grpc-stubs" },
     { name = "mypy" },
+    { name = "ncclient" },
     { name = "pre-commit" },
     { name = "protobuf" },
     { name = "pytest" },
@@ -2166,6 +2180,7 @@ dev = [
     { name = "types-setuptools" },
     { name = "types-tabulate" },
     { name = "tzdata" },
+    { name = "xmltodict" },
 ]
 doc = [
     { name = "sphinx" },
@@ -2205,6 +2220,7 @@ dev = [
     { name = "bandit", specifier = "==1.9.4" },
     { name = "grpc-stubs", specifier = "==1.53.0.6" },
     { name = "mypy", specifier = "==2.3.1" },
+    { name = "ncclient", specifier = "==0.7.1" },
     { name = "pre-commit", specifier = "==4.6.2" },
     { name = "protobuf", specifier = "==7.36.2" },
     { name = "pytest", specifier = "==9.1.1" },
@@ -2219,6 +2235,7 @@ dev = [
     { name = "types-setuptools", specifier = "==84.0.0.20260812" },
     { name = "types-tabulate", specifier = "==0.10.0.20260508" },
     { name = "tzdata", specifier = "==2026.4" },
+    { name = "xmltodict", specifier = "==1.0.4" },
 ]
 doc = [
     { name = "sphinx", specifier = "==9.1.0" },
@@ -2433,6 +2450,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/64/87/d29c3edf5dae96555aa69499e0bfaf48dd41b889a05a04d41884bcdb5c5c/virtualenv-21.11.1.tar.gz", hash = "sha256:6266bdc327ed2a760f628ecbdadc776745fe08c3cac6139417bc2437e4d061dd", size = 5395254, upload-time = "2026-09-23T15:01:07.362Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/4c/7b/7ca6956dd5fd8298682186782de4a33c507552bce206adf6b0f2a3596353/virtualenv-21.11.1-py3-none-any.whl", hash = "sha256:00596e6238363a1a69fd899a6e67365830be0b0bff9a9c83bdcad6e9aee3c419", size = 5485002, upload-time = "2026-09-23T15:01:04.935Z" },
+]
+
+[[package]]
+name = "xmltodict"
+version = "1.0.4"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/19/70/80f3b7c10d2630aa66414bf23d210386700aa390547278c789afa994fd7e/xmltodict-1.0.4.tar.gz", hash = "sha256:6d94c9f834dd9e44514162799d344d815a3a4faec913717a9ecbfa5be1bb8e61", size = 26124, upload-time = "2026-02-22T02:21:22.074Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/38/34/98a2f52245f4d47be93b580dae5f9861ef58977d73a79eb47c58f1ad1f3a/xmltodict-1.0.4-py3-none-any.whl", hash = "sha256:a4a00d300b0e1c59fc2bfccb53d7b2e88c32f200df138a0dd2229f842497026a", size = 13580, upload-time = "2026-02-22T02:21:21.039Z" },
 ]
 
 [[package]]
