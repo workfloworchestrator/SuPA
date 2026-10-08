@@ -82,6 +82,14 @@ class StpResources(NamedTuple):
     vlans: VlanRanges
 
 
+def _select_vlans(src_vlans: VlanRanges, dst_vlans: VlanRanges) -> tuple[int, int]:
+    """Select a VLAN for each end, the same one on both when both ends have it available."""
+    if shared_vlans := src_vlans & dst_vlans:
+        vlan = random.choice(list(shared_vlans))  # noqa: S311
+        return vlan, vlan
+    return random.choice(list(src_vlans)), random.choice(list(dst_vlans))  # noqa: S311
+
+
 def _to_reserve_confirmed_request(reservation: Reservation) -> ReserveConfirmedRequest:
     """Create a protobuf reserve confirmed request from a Reservation."""
     pb_rc_req = ReserveConfirmedRequest()
@@ -255,13 +263,12 @@ class ReserveJob(Job):
             rec.stp: StpResources(bandwidth=rec.bandwidth, vlans=VlanRanges(rec.vlans)) for rec in stp_resources_in_use
         }
 
-    def _process_stp(self, target: str, var: Variable, reservation: Reservation, session: scoped_session) -> None:
-        """Check validity of STP and select available VLAN.
+    def _process_stp(self, target: str, var: Variable, reservation: Reservation, session: scoped_session) -> VlanRanges:
+        """Check validity of STP and return the requested VLANs that are available.
 
         Target can be either "src" or "dst".
         When the STP is valid and a VLAN is available
-        the corresponding {src|dst}_selected_vlan will be set on the the job instance
-        and the associated port {src|dst}_port_id will also be set on  on the job instance.
+        the associated port {src|dst}_port_id will be set on the job instance.
         """
         stp_resources_in_use = self._stp_resources_in_use(session)
         self.log.debug("stp resources in use", stp_resources_in_use=stp_resources_in_use)
@@ -304,11 +311,9 @@ class ReserveJob(Job):
                 f"no matching VLAN found (requested: {requested_vlans!s}, available: {available_vlans!s}",
                 {var: nsi_stp},
             )
-        selected_vlan = random.choice(list(candidate_vlans))  # noqa: S311
-        # selected vlan will be stored on reservation p2p criteria below
-        setattr(self, f"{target}_selected_vlan", selected_vlan)
         # port id will be stored on connection below
         setattr(self, f"{target}_port_id", stp.port_id)
+        return candidate_vlans
 
     def __call__(self) -> None:
         """Check reservation request.
@@ -361,10 +366,11 @@ class ReserveJob(Job):
                                 Variable.DEST_STP: str(reservation.p2p_criteria.dst_stp()),
                             },
                         )
-                    for target, var in (("src", Variable.SOURCE_STP), ("dst", Variable.DEST_STP)):
-                        # Dynamic attribute lookups as we want to use the same code for
-                        # both src and dst STP's
-                        self._process_stp(target, var, reservation, session)
+                    # Dynamic attribute lookups as we want to use the same code for
+                    # both src and dst STP's
+                    src_vlans = self._process_stp("src", Variable.SOURCE_STP, reservation, session)
+                    dst_vlans = self._process_stp("dst", Variable.DEST_STP, reservation, session)
+                    self.src_selected_vlan, self.dst_selected_vlan = _select_vlans(src_vlans, dst_vlans)
                     reservation.p2p_criteria.src_selected_vlan = self.src_selected_vlan
                     reservation.p2p_criteria.dst_selected_vlan = self.dst_selected_vlan
                 except NsiException as nsi_exc:
