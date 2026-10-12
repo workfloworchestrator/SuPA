@@ -39,7 +39,7 @@ dependencies = [
   "cherrypy==18.10.0",
   "htmlgen==2.0.0",
   "paramiko==5.0.0",
-  "pytz==2026.4",
+  "pytz==2026.5",
   "psycopg[binary]==3.3.6",
   "mcp[cli]==2.3.0",
   "pyyaml==6.0.3",
@@ -101,7 +101,7 @@ dev = [
     "types-requests==2.33.0.20260906",
     "types-setuptools==84.0.0.20260812",
     "types-tabulate==0.10.0.20260508",
-    "tzdata==2026.4",
+    "tzdata==2026.5",
 ]
 doc = [
     "sphinx==9.1.0",
