@@ -53,6 +53,8 @@ def create_query_confirmed_request(
 ) -> QueryConfirmedRequest:
     """Create a list of reservation information matching the request.
 
+    Without connection or global reservation ids every reservation is returned, whatever its requester NSA.
+
     Args:
         pb_query_request: Query request with match criteria.
 
@@ -73,12 +75,12 @@ def create_query_confirmed_request(
                 Reservation.global_reservation_id == global_reservation_id
                 for global_reservation_id in pb_query_request.global_reservation_id
             ]
-        reservations: List[Reservation] = (
-            session.query(Reservation)
-            .filter(or_(*or_filter))
-            .filter(Reservation.last_modified > as_utc_timestamp(pb_query_request.if_modified_since))
-            .all()
+        query = session.query(Reservation).filter(
+            Reservation.last_modified > as_utc_timestamp(pb_query_request.if_modified_since)
         )
+        if or_filter:
+            query = query.filter(or_(*or_filter))
+        reservations: List[Reservation] = query.all()
         last_modified = session.query(func.max(Reservation.last_modified)).scalar()
 
         header = Header()
