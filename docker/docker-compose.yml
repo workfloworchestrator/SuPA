@@ -3,7 +3,7 @@ services:
   # SuPA
   #
   supa:
-    image: ghcr.io/workfloworchestrator/supa:latest@sha256:6abf20865086a4d587fab3c9614bf565b328c55889fb1f73d4e82c66f1d71b9c
+    image: ghcr.io/workfloworchestrator/supa:latest@sha256:2888d2d4b9f6c8c487c96857a2307193e3bd261e23c0eb99add98f3e5cb13b2b
     configs:
       - source: supa.env
         target: /usr/local/etc/supa/supa.env
