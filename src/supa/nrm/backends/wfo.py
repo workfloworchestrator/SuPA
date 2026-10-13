@@ -65,7 +65,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from requests import Response, get, post
 from requests.auth import HTTPBasicAuth
 from requests.exceptions import ConnectionError, HTTPError, RequestException  # noqa: A004
-from structlog.stdlib import BoundLogger
+from structlog.contextvars import bound_contextvars
 
 from supa import settings
 from supa.connection.error import GenericRmError
@@ -447,14 +447,14 @@ class Backend(BaseBackend):
         circuit_id: str,
     ) -> str:
         """Activate resources in NRM."""
-        self.log: BoundLogger = self.log.bind(primitive="activate", connection_id=str(connection_id))
-        process = self._workflow_create(src_port_id, src_vlan, dst_port_id, dst_vlan, bandwidth)
-        self._wait_for_completion(process["id"])
-        subscription_id = self._get_subscription_id(process["id"])
-        self.log = self.log.bind(subscription_id=subscription_id)
-        process = self._add_note(connection_id, subscription_id)
-        self._wait_for_completion(process["id"])
-        return subscription_id
+        with bound_contextvars(primitive="activate", connection_id=str(connection_id)):
+            process = self._workflow_create(src_port_id, src_vlan, dst_port_id, dst_vlan, bandwidth)
+            self._wait_for_completion(process["id"])
+            subscription_id = self._get_subscription_id(process["id"])
+            with bound_contextvars(subscription_id=subscription_id):
+                process = self._add_note(connection_id, subscription_id)
+                self._wait_for_completion(process["id"])
+            return subscription_id
 
     def deactivate(
         self,
@@ -470,10 +470,10 @@ class Backend(BaseBackend):
 
         The subscription is terminated, so there is no circuit_id left to return.
         """
-        self.log = self.log.bind(primitive="deactivate", subscription_id=circuit_id, connection_id=str(connection_id))
-        process = self._workflow_terminate(circuit_id)
-        self._wait_for_completion(process["id"])
-        return None
+        with bound_contextvars(primitive="deactivate", subscription_id=circuit_id, connection_id=str(connection_id)):
+            process = self._workflow_terminate(circuit_id)
+            self._wait_for_completion(process["id"])
+            return None
 
     def health_check(
         self,
@@ -486,10 +486,10 @@ class Backend(BaseBackend):
         circuit_id: str,
     ) -> bool:
         """Check if the connection/circuit is healthy in NRM."""
-        self.log = self.log.bind(primitve="health_check", subscription_id=circuit_id, connection_id=str(connection_id))
-        return self._is_healthy(circuit_id)
+        with bound_contextvars(primitive="health_check", subscription_id=circuit_id, connection_id=str(connection_id)):
+            return self._is_healthy(circuit_id)
 
     def topology(self) -> List[STP]:
         """Get exposed topology from NRM."""
-        self.log = self.log.bind(primitive="topology")
-        return self._get_topology()
+        with bound_contextvars(primitive="topology"):
+            return self._get_topology()

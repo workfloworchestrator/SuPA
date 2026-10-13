@@ -19,6 +19,7 @@ from httpx2 import BasicAuth
 from nso_client import NSOClient, YangData
 from pydantic_settings import BaseSettings
 from sqlalchemy import select
+from structlog.contextvars import bound_contextvars
 
 from supa import settings
 from supa.db.model import Connection
@@ -183,14 +184,14 @@ class Backend(BaseBackend):
         circuit_id: str,
     ) -> Optional[str]:
         """Provision resources in NRM."""
-        self.log = self.log.bind(primitive="provision")
-        self.log.info(
-            "Provision circuit_id in connections table",
-            connection_id=str(connection_id),
-        )
-        circuit_id = self._get_next_circuit_id()
-        self.log.info("Provisioning circuit_id", circuit_id=circuit_id)
-        return circuit_id
+        with bound_contextvars(primitive="provision"):
+            self.log.info(
+                "Provision circuit_id in connections table",
+                connection_id=str(connection_id),
+            )
+            circuit_id = self._get_next_circuit_id()
+            self.log.info("Provisioning circuit_id", circuit_id=circuit_id)
+            return circuit_id
 
     def activate(
         self,
@@ -203,28 +204,28 @@ class Backend(BaseBackend):
         circuit_id: str,
     ) -> Optional[str]:
         """Activate resources in NRM."""
-        self.log = self.log.bind(primitive="activate")
-        self.log.debug(
-            "Activate resource",
-            connection_id=connection_id,
-            bandwidth=bandwidth,
-            src_port_id=src_port_id,
-            src_vlan=src_vlan,
-            dst_port_id=dst_port_id,
-            dst_vlan=dst_vlan,
-            circuit_id=circuit_id,
-        )
-        topology = settings.topology
-        self._service_create(
-            circuit_id,
-            topology,
-            src_port_id,
-            src_vlan,
-            dst_port_id,
-            dst_vlan,
-            bandwidth,
-        )
-        return None
+        with bound_contextvars(primitive="activate"):
+            self.log.debug(
+                "Activate resource",
+                connection_id=connection_id,
+                bandwidth=bandwidth,
+                src_port_id=src_port_id,
+                src_vlan=src_vlan,
+                dst_port_id=dst_port_id,
+                dst_vlan=dst_vlan,
+                circuit_id=circuit_id,
+            )
+            topology = settings.topology
+            self._service_create(
+                circuit_id,
+                topology,
+                src_port_id,
+                src_vlan,
+                dst_port_id,
+                dst_vlan,
+                bandwidth,
+            )
+            return None
 
     def deactivate(
         self,
@@ -237,21 +238,21 @@ class Backend(BaseBackend):
         circuit_id: str,
     ) -> Optional[str]:
         """Deactivate resources in NRM."""
-        self.log = self.log.bind(primitive="deactivate")
-        self.log.debug(
-            "Deactivate resource",
-            connection_id=connection_id,
-            bandwidth=bandwidth,
-            src_port_id=src_port_id,
-            src_vlan=src_vlan,
-            dst_port_id=dst_port_id,
-            dst_vlan=dst_vlan,
-            circuit_id=circuit_id,
-        )
-        self._service_delete(circuit_id)
-        return None
+        with bound_contextvars(primitive="deactivate"):
+            self.log.debug(
+                "Deactivate resource",
+                connection_id=connection_id,
+                bandwidth=bandwidth,
+                src_port_id=src_port_id,
+                src_vlan=src_vlan,
+                dst_port_id=dst_port_id,
+                dst_vlan=dst_vlan,
+                circuit_id=circuit_id,
+            )
+            self._service_delete(circuit_id)
+            return None
 
     def topology(self) -> List[STP]:
         """Get exposed topology from NRM."""
-        self.log = self.log.bind(primitive="topology")
-        return self._get_topology()
+        with bound_contextvars(primitive="topology"):
+            return self._get_topology()

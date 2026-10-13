@@ -328,3 +328,27 @@ def test_topology_token_timeout_raises_nsi_exception() -> None:
     with patch("supa.nrm.backends.wfo.post", side_effect=ReadTimeout("read timed out")):
         with pytest.raises(NsiException):
             backend.topology()
+
+
+def test_primitive_context_does_not_leak_into_later_calls() -> None:
+    """Each primitive logs with its own context only, and leaves none behind on the shared backend."""
+    backend = make_backend(oauth2_active=False)
+    with (
+        structlog.testing.capture_logs(processors=[structlog.contextvars.merge_contextvars]) as logs,
+        patch.object(backend, "_get_topology", side_effect=lambda: backend.log.info("in topology") or []),
+        patch.object(backend, "_is_healthy", side_effect=lambda circuit_id: backend.log.info("in health") or True),
+    ):
+        backend.health_check(UUID(int=1), 1000, "src", 1, "dst", 2, "sub-1")
+        backend.topology()
+        backend.log.info("after")
+
+    assert [{k: v for k, v in log.items() if k != "log_level"} for log in logs] == [
+        {
+            "event": "in health",
+            "primitive": "health_check",
+            "subscription_id": "sub-1",
+            "connection_id": str(UUID(int=1)),
+        },
+        {"event": "in topology", "primitive": "topology"},
+        {"event": "after"},
+    ]
