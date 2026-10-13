@@ -309,13 +309,20 @@ def test_terminate() -> None:
     backend._manager.commit.assert_called_once()
 
 
-@pytest.mark.parametrize("method", ["deactivate", "terminate"])
-def test_circuit_not_on_device(method: str) -> None:
-    """``deactivate`` and ``terminate`` raise when the circuit is not on the device."""
+def test_deactivate_circuit_not_on_device() -> None:
+    """``deactivate`` raises when the circuit is not on the device."""
     backend = make_backend()
     with pytest.raises(NsiException, match="No such circuit exists"):
-        getattr(backend, method)(**connection_args(src_vlan=2000, dst_vlan=2000))
+        backend.deactivate(**connection_args(src_vlan=2000, dst_vlan=2000))
     backend._manager.edit_config.assert_not_called()
+
+
+def test_terminate_circuit_not_on_device() -> None:
+    """``terminate`` succeeds without touching the device when the circuit is already gone, so it can be retried."""
+    backend = make_backend()
+    backend.terminate(**connection_args(src_vlan=2000, dst_vlan=2000))
+    backend._manager.edit_config.assert_not_called()
+    backend._manager.commit.assert_not_called()
 
 
 @pytest.mark.parametrize("circuit_id", [None, ""], ids=["none", "empty"])

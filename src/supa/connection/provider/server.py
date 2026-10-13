@@ -912,6 +912,10 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         allowed, all real work for terminating the reservation is done asynchronously by
         :class:`~supa.job.reserve.TerminateJob`
 
+        A reservation already in Terminating, after a terminate that failed in the NRM, is retried by
+        running :class:`~supa.job.reserve.TerminateJob` again; the backend's terminate must be
+        idempotent. A terminated reservation stays an InvalidTransition that names its lifecycle state.
+
         Args:
             pb_terminate_request: Basically the connection id wrapped in a request like object
             context: gRPC server context object.
@@ -950,6 +954,9 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                         connection_id,
                     ),
                 )
+            elif reservation.lifecycle_state == LifecycleStateMachine.Terminating.value:
+                log.info("Retry terminate of a reservation still terminating")
+                terminate_response = GenericAcknowledgment(header=to_response_header(pb_terminate_request.header))
             else:
                 try:
                     lsm = LifecycleStateMachine(reservation, state_field="lifecycle_state")
@@ -976,9 +983,14 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         if not terminate_response.service_exception.connection_id:
             from supa import scheduler
 
-            log.info("Schedule terminate", job="TerminateJob")
             _register_request(pb_terminate_request, RequestType.Terminate)
-            scheduler.add_job(job := TerminateJob(connection_id), trigger=job.trigger(), id=job.job_id)
+            job = TerminateJob(connection_id)
+            # One run per connection: a queued job is not added twice, and max_instances skips one already running.
+            if scheduler.get_job(job.job_id) is None:
+                log.info("Schedule terminate", job="TerminateJob")
+                scheduler.add_job(job, trigger=job.trigger(), id=job.job_id)
+            else:
+                log.info("Terminate already scheduled", job="TerminateJob")
         log.debug("Sending response.", response_message=terminate_response)
         return terminate_response
 

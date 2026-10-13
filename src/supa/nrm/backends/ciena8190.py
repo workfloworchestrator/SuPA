@@ -817,7 +817,9 @@ class Backend(BaseBackend):
     ) -> None:
         """Terminate resources.
 
-        Without a circuit_id the connection was never activated, so there is nothing to delete.
+        Without a circuit_id the connection was never activated, so there is nothing to delete. A circuit
+        that is no longer on the device was already deleted, e.g. by an earlier terminate whose reply was
+        lost, so terminate succeeds: it is idempotent and can be retried.
         """
         if not circuit_id:
             self.log.info("Connection was never activated, nothing to delete", connection_id=str(connection_id))
@@ -829,17 +831,16 @@ class Backend(BaseBackend):
             src_vlan=src_vlan,
             dst_vlan=dst_vlan,
         )
-        try:
-            circuit = self._get_lookup()[(src_port_id, src_vlan, dst_port_id, dst_vlan)]
-        except KeyError:
+        circuit = self._get_lookup().get((src_port_id, src_vlan, dst_port_id, dst_vlan))
+        if circuit is None:
             self.log.warning(
-                "No such circuit exists",
+                "No such circuit exists, nothing to delete",
                 src_port_id=src_port_id,
                 dst_port_id=dst_port_id,
                 src_vlan=src_vlan,
                 dst_vlan=dst_vlan,
             )
-            raise NsiException(GenericRmError, "No such circuit exists") from None
+            return
         self.log.info(
             "Link found",
             src_port_id=src_port_id,

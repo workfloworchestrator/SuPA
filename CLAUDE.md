@@ -53,6 +53,16 @@ Four FSMs in `connection/fsm.py` govern each connection's lifecycle, all inherit
 - **LifecycleStateMachine** — create, terminate, endtime, failed
 - **DataPlaneStateMachine** — activate, deactivate, auto-start/end, health checks
 
+### Terminate contract
+
+A terminate that fails in the NRM leaves the reservation `Terminating`. A new terminate for it is
+accepted and re-runs `TerminateJob`, at most one queued or running per connection, so a requester
+can retry. That relies on every backend's `terminate` being idempotent: `ciena8190` treats a circuit
+that is no longer on the device as already deleted. Terminate of a `Terminated` reservation stays
+`InvalidTransition` (00201) with a `lifecycleState` variable, and of an unknown connection id
+`ReservationNonExistent` (00203); an aggregator can read both as "nothing left to terminate", so
+keep them, and their tests in `test_server.py`, as they are.
+
 ### Network Resource Manager Backends
 
 Pluggable backends in `nrm/backends/` implement `nrm/backend.py:BaseBackend`. Available: `example` (reference), `wfo`, `ciena8190`, `nso`. Selected via `backend` setting in `supa.env`.

@@ -699,7 +699,7 @@ def test_terminate(pb_terminate_request: GenericRequest, provisioned: None, capl
 
 
 def test_terminate_random_connection_id(pb_terminate_request: GenericRequest, caplog: Any) -> None:
-    """Test the connection provider Release returns service exception for random connection id."""
+    """Terminate of an unknown connection id returns ReservationNonExistent (00203); aggregators rely on this."""
     service = ConnectionProviderService()
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
     # overwrite connection id from reservation in db with random UUID
@@ -716,8 +716,40 @@ def test_terminate_random_connection_id(pb_terminate_request: GenericRequest, ca
     assert "Connection ID does not exist" in caplog.text
 
 
+@pytest.mark.parametrize(
+    ("job_scheduled", "expected_log"),
+    [
+        pytest.param(False, "Schedule terminate", id="schedules-a-retry"),
+        pytest.param(True, "Terminate already scheduled", id="no-second-job"),
+    ],
+)
+def test_terminate_retries_a_reservation_still_terminating(
+    pb_terminate_request: GenericRequest,
+    terminating: None,
+    job_scheduled: bool,
+    expected_log: str,
+    caplog: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A terminate that failed in the NRM leaves the reservation Terminating, and a new terminate retries it once."""
+    from supa import scheduler
+
+    monkeypatch.setattr(scheduler, "get_job", lambda _job_id: object() if job_scheduled else None)
+    added: list[str] = []
+    monkeypatch.setattr(scheduler, "add_job", lambda _job, trigger, id: added.append(id))  # noqa: A006
+    service = ConnectionProviderService()
+    mock_context = unittest.mock.create_autospec(spec=ServicerContext)
+
+    terminate_response = service.Terminate(pb_terminate_request, mock_context)
+
+    assert not terminate_response.HasField("service_exception")
+    assert "Retry terminate of a reservation still terminating" in caplog.text
+    assert expected_log in caplog.text
+    assert added == ([] if job_scheduled else [f"TerminateJob={pb_terminate_request.connection_id}"])
+
+
 def test_terminate_invalid_transition(pb_terminate_request: GenericRequest, terminated: None, caplog: Any) -> None:
-    """Test the connection provider Release returns service exception for random connection id."""
+    """Terminate of a terminated reservation is InvalidTransition (00201) with lifecycleState; aggregators use it."""
     service = ConnectionProviderService()
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
     terminate_response = service.Terminate(pb_terminate_request, mock_context)
