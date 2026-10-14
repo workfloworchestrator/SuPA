@@ -14,7 +14,8 @@
   "packageRules": [
     {
       "matchUpdateTypes": ["lockFileMaintenance"],
-      "prPriority": 10
+      "prPriority": 10,
+      "minimumReleaseAge": null
     },
     {
       "matchUpdateTypes": ["minor", "patch"],

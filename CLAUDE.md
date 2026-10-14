@@ -103,7 +103,9 @@ the project as `(dynamic)` and so does not churn per commit.
 
 `exclude-newer = "8 days"` in `pyproject.toml` and `minimumReleaseAge` in `.github/renovate.json`
 must stay equal. uv enforces the cooldown on indirect dependencies, which Renovate cannot. An urgent
-fix younger than that needs a temporary `exclude-newer-package = { <pkg> = false }`.
+fix younger than that needs a temporary `exclude-newer-package = { <pkg> = false }`. Lock file
+maintenance sets `minimumReleaseAge` to `null`: it has no release timestamp, so Renovate would keep
+`renovate/stability-days` pending forever and never automerge it.
 
 ## Code Style
 
