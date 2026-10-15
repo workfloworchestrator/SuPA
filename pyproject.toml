@@ -95,12 +95,12 @@ dev = [
     "pytest-grpc==0.8.0",
     "pytest-xdist==3.8.0",
     "ruff==0.16.10",
-    "types-paramiko==5.0.0.20260724",
-    "types-pytz==2026.4.0.20260926",
+    "types-paramiko==5.0.0.20261006",
+    "types-pytz==2026.5.0.20261006",
     "types-pyyaml>=6.0.12.20260408",
-    "types-requests==2.33.0.20260906",
-    "types-setuptools==84.0.0.20260812",
-    "types-tabulate==0.10.0.20260508",
+    "types-requests==2.33.0.20261006",
+    "types-setuptools==84.0.0.20261006",
+    "types-tabulate==0.10.0.20261006",
     "tzdata==2026.5",
 ]
 doc = [
