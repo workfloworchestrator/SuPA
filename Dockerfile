@@ -11,6 +11,8 @@ RUN uv build --no-cache --wheel --out-dir dist
 
 # Final stage
 FROM ghcr.io/astral-sh/uv:python3.14-alpine@sha256:0cb69bb18ffcd57db04f045010b0234132a111da70dde5a393d26ad288d38e13
+# Drops emSign ECC Root CA - G3 (ca-certificates 20261020); remove once the base image has it.
+RUN apk upgrade --no-cache ca-certificates ca-certificates-bundle
 ENV DATABASE_DIR=/usr/local/var/db
 COPY --from=build /app/dist/*.whl /tmp/
 RUN uv pip install --system --no-cache /tmp/*.whl && rm /tmp/*.whl
