@@ -112,6 +112,8 @@ doc = [
 [tool.uv]
 # Skip releases younger than 8 days; keep in sync with minimumReleaseAge in .github/renovate.json.
 exclude-newer = "8 days"
+# certifi 2026.10.19 drops the compromised emSign ECC Root CA - G3; remove after 2026-10-28.
+exclude-newer-package = { certifi = false }
 
 [project.scripts]
 supa = "supa.main:cli"
