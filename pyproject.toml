@@ -88,7 +88,7 @@ dev = [
     "bandit==1.9.4",
     "grpc-stubs==1.53.0.6",
     "mypy==2.4.0",
-    "pre-commit==4.6.2",
+    "pre-commit==4.7.0",
     "protobuf==7.36.2",
     "pytest==9.1.1",
     "pytest-cov==7.1.0",
