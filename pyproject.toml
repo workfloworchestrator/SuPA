@@ -94,7 +94,7 @@ dev = [
     "pytest-cov==7.1.0",
     "pytest-grpc==0.8.0",
     "pytest-xdist==3.8.0",
-    "ruff==0.17.0",
+    "ruff==0.17.1",
     "types-paramiko==5.0.0.20261006",
     "types-pytz==2026.5.0.20261006",
     "types-pyyaml>=6.0.12.20260408",
