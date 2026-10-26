@@ -38,7 +38,7 @@ dependencies = [
   "lxml-stubs==0.5.1",
   "cherrypy==18.10.0",
   "htmlgen==2.0.0",
-  "paramiko==5.0.0",
+  "paramiko==5.1.0",
   "pytz==2026.5",
   "psycopg[binary]==3.3.6",
   "mcp[cli]==2.3.0",
