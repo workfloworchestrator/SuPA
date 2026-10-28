@@ -13,7 +13,7 @@ jobs:
         python-version: ["3.12", "3.13", "3.14"]
         database: ["sqlite", "postgresql"]
       fail-fast: true
-    container: ubuntu:latest@sha256:19fcd1bf268f02b60aca3bd30bd8a6d9a11759a430e32921833e65f16d87348a
+    container: ubuntu:latest@sha256:0e73b71479e7bc5f006bca872e25c3cd680dc052a0116f90d63ae363537db0dd
     services:
       postgres:
         image: postgres:18-alpine@sha256:10a5c69a83035ab5239f5620d708520e8b28f5aa1f2b20143e6024532edadfb5
