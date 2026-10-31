@@ -27,7 +27,7 @@ dependencies = [
   "click==8.5.0",
   "pydantic-settings==2.16.1",
   "python-statemachine==3.2.2",
-  "sqlalchemy==2.1.5",
+  "sqlalchemy==2.1.6",
   "apscheduler==3.11.3",
   "tabulate==0.10.0",
   "more-itertools==11.2.1",
@@ -94,8 +94,8 @@ dev = [
     "pytest-cov==7.1.0",
     "pytest-grpc==0.8.0",
     "pytest-xdist==3.8.0",
-    "ruff==0.17.1",
-    "types-paramiko==5.0.0.20261006",
+    "ruff==0.17.2",
+    "types-paramiko==5.0.0.20261021",
     "types-pytz==2026.5.0.20261006",
     "types-pyyaml>=6.0.12.20260408",
     "types-requests==2.33.0.20261006",
@@ -104,7 +104,7 @@ dev = [
     "tzdata==2026.5",
 ]
 doc = [
-    "sphinx==9.1.1",
+    "sphinx==9.2.0",
     "sphinx-click==6.2.0",
     "sphinx-rtd-theme==3.1.0",
 ]
