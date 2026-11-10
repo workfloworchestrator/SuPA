@@ -63,6 +63,12 @@ that is no longer on the device as already deleted. Terminate of a `Terminated` 
 `ReservationNonExistent` (00203); an aggregator can read both as "nothing left to terminate", so
 keep them, and their tests in `test_server.py`, as they are.
 
+### Activate contract
+
+Once the NRM holds the circuit, a backend's `activate` returns its id and does not raise.
+`ActivateFailed` is final and stores no circuit id, and terminate only deactivates `Activated` or
+`AutoEnd`, so a circuit created by a failed activate stays in the NRM until someone removes it by hand.
+
 ### Network Resource Manager Backends
 
 Pluggable backends in `nrm/backends/` implement `nrm/backend.py:BaseBackend`. Available: `example` (reference), `wfo`, `ciena8190`, `nso`. Selected via `backend` setting in `supa.env`.
@@ -72,7 +78,7 @@ The backend is one instance shared by every job thread. Bind per-call log contex
 kept each call's fields on the shared logger, so later lines carried another call's `primitive` and
 `subscription_id`.
 
-`wfo` talks to any orchestrator-core Workflow Orchestrator: workflows and domain models over REST, subscription lookups (STP list by product tag, circuit status for the health check) over GraphQL. Do not use `/api/subscriptions/search` for lookups: it reads the `subscriptions_search` materialized view, whose refresh core throttles to once per 120 s, so a subscription that went active within that window stays indexed as `provisioning` until the next write. Everything except the create form (`_create_form`) and the STP mapping (`_stp_from_domain_model`) is product-agnostic; site-specific products subclass those two methods in a module on `PYTHONPATH`. Its settings live in `wfo.env` with a `wfo_` env prefix.
+`wfo` talks to any orchestrator-core Workflow Orchestrator: workflows and domain models over REST, subscription lookups (STP list by product tag, circuit status for the health check) over GraphQL. Do not use `/api/subscriptions/search` for lookups: it reads the `subscriptions_search` materialized view, whose refresh core throttles to once per 120 s, so a subscription that went active within that window stays indexed as `provisioning` until the next write. Everything except the create form (`_create_form`) and the STP mapping (`_stp_from_domain_model`) is product-agnostic; site-specific products subclass those two methods in a module on `PYTHONPATH`. Its settings live in `wfo.env` with a `wfo_` env prefix. Its `modify_note` step is best-effort, per the activate contract.
 
 ### Custom Build Backend
 

@@ -208,7 +208,11 @@ class BaseBackend:
         dst_vlan: int,
         circuit_id: str,
     ) -> Optional[str]:
-        """Activate resources in NRM."""
+        """Activate resources in NRM.
+
+        Once the NRM holds the circuit, return its id and do not raise: ``ActivateFailed`` is final
+        and stores no circuit id, so terminate would never remove the circuit.
+        """
         self.log.info(
             "Activate resources in NRM", backend="no-op", primitive="activate", connection_id=str(connection_id)
         )

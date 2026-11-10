@@ -302,7 +302,7 @@ def test_get_topology_domain_model_non_200_raises_nsi_exception() -> None:
     backend = make_backend(oauth2_active=False)
     with (
         patch.object(backend, "_get_nsi_stp_subscription_ids", return_value=["sub-1"]),
-        patch.object(backend, "_get_url", return_value=make_response(404)),
+        patch("supa.nrm.backends.wfo.get", return_value=make_response(404)),
     ):
         with pytest.raises(NsiException):
             backend._get_topology()
@@ -352,3 +352,66 @@ def test_primitive_context_does_not_leak_into_later_calls() -> None:
         {"event": "in topology", "primitive": "topology"},
         {"event": "after"},
     ]
+
+
+@pytest.mark.parametrize("status_code", [401, 500])
+def test_wait_for_completion_non_2xx_raises_nsi_exception(status_code: int) -> None:
+    """A process poll that is refused raises ``NsiException``, not a ``KeyError`` on ``last_status``."""
+    backend = make_backend(oauth2_active=False)
+    with (
+        patch("supa.nrm.backends.wfo.sleep"),
+        patch("supa.nrm.backends.wfo.get", return_value=make_response(status_code, {"detail": "Unauthorized"})),
+    ):
+        with pytest.raises(NsiException):
+            backend._wait_for_completion("process-1")
+
+
+@pytest.mark.parametrize(
+    ("add_note", "note_response"),
+    [
+        pytest.param(
+            {"return_value": {"id": "note"}}, make_response(200, {"last_status": "completed"}), id="note-completed"
+        ),
+        pytest.param({"side_effect": ReadTimeout("timed out")}, None, id="note-post-times-out"),
+        pytest.param({"return_value": {}}, None, id="note-response-without-id"),
+        pytest.param({"return_value": {"id": "note"}}, make_response(401), id="note-poll-unauthorized"),
+        pytest.param(
+            {"return_value": {"id": "note"}},
+            make_response(200, {"last_status": "failed", "failed_reason": "boom"}),
+            id="note-workflow-failed",
+        ),
+    ],
+)
+def test_activate_returns_circuit_once_create_completed(
+    add_note: Dict[str, Any], note_response: Optional[MagicMock]
+) -> None:
+    """Once the create workflow completed, no later request may fail activation and orphan the circuit.
+
+    The create process is polled once; a second poll of it would get ``note_response`` and fail the test.
+    """
+    backend = make_backend(oauth2_active=False)
+    completed_create = make_response(
+        200, {"last_status": "completed", "current_state": {"subscription": {"subscription_id": "sub-1"}}}
+    )
+    with (
+        patch("supa.nrm.backends.wfo.sleep"),
+        patch("supa.nrm.backends.wfo.get", side_effect=[completed_create, note_response]),
+        patch.object(backend, "_workflow_create", return_value={"id": "create"}),
+        patch.object(backend, "_add_note", **add_note),
+    ):
+        assert backend.activate(UUID(int=1), 1000, "port-1", 100, "port-2", 100, "") == "sub-1"
+
+
+def test_activate_create_workflow_failure_raises_nsi_exception() -> None:
+    """A failed create workflow still fails activation: there is no circuit to keep."""
+    backend = make_backend(oauth2_active=False)
+    failed = make_response(200, {"last_status": "failed", "failed_reason": "vlan in use"})
+    with (
+        patch("supa.nrm.backends.wfo.sleep"),
+        patch("supa.nrm.backends.wfo.get", return_value=failed),
+        patch.object(backend, "_workflow_create", return_value={"id": "create"}),
+        patch.object(backend, "_add_note") as mock_add_note,
+    ):
+        with pytest.raises(NsiException):
+            backend.activate(UUID(int=1), 1000, "port-1", 100, "port-2", 100, "")
+    mock_add_note.assert_not_called()

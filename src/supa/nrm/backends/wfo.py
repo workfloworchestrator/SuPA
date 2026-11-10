@@ -172,15 +172,16 @@ class Backend(BaseBackend):
         return access_token
 
     def _get_url(self, url: str) -> Response:
-        """Get response from authorised URL."""
+        """Get response from authorised URL; a transport error or non-2xx status raises ``NsiException``."""
         access_token = self._retrieve_access_token()
         headers = {"Authorization": f"bearer {access_token}"}
         timeout = (self.backend_settings.connect_timeout, self.backend_settings.read_timeout)
         start = time.time()
         try:
             response = get(url=url, headers=headers, timeout=timeout)
+            response.raise_for_status()
         except RequestException as requests_exception:
-            self.log.warning("cannot get url", reason=str(requests_exception))
+            self.log.warning("cannot get url", url=url, reason=str(requests_exception))
             raise NsiException(GenericRmError, str(requests_exception)) from requests_exception
         self.log.debug("get url timer", url=url, seconds=time.time() - start)
         return response
@@ -318,11 +319,12 @@ class Backend(BaseBackend):
         return result.json()
 
     def _get_process_info(self, process_id: str) -> Any:
-        process = self._get_url(f"{self.backend_settings.base_url}/api/processes/{process_id}")
-        self.log.debug("process status", process_status=process.json()["last_status"])
-        return process.json()
+        info = self._get_url(f"{self.backend_settings.base_url}/api/processes/{process_id}").json()
+        self.log.debug("process status", process_status=info["last_status"])
+        return info
 
-    def _wait_for_completion(self, process_id: str) -> None:
+    def _wait_for_completion(self, process_id: str) -> Any:
+        """Poll the process until it ends and return its last process info."""
         log = self.log.bind(process_id=process_id)
         sleep(1)
         while (info := self._get_process_info(process_id))["last_status"] == "created" or info[
@@ -332,14 +334,13 @@ class Backend(BaseBackend):
             sleep(3)
         if info["last_status"] == "completed":
             log.info("workflow finished", status=info["last_status"])
-        else:
-            log.warning("workflow process failed", status=info["last_status"], reason=info["failed_reason"])
-            raise NsiException(GenericRmError, info["failed_reason"]) from None
+            return info
+        log.warning("workflow process failed", status=info["last_status"], reason=info["failed_reason"])
+        raise NsiException(GenericRmError, info["failed_reason"]) from None
 
-    def _get_subscription_id(self, process_id: str) -> str:
-        process = self._get_url(f"{self.backend_settings.base_url}/api/processes/{process_id}")
-        self.log.debug("process status", process_status=process.json()["last_status"])
-        state = process.json()["current_state"]
+    @staticmethod
+    def _subscription_id_from(process_info: Any) -> str:
+        state = process_info["current_state"]
         # Workflows either nest the subscription in the state or, like orchestrator-core's
         # store_process_subscription(), put the bare subscription_id there.
         subscription = state.get("subscription", state)
@@ -396,20 +397,9 @@ class Backend(BaseBackend):
 
     def _get_domain_model(self, subscription_id: str) -> Any:
         """Fetch the domain model of a single subscription."""
-        domain_model = self._get_url(
+        return self._get_url(
             f"{self.backend_settings.base_url}/api/subscriptions/domain-model/{subscription_id}"
-        )
-        if domain_model.status_code != 200:
-            try:
-                domain_model.raise_for_status()
-            except HTTPError as http_err:
-                self.log.warning(
-                    "failed to fetch STP domain model",
-                    reason=str(http_err),
-                    nsi_stp_subscription_id=subscription_id,
-                )
-                raise NsiException(GenericRmError, str(http_err)) from http_err
-        return domain_model.json()
+        ).json()
 
     def _stp_from_domain_model(self, domain_model: Dict[str, Any]) -> STP:
         """Map a subscription domain model onto an :class:`~supa.nrm.backend.STP`.
@@ -446,14 +436,16 @@ class Backend(BaseBackend):
         dst_vlan: int,
         circuit_id: str,
     ) -> str:
-        """Activate resources in NRM."""
+        """Activate resources in NRM; the note on the subscription is best-effort, see the activate contract."""
         with bound_contextvars(primitive="activate", connection_id=str(connection_id)):
             process = self._workflow_create(src_port_id, src_vlan, dst_port_id, dst_vlan, bandwidth)
-            self._wait_for_completion(process["id"])
-            subscription_id = self._get_subscription_id(process["id"])
+            subscription_id = self._subscription_id_from(self._wait_for_completion(process["id"]))
             with bound_contextvars(subscription_id=subscription_id):
-                process = self._add_note(connection_id, subscription_id)
-                self._wait_for_completion(process["id"])
+                # The circuit exists now; failing on the note would leave it in the NRM unknown to SuPA.
+                try:
+                    self._wait_for_completion(self._add_note(connection_id, subscription_id)["id"])
+                except Exception as exc:
+                    self.log.warning("failed to add note, circuit is active", reason=str(exc))
             return subscription_id
 
     def deactivate(
