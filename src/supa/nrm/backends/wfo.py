@@ -56,15 +56,15 @@ adding a second env file.
 """
 
 import time
-from json import dumps, loads
+from json import dumps
 from time import sleep
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 from uuid import UUID
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from requests import Response, get, post
 from requests.auth import HTTPBasicAuth
-from requests.exceptions import ConnectionError, HTTPError, RequestException  # noqa: A004
+from requests.exceptions import RequestException
 from structlog.contextvars import bound_contextvars
 
 from supa import settings
@@ -89,6 +89,20 @@ query SubscriptionStatus($id: UUID!) {
   subscription(id: $id) { status }
 }
 """
+
+
+def _error_detail(response: Optional[Response]) -> Optional[str]:
+    """Return the ``detail`` of an orchestrator error response, such as a form validation error."""
+    if response is None:
+        return None
+    try:
+        body = response.json()
+    except ValueError:
+        return None
+    match body:
+        case {"detail": detail}:
+            return str(detail)
+    return None
 
 
 class BackendSettings(BaseSettings):
@@ -144,57 +158,59 @@ class Backend(BaseBackend):
         timeout = (self.backend_settings.connect_timeout, self.backend_settings.write_timeout)
         if self.backend_settings.oauth2_active:
             self.log.debug("retrieve access token")
-            start = time.time()
-            try:
-                token = post(
+            access_token = self._request_json(
+                "unable to retrieve access token",
+                self.backend_settings.oidc_url,
+                lambda: post(
                     self.backend_settings.oidc_url,
                     auth=HTTPBasicAuth(self.backend_settings.oidc_user, self.backend_settings.oidc_password),
                     headers={"Content-Type": "application/x-www-form-urlencoded"},
                     data="grant_type=client_credentials",
                     timeout=timeout,
-                )
-            except RequestException as requests_exception:
-                self.log.warning("unable to retrieve access token", reason=str(requests_exception))
-                raise NsiException(GenericRmError, str(requests_exception)) from requests_exception
-            self.log.debug("retrieve access token timer", seconds=time.time() - start)
-            if token:
-                if token.status_code > 210:
-                    try:
-                        token.raise_for_status()
-                    except HTTPError as http_err:
-                        self.log.warning("unable to authenticate", reason=str(http_err))
-                        raise NsiException(GenericRmError, str(http_err)) from http_err
-                else:
-                    access_token = token.json()["access_token"]
+                ),
+            )["access_token"]
         self.log.debug(
             "workflow credentials", have_access_token=bool(access_token), base_url=self.backend_settings.base_url
         )
         return access_token
 
-    def _get_url(self, url: str) -> Response:
-        """Get response from authorised URL; a transport error or non-2xx status raises ``NsiException``."""
-        access_token = self._retrieve_access_token()
-        headers = {"Authorization": f"bearer {access_token}"}
-        timeout = (self.backend_settings.connect_timeout, self.backend_settings.read_timeout)
+    def _request_json(self, event: str, url: str, send: Callable[[], Response]) -> Any:
+        """Send a request and return its JSON body.
+
+        A transport error, non-2xx status or non-JSON body is logged as ``event`` and raised as
+        ``NsiException``, with the orchestrator's error detail as reason when it has one.
+        """
         start = time.time()
         try:
-            response = get(url=url, headers=headers, timeout=timeout)
+            response = send()
             response.raise_for_status()
-        except RequestException as requests_exception:
-            self.log.warning("cannot get url", url=url, reason=str(requests_exception))
-            raise NsiException(GenericRmError, str(requests_exception)) from requests_exception
-        self.log.debug("get url timer", url=url, seconds=time.time() - start)
-        return response
+            body = response.json()
+        except RequestException as exc:
+            reason = _error_detail(exc.response) or str(exc)
+            self.log.warning(event, url=url, reason=reason)
+            raise NsiException(GenericRmError, reason) from exc
+        self.log.debug("request timer", url=url, seconds=time.time() - start)
+        return body
 
-    def _post_url_json(self, url: str, json: Any) -> Response:
-        """Post JSON request to authorised URL."""
-        access_token = self._retrieve_access_token()
-        headers = {"Authorization": f"bearer {access_token}", "Content-Type": "application/json"}
+    def _get_json(self, url: str) -> Any:
+        """Get the JSON body of an authorised URL."""
+        headers = {"Authorization": f"bearer {self._retrieve_access_token()}"}
+        timeout = (self.backend_settings.connect_timeout, self.backend_settings.read_timeout)
+        return self._request_json("cannot get url", url, lambda: get(url=url, headers=headers, timeout=timeout))
+
+    def _post_json(self, url: str, json: Any) -> Any:
+        """Post JSON to an authorised URL and return the JSON body of the response."""
+        headers = {"Authorization": f"bearer {self._retrieve_access_token()}", "Content-Type": "application/json"}
         timeout = (self.backend_settings.connect_timeout, self.backend_settings.write_timeout)
-        start = time.time()
-        response = post(url=url, headers=headers, json=json, timeout=timeout)
-        self.log.debug("post url timer", url=url, seconds=time.time() - start)
-        return response
+        return self._request_json(
+            "cannot post url", url, lambda: post(url=url, headers=headers, json=json, timeout=timeout)
+        )
+
+    def _start_process(self, workflow_name: str, json: Any) -> Any:
+        """Start a workflow in the orchestrator and return the new process."""
+        return self._post_json(
+            f"{self.backend_settings.base_url}/api/processes/{workflow_name}?reporter={settings.nsa_host}", json
+        )
 
     def _create_form(
         self, src_port_id: str, src_vlan: int, dst_port_id: str, dst_vlan: int, bandwidth: int
@@ -228,28 +244,8 @@ class Backend(BaseBackend):
     def _workflow_create(self, src_port_id: str, src_vlan: int, dst_port_id: str, dst_vlan: int, bandwidth: int) -> Any:
         self.log.info("start workflow create")
         json = self._create_form(src_port_id, src_vlan, dst_port_id, dst_vlan, bandwidth)
-        base_url = self.backend_settings.base_url
-        create_workflow_name = self.backend_settings.create_workflow_name
-        reporter = settings.nsa_host
         self.log.debug("create workflow payload", payload=dumps(json))
-        try:
-            result = self._post_url_json(
-                url=f"{base_url}/api/processes/{create_workflow_name}?reporter={reporter}", json=json
-            )
-        except ConnectionError as con_err:
-            self.log.warning("call to orchestrator failed", reason=str(con_err))
-            raise NsiException(GenericRmError, str(con_err)) from con_err
-        if result.status_code > 210:
-            try:
-                result.raise_for_status()
-            except HTTPError as http_err:
-                if http_err.response.status_code == 400:
-                    self.log.warning("workflow failed", reason=loads(http_err.response.content)["detail"])
-                    raise NsiException(GenericRmError, loads(http_err.response.content)["detail"]) from http_err
-                else:
-                    self.log.warning("workflow failed", reason=str(http_err))
-                    raise NsiException(GenericRmError, str(http_err)) from http_err
-        return result.json()
+        return self._start_process(self.backend_settings.create_workflow_name, json)
 
     def _workflow_terminate(self, subscription_id: str) -> Any:
         self.log.info("start workflow terminate")
@@ -257,23 +253,7 @@ class Backend(BaseBackend):
             {"subscription_id": subscription_id},
             {},
         ]
-        base_url = self.backend_settings.base_url
-        terminate_workflow_name = self.backend_settings.terminate_workflow_name
-        reporter = settings.nsa_host
-        try:
-            result = self._post_url_json(
-                url=f"{base_url}/api/processes/{terminate_workflow_name}?reporter={reporter}", json=json
-            )
-        except ConnectionError as con_err:
-            self.log.warning("call to orchestrator failed", reason=str(con_err))
-            raise NsiException(GenericRmError, str(con_err)) from con_err
-        if result.status_code > 210:
-            try:
-                result.raise_for_status()
-            except HTTPError as http_err:
-                self.log.warning("workflow failed", reason=str(http_err))
-                raise NsiException(GenericRmError, str(http_err)) from http_err
-        return result.json()
+        return self._start_process(self.backend_settings.terminate_workflow_name, json)
 
     def _get_global_reservation_id(self, connection_id: UUID) -> str:
         """Look up the global reservation id, which is not among the backend method arguments."""
@@ -302,24 +282,11 @@ class Backend(BaseBackend):
                 )
             },
         ]
-        base_url = self.backend_settings.base_url
-        reporter = settings.nsa_host
-        try:
-            self.log.debug("adding connection id to note of subscription")
-            result = self._post_url_json(url=f"{base_url}/api/processes/modify_note?reporter={reporter}", json=json)
-        except ConnectionError as con_err:
-            self.log.warning("call to orchestrator failed", reason=str(con_err))
-            raise NsiException(GenericRmError, str(con_err)) from con_err
-        if result.status_code > 210:
-            try:
-                result.raise_for_status()
-            except HTTPError as http_err:
-                self.log.warning("failed to add note to subscription", reason=str(http_err))
-                raise NsiException(GenericRmError, str(http_err)) from http_err
-        return result.json()
+        self.log.debug("adding connection id to note of subscription")
+        return self._start_process("modify_note", json)
 
     def _get_process_info(self, process_id: str) -> Any:
-        info = self._get_url(f"{self.backend_settings.base_url}/api/processes/{process_id}").json()
+        info = self._get_json(f"{self.backend_settings.base_url}/api/processes/{process_id}")
         self.log.debug("process status", process_status=info["last_status"])
         return info
 
@@ -348,19 +315,9 @@ class Backend(BaseBackend):
 
     def _graphql(self, query: str, variables: Dict[str, Any]) -> Any:
         """Run a query against the orchestrator GraphQL API and return its ``data``."""
-        try:
-            response = self._post_url_json(
-                url=f"{self.backend_settings.base_url}/api/graphql", json={"query": query, "variables": variables}
-            )
-        except RequestException as requests_exception:
-            self.log.warning("call to orchestrator failed", reason=str(requests_exception))
-            raise NsiException(GenericRmError, str(requests_exception)) from requests_exception
-        try:
-            response.raise_for_status()
-        except HTTPError as http_err:
-            self.log.warning("graphql query failed", reason=str(http_err))
-            raise NsiException(GenericRmError, str(http_err)) from http_err
-        result = response.json()
+        result = self._post_json(
+            f"{self.backend_settings.base_url}/api/graphql", {"query": query, "variables": variables}
+        )
         if errors := result.get("errors"):
             reason = "; ".join(error["message"] for error in errors)
             self.log.warning("graphql query failed", reason=reason)
@@ -397,9 +354,7 @@ class Backend(BaseBackend):
 
     def _get_domain_model(self, subscription_id: str) -> Any:
         """Fetch the domain model of a single subscription."""
-        return self._get_url(
-            f"{self.backend_settings.base_url}/api/subscriptions/domain-model/{subscription_id}"
-        ).json()
+        return self._get_json(f"{self.backend_settings.base_url}/api/subscriptions/domain-model/{subscription_id}")
 
     def _stp_from_domain_model(self, domain_model: Dict[str, Any]) -> STP:
         """Map a subscription domain model onto an :class:`~supa.nrm.backend.STP`.
@@ -445,7 +400,7 @@ class Backend(BaseBackend):
                 try:
                     self._wait_for_completion(self._add_note(connection_id, subscription_id)["id"])
                 except Exception as exc:
-                    self.log.warning("failed to add note, circuit is active", reason=str(exc))
+                    self.log.warning("failed to add note, circuit is active", reason=str(exc), exc_info=True)
             return subscription_id
 
     def deactivate(

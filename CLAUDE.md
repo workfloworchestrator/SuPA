@@ -65,9 +65,10 @@ keep them, and their tests in `test_server.py`, as they are.
 
 ### Activate contract
 
-Once the NRM holds the circuit, a backend's `activate` returns its id and does not raise.
+Once the NRM holds the circuit, a backend's `activate` must return its id and not raise.
 `ActivateFailed` is final and stores no circuit id, and terminate only deactivates `Activated` or
 `AutoEnd`, so a circuit created by a failed activate stays in the NRM until someone removes it by hand.
+`wfo` follows this; the other backends have not been checked against it.
 
 ### Network Resource Manager Backends
 

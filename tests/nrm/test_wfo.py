@@ -1,7 +1,7 @@
 """Unit tests for the WFO NRM backend topology/auth path.
 
 These tests cover the outbound HTTP helpers that the topology refresh depends on
-(``_retrieve_access_token``, ``_get_url``, ``_get_nsi_stp_subscription_ids``, ``_is_healthy`` and
+(``_retrieve_access_token``, ``_get_json``, ``_get_nsi_stp_subscription_ids``, ``_is_healthy`` and
 ``_get_topology``).  All network access is mocked at the module-level ``requests``
 ``post``/``get`` functions so no real HTTP traffic is made.
 """
@@ -12,7 +12,7 @@ from uuid import UUID
 
 import pytest
 import structlog
-from requests.exceptions import HTTPError, ReadTimeout
+from requests.exceptions import HTTPError, JSONDecodeError, ReadTimeout
 
 from supa.job.shared import NsiException
 from supa.nrm.backend import STP
@@ -72,37 +72,37 @@ def make_backend(backend_class: Type[Backend] = Backend, **overrides: Any) -> Ba
 
 
 def make_response(status_code: int = 200, json_data: Optional[Any] = None) -> MagicMock:
-    """Build a mock ``requests.Response`` that mimics real truthiness (``bool`` == ``ok``)."""
+    """Build a mock ``requests.Response`` whose ``raise_for_status`` raises on 4xx/5xx, like the real one."""
     response = MagicMock(name=f"Response[{status_code}]")
     response.status_code = status_code
-    # A real requests.Response is truthy only when status_code < 400 (Response.ok).
-    response.__bool__.return_value = status_code < 400
     response.json.return_value = {} if json_data is None else json_data
     if status_code >= 400:
-        response.raise_for_status.side_effect = HTTPError(f"{status_code} Error")
+        response.raise_for_status.side_effect = HTTPError(f"{status_code} Error", response=response)
     else:
         response.raise_for_status.return_value = None
     return response
 
 
+def make_non_json_response(status_code: int) -> MagicMock:
+    """Build a mock response whose body is not JSON, such as an HTML page from a proxy."""
+    response = make_response(status_code)
+    response.json.side_effect = JSONDecodeError("not JSON", "<html>", 0)
+    return response
+
+
 @pytest.mark.parametrize(
-    ("oauth2_active", "status_code", "json_data", "expected_token"),
+    ("oauth2_active", "expected_token"),
     [
-        pytest.param(False, None, None, "", id="oauth2-inactive-returns-empty"),
-        pytest.param(True, 200, {"access_token": "the-token"}, "the-token", id="success-returns-token"),
-        # A 4xx/5xx on the token endpoint makes the Response falsy, so an empty token is
-        # returned (no exception): this is what cascades into downstream 401s in production.
-        pytest.param(True, 401, None, "", id="unauthorized-returns-empty-token"),
+        pytest.param(False, "", id="oauth2-inactive-returns-empty"),
+        pytest.param(True, "the-token", id="success-returns-token"),
     ],
 )
-def test_retrieve_access_token_returns_token(
-    oauth2_active: bool, status_code: Optional[int], json_data: Optional[Any], expected_token: str
-) -> None:
-    """``_retrieve_access_token`` returns the bearer token, or empty string when it cannot."""
+def test_retrieve_access_token_returns_token(oauth2_active: bool, expected_token: str) -> None:
+    """``_retrieve_access_token`` returns the bearer token, or an empty string when OAuth2 is off."""
     backend = make_backend(oauth2_active=oauth2_active)
-    with patch("supa.nrm.backends.wfo.post") as mock_post:
-        if status_code is not None:
-            mock_post.return_value = make_response(status_code, json_data)
+    with patch(
+        "supa.nrm.backends.wfo.post", return_value=make_response(200, {"access_token": "the-token"})
+    ) as mock_post:
         assert backend._retrieve_access_token() == expected_token
         if oauth2_active:
             mock_post.assert_called_once()
@@ -110,33 +110,62 @@ def test_retrieve_access_token_returns_token(
             mock_post.assert_not_called()
 
 
-def test_retrieve_access_token_timeout_raises_nsi_exception() -> None:
-    """A token-endpoint timeout must raise ``NsiException`` rather than a raw ``RequestException``.
-
-    Regression test for the stack-trace-in-logs fix: red before the ``wfo.py`` change (a raw
-    ``ReadTimeout`` escapes and is rendered as a CherryPy traceback), green after.
-    """
+@pytest.mark.parametrize(
+    "post_mock",
+    [
+        # A raw ReadTimeout would escape and be rendered as a CherryPy traceback.
+        pytest.param({"side_effect": ReadTimeout("read timed out")}, id="timeout"),
+        # An empty token would only surface later as a 401 from the orchestrator.
+        pytest.param({"return_value": make_response(401)}, id="unauthorized"),
+    ],
+)
+def test_retrieve_access_token_failure_raises_nsi_exception(post_mock: Dict[str, Any]) -> None:
+    """A token-endpoint failure raises ``NsiException``."""
     backend = make_backend()
-    with patch("supa.nrm.backends.wfo.post", side_effect=ReadTimeout("read timed out")):
+    with patch("supa.nrm.backends.wfo.post", **post_mock):
         with pytest.raises(NsiException):
             backend._retrieve_access_token()
 
 
-def test_get_url_success_returns_response() -> None:
-    """``_get_url`` returns the response from an authorised GET."""
+def test_get_json_success_returns_body() -> None:
+    """``_get_json`` returns the JSON body of an authorised GET."""
     backend = make_backend(oauth2_active=False)
-    expected = make_response(200, {"ok": True})
-    with patch("supa.nrm.backends.wfo.get", return_value=expected) as mock_get:
-        assert backend._get_url("http://nrm.test/api/thing") is expected
+    with patch("supa.nrm.backends.wfo.get", return_value=make_response(200, {"ok": True})) as mock_get:
+        assert backend._get_json("http://nrm.test/api/thing") == {"ok": True}
         mock_get.assert_called_once()
 
 
-def test_get_url_request_exception_raises_nsi_exception() -> None:
-    """``_get_url`` converts a ``requests`` transport error into an ``NsiException``."""
+def test_get_json_request_exception_raises_nsi_exception() -> None:
+    """``_get_json`` converts a ``requests`` transport error into an ``NsiException``."""
     backend = make_backend(oauth2_active=False)
     with patch("supa.nrm.backends.wfo.get", side_effect=ReadTimeout("boom")):
         with pytest.raises(NsiException):
-            backend._get_url("http://nrm.test/api/thing")
+            backend._get_json("http://nrm.test/api/thing")
+
+
+@pytest.mark.parametrize(
+    ("post_mock", "reason"),
+    [
+        pytest.param(
+            {"return_value": make_response(400, {"detail": "Vlan(s) 2389 not valid nsi vlan range"})},
+            "Vlan(s) 2389 not valid nsi vlan range",
+            id="orchestrator-detail",
+        ),
+        pytest.param({"return_value": make_response(500, ["no detail"])}, "500 Error", id="body-without-detail"),
+        pytest.param({"return_value": make_non_json_response(502)}, "502 Error", id="non-json-error-body"),
+        pytest.param(
+            {"return_value": make_non_json_response(200)}, "not JSON: line 1 column 1 (char 0)", id="non-json-2xx-body"
+        ),
+        pytest.param({"side_effect": ReadTimeout("read timed out")}, "read timed out", id="transport-error"),
+    ],
+)
+def test_post_json_failure_raises_nsi_exception_with_reason(post_mock: Dict[str, Any], reason: str) -> None:
+    """``_post_json`` raises ``NsiException``, with the orchestrator's ``detail`` as reason when it has one."""
+    backend = make_backend(oauth2_active=False)
+    with patch("supa.nrm.backends.wfo.post", **post_mock):
+        with pytest.raises(NsiException) as exc_info:
+            backend._post_json("http://nrm.test/api/processes/create", [])
+    assert exc_info.value.extra_info == reason
 
 
 def subscriptions_page(subscription_ids: List[str], has_next_page: bool = False) -> MagicMock:
@@ -254,7 +283,7 @@ def test_get_topology_builds_stp_list(backend_class: Type[Backend], domain_model
     backend = make_backend(backend_class, oauth2_active=False)
     with (
         patch.object(backend, "_get_nsi_stp_subscription_ids", return_value=["sub-1"]),
-        patch.object(backend, "_get_url", return_value=make_response(200, domain_model)),
+        patch.object(backend, "_get_json", return_value=domain_model),
     ):
         stps = backend._get_topology()
     assert len(stps) == 1
@@ -366,24 +395,26 @@ def test_wait_for_completion_non_2xx_raises_nsi_exception(status_code: int) -> N
             backend._wait_for_completion("process-1")
 
 
+NOTE_STARTED = make_response(200, {"id": "note"})
+
+
 @pytest.mark.parametrize(
-    ("add_note", "note_response"),
+    ("note_post", "note_response"),
     [
+        pytest.param(NOTE_STARTED, make_response(200, {"last_status": "completed"}), id="note-completed"),
+        pytest.param(ReadTimeout("timed out"), None, id="note-post-times-out"),
+        pytest.param(make_response(401), None, id="note-post-unauthorized"),
+        pytest.param(make_response(200, {}), None, id="note-response-without-id"),
+        pytest.param(NOTE_STARTED, make_response(401), id="note-poll-unauthorized"),
         pytest.param(
-            {"return_value": {"id": "note"}}, make_response(200, {"last_status": "completed"}), id="note-completed"
-        ),
-        pytest.param({"side_effect": ReadTimeout("timed out")}, None, id="note-post-times-out"),
-        pytest.param({"return_value": {}}, None, id="note-response-without-id"),
-        pytest.param({"return_value": {"id": "note"}}, make_response(401), id="note-poll-unauthorized"),
-        pytest.param(
-            {"return_value": {"id": "note"}},
+            NOTE_STARTED,
             make_response(200, {"last_status": "failed", "failed_reason": "boom"}),
             id="note-workflow-failed",
         ),
     ],
 )
 def test_activate_returns_circuit_once_create_completed(
-    add_note: Dict[str, Any], note_response: Optional[MagicMock]
+    note_post: MagicMock | Exception, note_response: Optional[MagicMock]
 ) -> None:
     """Once the create workflow completed, no later request may fail activation and orphan the circuit.
 
@@ -396,8 +427,9 @@ def test_activate_returns_circuit_once_create_completed(
     with (
         patch("supa.nrm.backends.wfo.sleep"),
         patch("supa.nrm.backends.wfo.get", side_effect=[completed_create, note_response]),
+        patch("supa.nrm.backends.wfo.post", side_effect=[note_post]),
         patch.object(backend, "_workflow_create", return_value={"id": "create"}),
-        patch.object(backend, "_add_note", **add_note),
+        patch.object(backend, "_get_global_reservation_id", return_value="global reservation id"),
     ):
         assert backend.activate(UUID(int=1), 1000, "port-1", 100, "port-2", 100, "") == "sub-1"
 
