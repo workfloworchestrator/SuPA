@@ -6,17 +6,19 @@ These tests cover the outbound HTTP helpers that the topology refresh depends on
 ``post``/``get`` functions so no real HTTP traffic is made.
 """
 
-from typing import Any, Dict, List, Optional, Type
+from itertools import chain, repeat
+from typing import Any, Dict, Generator, List, Optional, Type
 from unittest.mock import MagicMock, patch
 from uuid import UUID
 
 import pytest
 import structlog
+from pydantic import ValidationError
 from requests.exceptions import HTTPError, JSONDecodeError, ReadTimeout
 
 from supa.job.shared import NsiException
 from supa.nrm.backend import STP
-from supa.nrm.backends.wfo import Backend, BackendSettings
+from supa.nrm.backends.wfo import NOTE_TIMEOUT, Backend, BackendSettings
 
 
 class ExampleBackend(Backend):
@@ -117,6 +119,10 @@ def test_retrieve_access_token_returns_token(oauth2_active: bool, expected_token
         pytest.param({"side_effect": ReadTimeout("read timed out")}, id="timeout"),
         # An empty token would only surface later as a 401 from the orchestrator.
         pytest.param({"return_value": make_response(401)}, id="unauthorized"),
+        # A KeyError here would escape the poll retry of a running workflow.
+        pytest.param({"return_value": make_response(200, {"error": "invalid_client"})}, id="no-access-token"),
+        pytest.param({"return_value": make_response(200, {"access_token": None})}, id="null-access-token"),
+        pytest.param({"return_value": make_response(200, {"access_token": ""})}, id="empty-access-token"),
     ],
 )
 def test_retrieve_access_token_failure_raises_nsi_exception(post_mock: Dict[str, Any]) -> None:
@@ -383,16 +389,140 @@ def test_primitive_context_does_not_leak_into_later_calls() -> None:
     ]
 
 
-@pytest.mark.parametrize("status_code", [401, 500])
-def test_wait_for_completion_non_2xx_raises_nsi_exception(status_code: int) -> None:
-    """A process poll that is refused raises ``NsiException``, not a ``KeyError`` on ``last_status``."""
+class FakeClock:
+    """Clock whose ``sleep`` advances ``monotonic``, so a wait that runs into its deadline takes no real time."""
+
+    def __init__(self) -> None:
+        """Start at zero."""
+        self.now = 0.0
+
+    def monotonic(self) -> float:
+        """Return the fake time."""
+        return self.now
+
+    time = monotonic  # ``_request_json`` times its requests with ``time.time()``
+
+    def sleep(self, seconds: float) -> None:
+        """Advance the fake time."""
+        self.now += seconds
+
+
+@pytest.fixture(autouse=True)
+def clock() -> Generator[FakeClock, None, None]:
+    """Replace the ``time`` module of the wfo module with a ``FakeClock``, so no test waits for real."""
+    fake = FakeClock()
+    with patch("supa.nrm.backends.wfo.time", fake):
+        yield fake
+
+
+def process_info(status: str, **extra: Any) -> MagicMock:
+    """Build the response of a process poll."""
+    return make_response(200, {"last_status": status, **extra})
+
+
+@pytest.mark.parametrize("status", ["created", "running", "resumed", "awaiting_callback", "some_future_status"])
+def test_wait_for_completion_keeps_polling_while_in_flight(status: str) -> None:
+    """A status that is not final, known or not, is polled on instead of failing the wait."""
     backend = make_backend(oauth2_active=False)
-    with (
-        patch("supa.nrm.backends.wfo.sleep"),
-        patch("supa.nrm.backends.wfo.get", return_value=make_response(status_code, {"detail": "Unauthorized"})),
-    ):
-        with pytest.raises(NsiException):
+    polls = [process_info(status), process_info(status), process_info("completed")]
+    with patch("supa.nrm.backends.wfo.get", side_effect=polls) as mock_get:
+        assert backend._wait_for_completion("process-1")["last_status"] == "completed"
+    assert mock_get.call_count == 3
+
+
+@pytest.mark.parametrize(
+    ("body", "reason"),
+    [
+        pytest.param({"last_status": "failed", "failed_reason": "vlan in use"}, "vlan in use", id="failed-with-reason"),
+        pytest.param(
+            {"last_status": "failed", "failed_reason": None}, "workflow process failed", id="failed-without-reason"
+        ),
+        *(
+            pytest.param({"last_status": status}, f"workflow process {status}", id=status)
+            for status in ("aborted", "api_unavailable", "inconsistent_data", "suspended", "waiting")
+        ),
+    ],
+)
+def test_wait_for_completion_raises_once_process_ended(body: Dict[str, Any], reason: str) -> None:
+    """A process that failed, or waits for an operator, ends the wait at the first poll."""
+    backend = make_backend(oauth2_active=False)
+    with patch("supa.nrm.backends.wfo.get", return_value=make_response(200, body)) as mock_get:
+        with pytest.raises(NsiException) as exc_info:
             backend._wait_for_completion("process-1")
+    assert exc_info.value.extra_info == reason
+    assert mock_get.call_count == 1
+
+
+@pytest.mark.parametrize("status", ["running", "awaiting_callback", "some_future_status"])
+def test_wait_for_completion_times_out_and_names_the_status(status: str, clock: FakeClock) -> None:
+    """A process still in flight at the deadline raises, with the status as reason, on the deadline itself."""
+    backend = make_backend(oauth2_active=False, process_timeout=60)
+    with patch("supa.nrm.backends.wfo.get", return_value=process_info(status)):
+        with pytest.raises(NsiException) as exc_info:
+            backend._wait_for_completion("process-1")
+    assert exc_info.value.extra_info == f"workflow process still {status} after 60 s"
+    assert clock.now == 60
+
+
+@pytest.mark.parametrize(
+    "failed_poll",
+    [
+        pytest.param(make_response(401, {"detail": "Unauthorized"}), id="unauthorized"),
+        pytest.param(make_response(502), id="bad-gateway"),
+        pytest.param(ReadTimeout("timed out"), id="read-timeout"),
+        pytest.param(make_response(200, {}), id="body-without-last-status"),
+    ],
+)
+def test_wait_for_completion_retries_a_failed_poll(failed_poll: MagicMock | Exception) -> None:
+    """The process runs on in the orchestrator, so a failed poll is retried, not fatal."""
+    backend = make_backend(oauth2_active=False)
+    polls = [failed_poll, failed_poll, process_info("completed")]
+    with patch("supa.nrm.backends.wfo.get", side_effect=polls):
+        assert backend._wait_for_completion("process-1")["last_status"] == "completed"
+
+
+@pytest.mark.parametrize(
+    ("process_timeout", "polls"),
+    [
+        pytest.param(2, 2, id="deadline-before-first-retry"),
+        pytest.param(5, 3, id="deadline-in-the-second-delay"),
+        pytest.param(20, 4, id="deadline-in-the-third-delay"),
+    ],
+)
+def test_wait_for_completion_gives_up_at_the_deadline(process_timeout: float, polls: int, clock: FakeClock) -> None:
+    """A poll that keeps failing is retried with the last poll on the deadline, then the wait raises."""
+    backend = make_backend(oauth2_active=False, process_timeout=process_timeout)
+    with patch("supa.nrm.backends.wfo.get", return_value=make_response(401)) as mock_get:
+        with pytest.raises(NsiException) as exc_info:
+            backend._wait_for_completion("process-1")
+    assert exc_info.value.extra_info == f"workflow process unreachable after {process_timeout:g} s"
+    assert mock_get.call_count == polls
+    assert clock.now == process_timeout
+
+
+def test_wait_for_completion_backs_off_up_to_the_cap(clock: FakeClock) -> None:
+    """The delay after a failed poll doubles from 3 s up to a cap of 30 s, after the 1 s before the first poll."""
+    backend = make_backend(oauth2_active=False)
+    polls = [make_response(502)] * 7 + [process_info("completed")]
+    with patch("supa.nrm.backends.wfo.get", side_effect=polls):
+        backend._wait_for_completion("process-1")
+    assert clock.now == 1 + 3 + 6 + 12 + 24 + 30 + 30 + 30
+
+
+def test_wait_for_completion_resets_the_backoff_after_a_poll_succeeds(clock: FakeClock) -> None:
+    """A poll that gets through resets the delay, so the next failure starts again at 3 s instead of 6 s."""
+    backend = make_backend(oauth2_active=False)
+    polls = [make_response(502), process_info("running"), make_response(502), process_info("completed")]
+    with patch("supa.nrm.backends.wfo.get", side_effect=polls):
+        backend._wait_for_completion("process-1")
+    assert clock.now == 1 + 3 + 3 + 3
+
+
+@pytest.mark.parametrize("process_timeout", [0, -1])
+def test_process_timeout_must_be_positive(process_timeout: float) -> None:
+    """A zero timeout would fail every activation while its workflow keeps running."""
+    with pytest.raises(ValidationError):
+        BackendSettings(process_timeout=process_timeout)
 
 
 NOTE_STARTED = make_response(200, {"id": "note"})
@@ -401,45 +531,41 @@ NOTE_STARTED = make_response(200, {"id": "note"})
 @pytest.mark.parametrize(
     ("note_post", "note_response"),
     [
-        pytest.param(NOTE_STARTED, make_response(200, {"last_status": "completed"}), id="note-completed"),
+        pytest.param(NOTE_STARTED, process_info("completed"), id="note-completed"),
         pytest.param(ReadTimeout("timed out"), None, id="note-post-times-out"),
         pytest.param(make_response(401), None, id="note-post-unauthorized"),
         pytest.param(make_response(200, {}), None, id="note-response-without-id"),
         pytest.param(NOTE_STARTED, make_response(401), id="note-poll-unauthorized"),
-        pytest.param(
-            NOTE_STARTED,
-            make_response(200, {"last_status": "failed", "failed_reason": "boom"}),
-            id="note-workflow-failed",
-        ),
+        pytest.param(NOTE_STARTED, process_info("failed", failed_reason="boom"), id="note-workflow-failed"),
+        pytest.param(NOTE_STARTED, process_info("running"), id="note-stays-running"),
     ],
 )
 def test_activate_returns_circuit_once_create_completed(
-    note_post: MagicMock | Exception, note_response: Optional[MagicMock]
+    note_post: MagicMock | Exception, note_response: Optional[MagicMock], clock: FakeClock
 ) -> None:
     """Once the create workflow completed, no later request may fail activation and orphan the circuit.
 
-    The create process is polled once; a second poll of it would get ``note_response`` and fail the test.
+    The create process is polled once. Every poll of the note process gets ``note_response``, so a failing note
+    poll keeps retrying until its deadline instead of ending on an exhausted mock, and the note holds back the
+    circuit for ``NOTE_TIMEOUT`` at most, requests taking no time on the fake clock.
     """
     backend = make_backend(oauth2_active=False)
-    completed_create = make_response(
-        200, {"last_status": "completed", "current_state": {"subscription": {"subscription_id": "sub-1"}}}
-    )
+    completed_create = process_info("completed", current_state={"subscription": {"subscription_id": "sub-1"}})
     with (
-        patch("supa.nrm.backends.wfo.sleep"),
-        patch("supa.nrm.backends.wfo.get", side_effect=[completed_create, note_response]),
+        patch("supa.nrm.backends.wfo.get", side_effect=chain([completed_create], repeat(note_response))),
         patch("supa.nrm.backends.wfo.post", side_effect=[note_post]),
         patch.object(backend, "_workflow_create", return_value={"id": "create"}),
         patch.object(backend, "_get_global_reservation_id", return_value="global reservation id"),
     ):
         assert backend.activate(UUID(int=1), 1000, "port-1", 100, "port-2", 100, "") == "sub-1"
+    assert clock.now <= NOTE_TIMEOUT + 1  # the 1 s pause before the create poll comes first
 
 
 def test_activate_create_workflow_failure_raises_nsi_exception() -> None:
     """A failed create workflow still fails activation: there is no circuit to keep."""
     backend = make_backend(oauth2_active=False)
-    failed = make_response(200, {"last_status": "failed", "failed_reason": "vlan in use"})
+    failed = process_info("failed", failed_reason="vlan in use")
     with (
-        patch("supa.nrm.backends.wfo.sleep"),
         patch("supa.nrm.backends.wfo.get", return_value=failed),
         patch.object(backend, "_workflow_create", return_value={"id": "create"}),
         patch.object(backend, "_add_note") as mock_add_note,
@@ -447,3 +573,21 @@ def test_activate_create_workflow_failure_raises_nsi_exception() -> None:
         with pytest.raises(NsiException):
             backend.activate(UUID(int=1), 1000, "port-1", 100, "port-2", 100, "")
     mock_add_note.assert_not_called()
+
+
+def test_activate_survives_failed_poll_while_create_is_in_flight() -> None:
+    """A failed poll while the create runs must not fail activation and orphan the circuit."""
+    backend = make_backend(oauth2_active=False)
+    polls = [
+        make_response(401),
+        process_info("running"),
+        process_info("completed", current_state={"subscription": {"subscription_id": "sub-1"}}),
+        process_info("completed"),  # the modify_note process
+    ]
+    with (
+        patch("supa.nrm.backends.wfo.get", side_effect=polls),
+        patch("supa.nrm.backends.wfo.post", side_effect=[NOTE_STARTED]),
+        patch.object(backend, "_workflow_create", return_value={"id": "create"}),
+        patch.object(backend, "_get_global_reservation_id", return_value="global reservation id"),
+    ):
+        assert backend.activate(UUID(int=1), 1000, "port-1", 100, "port-2", 100, "") == "sub-1"

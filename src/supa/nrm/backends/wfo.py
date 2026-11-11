@@ -57,15 +57,16 @@ adding a second env file.
 
 import time
 from json import dumps
-from time import sleep
 from typing import Any, Callable, Dict, List, Optional
 from uuid import UUID
 
+from pydantic import PositiveFloat
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from requests import Response, get, post
 from requests.auth import HTTPBasicAuth
 from requests.exceptions import RequestException
 from structlog.contextvars import bound_contextvars
+from structlog.stdlib import BoundLogger
 
 from supa import settings
 from supa.connection.error import GenericRmError
@@ -74,6 +75,23 @@ from supa.nrm.backend import STP, BaseBackend
 from supa.util.find import find_file
 
 GRAPHQL_PAGE_SIZE = 100
+
+POLL_INTERVAL = 3
+"""Seconds between two polls of a process, and the first delay after a failed poll."""
+
+MAX_POLL_BACKOFF = 30
+"""Longest delay in seconds between two polls of a process that cannot be reached."""
+
+NOTE_TIMEOUT = 30
+"""Seconds to wait for the ``modify_note`` process; the circuit exists by then, so a slow note must not hold it back."""
+
+GIVE_UP_STATUSES = frozenset({"failed", "aborted", "api_unavailable", "inconsistent_data", "suspended", "waiting"})
+"""Process statuses in which SuPA stops waiting.
+
+Besides the failures, ``suspended`` waits for form input that SuPA cannot supply, and ``waiting`` for a
+step retry that only an operator or the periodic resume task of orchestrator-core (hourly by default)
+starts. Any other status, known or not, is polled until ``completed`` or the deadline.
+"""
 
 STP_SUBSCRIPTIONS_QUERY = """
 query StpSubscriptions($filterBy: [GraphqlFilter!], $first: Int!, $after: Int!) {
@@ -126,6 +144,7 @@ class BackendSettings(BaseSettings):
     connect_timeout: float = 9.05
     read_timeout: float = 12.0
     write_timeout: float = 18.0
+    process_timeout: PositiveFloat = 300.0
 
 
 class Backend(BaseBackend):
@@ -158,7 +177,7 @@ class Backend(BaseBackend):
         timeout = (self.backend_settings.connect_timeout, self.backend_settings.write_timeout)
         if self.backend_settings.oauth2_active:
             self.log.debug("retrieve access token")
-            access_token = self._request_json(
+            token_response = self._request_json(
                 "unable to retrieve access token",
                 self.backend_settings.oidc_url,
                 lambda: post(
@@ -168,7 +187,13 @@ class Backend(BaseBackend):
                     data="grant_type=client_credentials",
                     timeout=timeout,
                 ),
-            )["access_token"]
+            )
+            match token_response:
+                case {"access_token": str() as access_token} if access_token:
+                    pass
+                case _:
+                    self.log.warning("token response without access_token", url=self.backend_settings.oidc_url)
+                    raise NsiException(GenericRmError, "token response without access_token")
         self.log.debug(
             "workflow credentials", have_access_token=bool(access_token), base_url=self.backend_settings.base_url
         )
@@ -286,24 +311,64 @@ class Backend(BaseBackend):
         return self._start_process("modify_note", json)
 
     def _get_process_info(self, process_id: str) -> Any:
-        info = self._get_json(f"{self.backend_settings.base_url}/api/processes/{process_id}")
-        self.log.debug("process status", process_status=info["last_status"])
-        return info
+        """Get the process info; a body without ``last_status`` raises ``NsiException`` like a failed request."""
+        url = f"{self.backend_settings.base_url}/api/processes/{process_id}"
+        match self._get_json(url):
+            case {"last_status": str() as status} as info:
+                self.log.debug("process status", process_status=status)
+                return info
+            case _:
+                self.log.warning("process info without last_status", url=url)
+                raise NsiException(GenericRmError, "process info without last_status")
 
-    def _wait_for_completion(self, process_id: str) -> Any:
-        """Poll the process until it ends and return its last process info."""
-        log = self.log.bind(process_id=process_id)
-        sleep(1)
-        while (info := self._get_process_info(process_id))["last_status"] == "created" or info[
-            "last_status"
-        ] == "running":
-            log.debug("waiting on workflow to finish", status=info["last_status"])
-            sleep(3)
-        if info["last_status"] == "completed":
-            log.info("workflow finished", status=info["last_status"])
+    @staticmethod
+    def _process_ended(log: BoundLogger, info: Any) -> Any:
+        """Return the info of a completed process; raise ``NsiException`` for any other ended process."""
+        status = info["last_status"]
+        if status == "completed":
+            log.info("workflow finished", status=status)
             return info
-        log.warning("workflow process failed", status=info["last_status"], reason=info["failed_reason"])
-        raise NsiException(GenericRmError, info["failed_reason"]) from None
+        reason = info.get("failed_reason") or f"workflow process {status}"
+        log.warning("workflow process did not complete", status=status, reason=reason)
+        raise NsiException(GenericRmError, reason)
+
+    def _wait_for_completion(self, process_id: str, timeout: Optional[float] = None) -> Any:
+        """Poll the process until it ends and return its last process info.
+
+        A failed poll is retried with backoff, since the process keeps running in the orchestrator whether or
+        not SuPA can reach it. The last poll falls on the deadline, so the wait can overrun it by one poll.
+
+        Args:
+            process_id: The process to wait for.
+            timeout: Seconds to wait, ``process_timeout`` when omitted.
+
+        Raises:
+            NsiException: The process failed or needs an operator, or the deadline passed first. In the latter
+                case the process may still be running; the log line has its id.
+        """
+        log = self.log.bind(process_id=process_id)
+        timeout = self.backend_settings.process_timeout if timeout is None else timeout
+        deadline = time.monotonic() + timeout
+        delay = backoff = POLL_INTERVAL
+        time.sleep(1)
+        while True:
+            status: Optional[str] = None
+            try:
+                info = self._get_process_info(process_id)
+            except NsiException:  # already logged by the request helper
+                delay, backoff = backoff, min(2 * backoff, MAX_POLL_BACKOFF)
+            else:
+                status = info["last_status"]
+                if status == "completed" or status in GIVE_UP_STATUSES:
+                    return self._process_ended(log, info)
+                log.debug("waiting on workflow to finish", status=status)
+                delay = backoff = POLL_INTERVAL
+            if (remaining := deadline - time.monotonic()) <= 0:
+                state = f"still {status}" if status else "unreachable"
+                reason = f"workflow process {state} after {timeout:g} s"
+                log.warning("workflow process timed out", reason=reason)
+                raise NsiException(GenericRmError, reason)
+            time.sleep(min(delay, remaining))
 
     @staticmethod
     def _subscription_id_from(process_info: Any) -> str:
@@ -398,7 +463,7 @@ class Backend(BaseBackend):
             with bound_contextvars(subscription_id=subscription_id):
                 # The circuit exists now; failing on the note would leave it in the NRM unknown to SuPA.
                 try:
-                    self._wait_for_completion(self._add_note(connection_id, subscription_id)["id"])
+                    self._wait_for_completion(self._add_note(connection_id, subscription_id)["id"], NOTE_TIMEOUT)
                 except Exception as exc:
                     self.log.warning("failed to add note, circuit is active", reason=str(exc), exc_info=True)
             return subscription_id

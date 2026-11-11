@@ -70,6 +70,12 @@ Once the NRM holds the circuit, a backend's `activate` must return its id and no
 `AutoEnd`, so a circuit created by a failed activate stays in the NRM until someone removes it by hand.
 `wfo` follows this; the other backends have not been checked against it.
 
+`wfo` polls the workflow process with a deadline and retries a failed poll; `GIVE_UP_STATUSES` are the
+statuses that end a wait. A wait that gives up leaves a live process in the orchestrator: a create can
+still produce a circuit SuPA does not know, and a terminate can still complete after SuPA recorded
+`DeactivateFailed`. The log line carries the process id. The `modify_note` wait is capped at
+`NOTE_TIMEOUT` and its failure swallowed.
+
 ### Network Resource Manager Backends
 
 Pluggable backends in `nrm/backends/` implement `nrm/backend.py:BaseBackend`. Available: `example` (reference), `wfo`, `ciena8190`, `nso`. Selected via `backend` setting in `supa.env`.
