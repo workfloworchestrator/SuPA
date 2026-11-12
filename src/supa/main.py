@@ -34,7 +34,7 @@ import structlog
 from click import Context, Option
 from tabulate import tabulate
 
-from supa import current_timestamp, init_app, recover_jobs, settings
+from supa import current_timestamp, hide_password, init_app, recover_jobs, settings
 from supa.db.model import P2PCriteria, Schedule
 from supa.documents import webengine
 from supa.grpc_nsi import connection_provider_pb2_grpc
@@ -146,6 +146,7 @@ def database_uri_option(f):  # type: ignore
             settings.database_uri = cos.database_uri
         return value
 
+    masked_default = hide_password(settings.database_uri)
     return click.option(
         "--database-uri",
         type=str,
@@ -153,6 +154,7 @@ def database_uri_option(f):  # type: ignore
         help="database URI, supports sqlite and postgresql",
         callback=callback,
         default=settings.database_uri,
+        show_default=masked_default if masked_default != settings.database_uri else True,
     )(f)
 
 

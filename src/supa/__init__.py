@@ -53,8 +53,8 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.schedulers.base import BaseScheduler
 from apscheduler.util import undefined
 from pydantic_settings import BaseSettings
-from sqlalchemy import create_engine
-from sqlalchemy.exc import OperationalError
+from sqlalchemy import create_engine, make_url
+from sqlalchemy.exc import ArgumentError, OperationalError
 from sqlalchemy.orm import scoped_session, sessionmaker
 
 from supa.db.model import Base
@@ -337,6 +337,23 @@ def resolve_database_file(database_file: Union[Path, str]) -> Path:
     return resolved_path
 
 
+def hide_password(database_uri: str) -> str:
+    """Return ``database_uri`` with the password masked, safe to log or print.
+
+    Covers the password in the userinfo part and every query parameter whose name contains ``password``.
+    A URI without a password is returned as is, and one that cannot be parsed is replaced by a placeholder.
+    """
+    try:
+        url = make_url(database_uri)
+    except (ArgumentError, ValueError):  # ValueError: non-numeric port
+        return "<unparseable database URI>"
+    if masked_query := {key: "***" for key in url.query if "password" in key}:
+        url = url.update_query_dict(masked_query)
+    elif url.password is None:
+        return database_uri
+    return url.render_as_string(hide_password=True)
+
+
 settings = Settings(_env_file=resolve_env_file())  # type: ignore[call-arg]
 """Application wide settings.
 
@@ -493,7 +510,7 @@ def init_app(with_scheduler: bool = True) -> None:
 
     import supa.db.session
 
-    logger.info("Create database connection", database_uri=database_uri)
+    logger.info("Create database connection", database_uri=hide_password(database_uri))
     try:
         engine = create_engine(database_uri, echo=settings.sql_echo_enable)
         Base.metadata.create_all(engine)
