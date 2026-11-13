@@ -57,7 +57,7 @@ adding a second env file.
 
 import time
 from json import dumps
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 from uuid import UUID
 
 from pydantic import PositiveFloat
@@ -84,6 +84,15 @@ MAX_POLL_BACKOFF = 30
 
 NOTE_TIMEOUT = 30
 """Seconds to wait for the ``modify_note`` process; the circuit exists by then, so a slow note must not hold it back."""
+
+TOKEN_EXPIRY_MARGIN = 60
+"""Seconds before its expiry that a cached access token is replaced.
+
+A token that lapses while a request is in flight is caught by the 401 retry, so this is not a hard bound.
+"""
+
+NO_ACCESS_TOKEN = ("", 0.0)
+"""The empty cache: no token, due for replacement at once."""
 
 GIVE_UP_STATUSES = frozenset({"failed", "aborted", "api_unavailable", "inconsistent_data", "suspended", "waiting"})
 """Process statuses in which SuPA stops waiting.
@@ -154,6 +163,9 @@ class Backend(BaseBackend):
     the products and workflows of your own orchestrator; see the module docstring for an example.
     """
 
+    # The cached token and the time.monotonic() at which to replace it; a tuple, so one assignment swaps both.
+    _access_token: Tuple[str, float] = NO_ACCESS_TOKEN
+
     def __init__(self) -> None:
         """Load properties from 'wfo.env'."""
         super(Backend, self).__init__()
@@ -173,31 +185,71 @@ class Backend(BaseBackend):
             raise FileNotFoundError("Backend wfo env file not found")
 
     def _retrieve_access_token(self) -> str:
+        """Return the bearer token, or an empty string when OAuth2 is off.
+
+        The token is cached until :data:`TOKEN_EXPIRY_MARGIN` seconds before it expires, so polls do not each
+        fetch one. There is no lock: threads that find the cache empty together each fetch, the last one is kept.
+        """
         access_token = ""  # noqa: S105
-        timeout = (self.backend_settings.connect_timeout, self.backend_settings.write_timeout)
         if self.backend_settings.oauth2_active:
-            self.log.debug("retrieve access token")
-            token_response = self._request_json(
-                "unable to retrieve access token",
-                self.backend_settings.oidc_url,
-                lambda: post(
-                    self.backend_settings.oidc_url,
-                    auth=HTTPBasicAuth(self.backend_settings.oidc_user, self.backend_settings.oidc_password),
-                    headers={"Content-Type": "application/x-www-form-urlencoded"},
-                    data="grant_type=client_credentials",
-                    timeout=timeout,
-                ),
-            )
-            match token_response:
-                case {"access_token": str() as access_token} if access_token:
-                    pass
-                case _:
-                    self.log.warning("token response without access_token", url=self.backend_settings.oidc_url)
-                    raise NsiException(GenericRmError, "token response without access_token")
+            access_token, replace_at = self._access_token
+            if time.monotonic() >= replace_at:
+                access_token, replace_at = self._fetch_access_token()
+                self._access_token = (access_token, replace_at)
         self.log.debug(
             "workflow credentials", have_access_token=bool(access_token), base_url=self.backend_settings.base_url
         )
         return access_token
+
+    def _fetch_access_token(self) -> Tuple[str, float]:
+        """Ask the OIDC server for a token; return it with the ``time.monotonic()`` at which to replace it."""
+        timeout = (self.backend_settings.connect_timeout, self.backend_settings.write_timeout)
+        token_response = self._request_json(
+            "unable to retrieve access token",
+            self.backend_settings.oidc_url,
+            lambda: post(
+                self.backend_settings.oidc_url,
+                auth=HTTPBasicAuth(self.backend_settings.oidc_user, self.backend_settings.oidc_password),
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                data="grant_type=client_credentials",
+                timeout=timeout,
+            ),
+        )
+        match token_response:
+            case {"access_token": str() as access_token, "expires_in": int() | float() as lifetime} if access_token:
+                pass
+            case {"access_token": str() as access_token} if access_token:
+                lifetime = 0  # without a usable expires_in the token is not cached
+            case _:
+                self.log.warning("token response without access_token", url=self.backend_settings.oidc_url)
+                raise NsiException(GenericRmError, "token response without access_token")
+        now = time.monotonic()
+        replace_at = now + lifetime - TOKEN_EXPIRY_MARGIN
+        # Info once per cached token; at debug for a token that is fetched again on every call.
+        log = self.log.info if replace_at > now else self.log.debug
+        log("retrieved access token", url=self.backend_settings.oidc_url, expires_in=token_response.get("expires_in"))
+        return access_token, replace_at
+
+    def _discard_access_token(self, token: str) -> None:
+        """Forget ``token`` if it is still the cached one; another thread may have replaced it already."""
+        if self._access_token[0] == token:
+            self._access_token = NO_ACCESS_TOKEN
+
+    def _send_authorised(self, method: Callable[..., Response], url: str, **kwargs: Any) -> Response:
+        """Send a request with the bearer token; a 401 for a cached token is retried once with a new one.
+
+        A 401 for a cached token means it was revoked, or its signing key rotated, before it expired. A token
+        fetched for this request is not retried: a second one would be rejected as well.
+        """
+        cached = self._access_token[0]
+        token = self._retrieve_access_token()
+        response = method(url=url, headers={"Authorization": f"bearer {token}"}, **kwargs)
+        if response.status_code == 401 and token and token == cached:
+            self.log.warning("cached access token rejected, retrying with a new one", url=url)
+            self._discard_access_token(token)
+            retry_token = self._retrieve_access_token()
+            response = method(url=url, headers={"Authorization": f"bearer {retry_token}"}, **kwargs)
+        return response
 
     def _request_json(self, event: str, url: str, send: Callable[[], Response]) -> Any:
         """Send a request and return its JSON body.
@@ -219,16 +271,14 @@ class Backend(BaseBackend):
 
     def _get_json(self, url: str) -> Any:
         """Get the JSON body of an authorised URL."""
-        headers = {"Authorization": f"bearer {self._retrieve_access_token()}"}
         timeout = (self.backend_settings.connect_timeout, self.backend_settings.read_timeout)
-        return self._request_json("cannot get url", url, lambda: get(url=url, headers=headers, timeout=timeout))
+        return self._request_json("cannot get url", url, lambda: self._send_authorised(get, url, timeout=timeout))
 
     def _post_json(self, url: str, json: Any) -> Any:
         """Post JSON to an authorised URL and return the JSON body of the response."""
-        headers = {"Authorization": f"bearer {self._retrieve_access_token()}", "Content-Type": "application/json"}
         timeout = (self.backend_settings.connect_timeout, self.backend_settings.write_timeout)
         return self._request_json(
-            "cannot post url", url, lambda: post(url=url, headers=headers, json=json, timeout=timeout)
+            "cannot post url", url, lambda: self._send_authorised(post, url, json=json, timeout=timeout)
         )
 
     def _start_process(self, workflow_name: str, json: Any) -> Any:

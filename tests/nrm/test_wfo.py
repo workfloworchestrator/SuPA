@@ -18,7 +18,7 @@ from requests.exceptions import HTTPError, JSONDecodeError, ReadTimeout
 
 from supa.job.shared import NsiException
 from supa.nrm.backend import STP
-from supa.nrm.backends.wfo import NOTE_TIMEOUT, Backend, BackendSettings
+from supa.nrm.backends.wfo import NOTE_TIMEOUT, TOKEN_EXPIRY_MARGIN, Backend, BackendSettings
 
 
 class ExampleBackend(Backend):
@@ -92,6 +92,40 @@ def make_non_json_response(status_code: int) -> MagicMock:
     return response
 
 
+TOKEN_LIFETIME = 3600
+
+
+def make_token_response(token: str, **extra: Any) -> MagicMock:
+    """Build the response of the token endpoint; ``extra`` adds to or overrides ``expires_in``."""
+    return make_response(200, {"access_token": token, "expires_in": TOKEN_LIFETIME, **extra})
+
+
+class FakeClock:
+    """Clock whose ``sleep`` advances ``monotonic``, so a wait that runs into its deadline takes no real time."""
+
+    def __init__(self) -> None:
+        """Start at zero."""
+        self.now = 0.0
+
+    def monotonic(self) -> float:
+        """Return the fake time."""
+        return self.now
+
+    time = monotonic  # ``_request_json`` times its requests with ``time.time()``
+
+    def sleep(self, seconds: float) -> None:
+        """Advance the fake time."""
+        self.now += seconds
+
+
+@pytest.fixture(autouse=True)
+def clock() -> Generator[FakeClock, None, None]:
+    """Replace the ``time`` module of the wfo module with a ``FakeClock``, so no test waits for real."""
+    fake = FakeClock()
+    with patch("supa.nrm.backends.wfo.time", fake):
+        yield fake
+
+
 @pytest.mark.parametrize(
     ("oauth2_active", "expected_token"),
     [
@@ -131,6 +165,138 @@ def test_retrieve_access_token_failure_raises_nsi_exception(post_mock: Dict[str,
     with patch("supa.nrm.backends.wfo.post", **post_mock):
         with pytest.raises(NsiException):
             backend._retrieve_access_token()
+
+
+@pytest.mark.parametrize(
+    ("token_response", "elapsed", "token_requests"),
+    [
+        pytest.param(make_token_response("t"), TOKEN_LIFETIME - TOKEN_EXPIRY_MARGIN - 1, 1, id="reused-to-the-margin"),
+        pytest.param(make_token_response("t"), TOKEN_LIFETIME - TOKEN_EXPIRY_MARGIN, 2, id="replaced-at-the-margin"),
+        pytest.param(make_token_response("t", expires_in=TOKEN_EXPIRY_MARGIN), 0, 2, id="lifetime-within-margin"),
+        pytest.param(make_token_response("t", expires_in=str(TOKEN_LIFETIME)), 0, 2, id="string-lifetime-not-cached"),
+        pytest.param(make_response(200, {"access_token": "t"}), 0, 2, id="no-lifetime-not-cached"),
+    ],
+)
+def test_retrieve_access_token_is_cached_until_the_margin(
+    token_response: MagicMock, elapsed: float, token_requests: int, clock: FakeClock
+) -> None:
+    """A token is requested again once ``TOKEN_EXPIRY_MARGIN`` seconds before its expiry, or at once if it has none."""
+    backend = make_backend()
+    with patch("supa.nrm.backends.wfo.post", return_value=token_response) as mock_post:
+        backend._retrieve_access_token()
+        clock.now += elapsed
+        assert backend._retrieve_access_token() == "t"
+    assert mock_post.call_count == token_requests
+
+
+def test_failed_token_request_is_not_cached() -> None:
+    """A failure leaves no token behind, so the next call asks the token endpoint again."""
+    backend = make_backend()
+    with patch("supa.nrm.backends.wfo.post", side_effect=[ReadTimeout("read timed out"), make_token_response("t")]):
+        with pytest.raises(NsiException):
+            backend._retrieve_access_token()
+        assert backend._retrieve_access_token() == "t"
+
+
+def test_send_authorised_replaces_a_rejected_cached_token_and_retries() -> None:
+    """A 401 for the cached token drops it; the request is sent again with a new one, which is then kept."""
+    backend = make_backend()
+    method = MagicMock(side_effect=[make_response(401), make_response(200, {"ok": True})])
+    with patch(
+        "supa.nrm.backends.wfo.post", side_effect=[make_token_response("old"), make_token_response("new")]
+    ) as mock_post:
+        backend._retrieve_access_token()
+        response = backend._send_authorised(method, url="http://nrm.test/api/thing")
+        assert backend._retrieve_access_token() == "new"
+    assert response.status_code == 200
+    assert [call.kwargs["headers"] for call in method.call_args_list] == [
+        {"Authorization": "bearer old"},
+        {"Authorization": "bearer new"},
+    ]
+    assert mock_post.call_count == 2
+
+
+@pytest.mark.parametrize(
+    ("oauth2_active", "warm_cache", "attempts"),
+    [
+        pytest.param(True, True, 2, id="cached-token-retried-once"),
+        pytest.param(True, False, 1, id="fresh-token-not-retried"),
+        pytest.param(False, False, 1, id="no-token-no-retry"),
+    ],
+)
+def test_authorised_request_retries_a_401_at_most_once(oauth2_active: bool, warm_cache: bool, attempts: int) -> None:
+    """A 401 comes back as an ``NsiException``, after one retry if the token was cached and so may be stale."""
+    backend = make_backend(oauth2_active=oauth2_active)
+    with (
+        patch("supa.nrm.backends.wfo.post", return_value=make_token_response("t")),
+        patch("supa.nrm.backends.wfo.get", return_value=make_response(401)) as mock_get,
+    ):
+        if warm_cache:
+            backend._retrieve_access_token()
+        with pytest.raises(NsiException):
+            backend._get_json("http://nrm.test/api/thing")
+    assert mock_get.call_count == attempts
+
+
+def test_send_authorised_failed_token_renewal_raises() -> None:
+    """If the new token cannot be fetched, the failure is raised and the request is not sent again."""
+    backend = make_backend()
+    method = MagicMock(return_value=make_response(401))
+    with patch("supa.nrm.backends.wfo.post", side_effect=[make_token_response("old"), ReadTimeout("read timed out")]):
+        backend._retrieve_access_token()
+        with pytest.raises(NsiException):
+            backend._send_authorised(method, url="http://nrm.test/api/thing")
+    method.assert_called_once()
+
+
+def test_send_authorised_uses_the_token_another_thread_already_renewed(clock: FakeClock) -> None:
+    """If another thread replaced the rejected token meanwhile, the retry uses that one and fetches none."""
+    backend = make_backend()
+    sent: List[Dict[str, str]] = []
+
+    def reject_while_another_thread_renews(headers: Dict[str, str], **kwargs: Any) -> MagicMock:
+        sent.append(headers)
+        if len(sent) == 1:
+            backend._access_token = ("sibling", clock.now + TOKEN_LIFETIME)
+            return make_response(401)
+        return make_response(200)
+
+    with patch("supa.nrm.backends.wfo.post", return_value=make_token_response("old")) as mock_post:
+        backend._retrieve_access_token()
+        backend._send_authorised(reject_while_another_thread_renews, "http://nrm.test/api/thing")
+    assert sent == [{"Authorization": "bearer old"}, {"Authorization": "bearer sibling"}]
+    mock_post.assert_called_once()
+
+
+def test_post_json_resends_the_body_with_a_new_token() -> None:
+    """A 401 for the cached token also resends a POST, body included."""
+    backend = make_backend()
+    answers = [
+        make_token_response("old"),
+        make_response(401),
+        make_token_response("new"),
+        make_response(200, {"id": 1}),
+    ]
+    with patch("supa.nrm.backends.wfo.post", side_effect=answers) as mock_post:
+        backend._retrieve_access_token()
+        assert backend._post_json("http://nrm.test/api/thing", {"a": 1}) == {"id": 1}
+    # The calls are: token, request, token, request.
+    assert [(call.kwargs["headers"], call.kwargs["json"]) for call in mock_post.call_args_list[1::2]] == [
+        ({"Authorization": "bearer old"}, {"a": 1}),
+        ({"Authorization": "bearer new"}, {"a": 1}),
+    ]
+
+
+def test_wait_for_completion_requests_one_token_for_all_polls() -> None:
+    """The polls of one wait share a token, instead of asking for one on every poll."""
+    backend = make_backend()
+    polls = [process_info("running"), process_info("running"), process_info("completed")]
+    with (
+        patch("supa.nrm.backends.wfo.post", return_value=make_token_response("t")) as mock_post,
+        patch("supa.nrm.backends.wfo.get", side_effect=polls),
+    ):
+        backend._wait_for_completion("process-1")
+    mock_post.assert_called_once()
 
 
 def test_get_json_success_returns_body() -> None:
@@ -387,32 +553,6 @@ def test_primitive_context_does_not_leak_into_later_calls() -> None:
         {"event": "in topology", "primitive": "topology"},
         {"event": "after"},
     ]
-
-
-class FakeClock:
-    """Clock whose ``sleep`` advances ``monotonic``, so a wait that runs into its deadline takes no real time."""
-
-    def __init__(self) -> None:
-        """Start at zero."""
-        self.now = 0.0
-
-    def monotonic(self) -> float:
-        """Return the fake time."""
-        return self.now
-
-    time = monotonic  # ``_request_json`` times its requests with ``time.time()``
-
-    def sleep(self, seconds: float) -> None:
-        """Advance the fake time."""
-        self.now += seconds
-
-
-@pytest.fixture(autouse=True)
-def clock() -> Generator[FakeClock, None, None]:
-    """Replace the ``time`` module of the wfo module with a ``FakeClock``, so no test waits for real."""
-    fake = FakeClock()
-    with patch("supa.nrm.backends.wfo.time", fake):
-        yield fake
 
 
 def process_info(status: str, **extra: Any) -> MagicMock:
