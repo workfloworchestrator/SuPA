@@ -14,12 +14,14 @@
 
 from __future__ import annotations
 
-from typing import Union
+from typing import NamedTuple, Union
 from uuid import UUID
 
 import structlog
+from google.protobuf.message import DecodeError
 from grpc import ServicerContext
 from statemachine.exceptions import TransitionNotAllowed
+from structlog.stdlib import BoundLogger
 
 from supa import settings
 from supa.connection.error import (
@@ -64,6 +66,7 @@ from supa.job.query import (
     create_query_notification_confirmed_request,
     create_query_result_confirmed_request,
 )
+from supa.job.resend import ResendResultJob
 from supa.job.reserve import ReserveAbortJob, ReserveCommitJob, ReserveJob, ReserveTimeoutJob
 from supa.job.shared import Job, NsiException
 from supa.util.converter import to_response_header, to_service_exception
@@ -73,9 +76,22 @@ from supa.util.type import RequestType
 
 logger = structlog.get_logger(__name__)
 
+ProviderRequest = Union[ReserveRequest, GenericRequest, QueryRequest, QueryNotificationRequest, QueryResultRequest]
 
-def _validate_message_header(header: Header) -> None:
-    """Verify request message header, see NSI CS 2.1 paragraph 6.3.2, raise NsiException on failure."""
+
+class Repeat(NamedTuple):
+    """The earlier request that a request repeats."""
+
+    connection_id: Union[UUID, None]
+
+
+def _validate_message_header(request: ProviderRequest, request_type: RequestType) -> Repeat | None:
+    """Verify request message header, see NSI CS 2.1 paragraph 6.3.2, raise NsiException on failure.
+
+    Returns:
+        The repeat found by :func:`_find_repeat`, if any.
+    """
+    header = request.header
     # Verify presence of requesterNSA field (always set when using PolyNSI)
     if not header.requester_nsa:
         extra_info = "missing requester NSA ID"
@@ -103,24 +119,60 @@ def _validate_message_header(header: Header) -> None:
             extra_info,
             {Variable.PROVIDER_NSA: header.provider_nsa},
         )
-    # Verify the uniqueness of supplied correlation_id
+    return _find_repeat(request, request_type)
+
+
+def _find_repeat(request: ProviderRequest, request_type: RequestType) -> Repeat | None:
+    """Find the earlier request that ``request`` repeats, see NSI CS 2.1 paragraphs 6.3.2 and 7.1.3.
+
+    A requester that got no answer sends the original request again, with its original correlation ID.
+
+    Returns:
+        The earlier request if ``request`` repeats it, None if its correlation ID is new.
+
+    Raises:
+        NsiException: The correlation ID belongs to an earlier request that is not the same as ``request``.
+    """
     from supa.db.session import db_session
 
+    correlation_id = request.header.correlation_id
     with db_session() as session:
-        request: Union[model.Request, None] = (
-            session.query(model.Request)
-            .filter(model.Request.correlation_id == UUID(header.correlation_id))
-            .one_or_none()
+        earlier: Union[model.Request, None] = (
+            session.query(model.Request).filter(model.Request.correlation_id == UUID(correlation_id)).one_or_none()
         )
-        unique_correlation_id = not request  # no request with this correlation ID yet
-    if not unique_correlation_id:
-        extra_info = "correlation ID must be unique"
-        logger.info(extra_info, correlation_id=header.correlation_id)
-        raise NsiException(
-            MissingParameter,
-            extra_info,
-            {Variable.CORRELATION_ID: header.correlation_id},
-        )
+        if not earlier:
+            return None
+        if earlier.request_type == request_type and _is_same_message(earlier.request_data, request):
+            return Repeat(earlier.connection_id)
+    extra_info = "correlation ID must be unique"
+    logger.info(extra_info, correlation_id=correlation_id)
+    raise NsiException(MissingParameter, extra_info, {Variable.CORRELATION_ID: correlation_id})
+
+
+def _is_same_message(data: bytes, request: ProviderRequest) -> bool:
+    """Tell if the serialized message ``data`` is ``request``, compared field by field, not byte by byte."""
+    try:
+        return type(request).FromString(data) == request
+    except DecodeError:
+        return False
+
+
+def _resend_result(log: BoundLogger, header: Header) -> None:
+    """Have the result of a repeated request sent to the requester again, if it has one yet."""
+    from supa import scheduler
+
+    log.info("Repeated request, not processed again", correlation_id=header.correlation_id)
+    scheduler.add_job(
+        job := ResendResultJob(UUID(header.correlation_id)), trigger=job.trigger(), id=job.job_id, replace_existing=True
+    )
+
+
+def _acknowledge_repeat(log: BoundLogger, header: Header) -> GenericAcknowledgment:
+    """Acknowledge a repeated request, as its original was."""
+    _resend_result(log, header)
+    response = GenericAcknowledgment(header=to_response_header(header))
+    log.debug("Sending response.", response_message=response)
+    return response
 
 
 def _validate_schedule(pb_schedule: Schedule) -> None:
@@ -168,7 +220,7 @@ def _to_model_path(pb_path: PbPath) -> model.Path:
 
 
 def _register_request(
-    request: ReserveRequest | GenericRequest | QueryRequest | QueryNotificationRequest | QueryResultRequest,
+    request: ProviderRequest,
     request_type: RequestType,
     connection_id: UUID | None = None,
 ) -> None:
@@ -237,12 +289,21 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         )
 
         try:
-            _validate_message_header(pb_reserve_request.header)
-            _validate_schedule(pb_reserve_request.criteria.schedule)
+            repeat = _validate_message_header(pb_reserve_request, RequestType.Reserve)
+            if not repeat:
+                _validate_schedule(pb_reserve_request.criteria.schedule)
         except NsiException as nsi_exc:
             reserve_response = ReserveResponse(
                 header=to_response_header(pb_reserve_request.header),
                 service_exception=to_service_exception(nsi_exc),
+            )
+            log.debug("Sending response.", response_message=reserve_response)
+            return reserve_response
+
+        if repeat:
+            _resend_result(log, pb_reserve_request.header)
+            reserve_response = ReserveResponse(
+                header=to_response_header(pb_reserve_request.header), connection_id=str(repeat.connection_id)
             )
             log.debug("Sending response.", response_message=reserve_response)
             return reserve_response
@@ -510,7 +571,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         log.debug("Received message.", request_message=pb_reserve_commit_request)
 
         try:
-            _validate_message_header(pb_reserve_commit_request.header)
+            repeat = _validate_message_header(pb_reserve_commit_request, RequestType.ReserveCommit)
         except NsiException as nsi_exc:
             reserve_commit_response = GenericAcknowledgment(
                 header=to_response_header(pb_reserve_commit_request.header),
@@ -518,6 +579,9 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             )
             log.debug("Sending response.", response_message=reserve_commit_response)
             return reserve_commit_response
+
+        if repeat:
+            return _acknowledge_repeat(log, pb_reserve_commit_request.header)
 
         from supa.db.session import db_session
 
@@ -605,7 +669,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         log.debug("Received message.", request_message=pb_reserve_abort_request)
 
         try:
-            _validate_message_header(pb_reserve_abort_request.header)
+            repeat = _validate_message_header(pb_reserve_abort_request, RequestType.ReserveAbort)
         except NsiException as nsi_exc:
             reserve_abort_response = GenericAcknowledgment(
                 header=to_response_header(pb_reserve_abort_request.header),
@@ -613,6 +677,9 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             )
             log.debug("Sending response.", response_message=reserve_abort_response)
             return reserve_abort_response
+
+        if repeat:
+            return _acknowledge_repeat(log, pb_reserve_abort_request.header)
 
         from supa.db.session import db_session
 
@@ -699,7 +766,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         log.debug("Received message.", request_message=pb_provision_request)
 
         try:
-            _validate_message_header(pb_provision_request.header)
+            repeat = _validate_message_header(pb_provision_request, RequestType.Provision)
         except NsiException as nsi_exc:
             provision_response = GenericAcknowledgment(
                 header=to_response_header(pb_provision_request.header),
@@ -707,6 +774,9 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             )
             log.debug("Sending response.", response_message=provision_response)
             return provision_response
+
+        if repeat:
+            return _acknowledge_repeat(log, pb_provision_request.header)
 
         from supa.db.session import db_session
 
@@ -812,7 +882,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         log.debug("Received message.", request_message=pb_release_request)
 
         try:
-            _validate_message_header(pb_release_request.header)
+            repeat = _validate_message_header(pb_release_request, RequestType.Release)
         except NsiException as nsi_exc:
             release_response = GenericAcknowledgment(
                 header=to_response_header(pb_release_request.header),
@@ -820,6 +890,9 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             )
             log.debug("Sending response.", response_message=release_response)
             return release_response
+
+        if repeat:
+            return _acknowledge_repeat(log, pb_release_request.header)
 
         from supa.db.session import db_session
 
@@ -928,7 +1001,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         log.debug("Received message.", request_message=pb_terminate_request)
 
         try:
-            _validate_message_header(pb_terminate_request.header)
+            repeat = _validate_message_header(pb_terminate_request, RequestType.Terminate)
         except NsiException as nsi_exc:
             terminate_response = GenericAcknowledgment(
                 header=to_response_header(pb_terminate_request.header),
@@ -936,6 +1009,9 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
             )
             log.debug("Sending response.", response_message=terminate_response)
             return terminate_response
+
+        if repeat:
+            return _acknowledge_repeat(log, pb_terminate_request.header)
 
         from supa.db.session import db_session
 
@@ -1016,7 +1092,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         log.debug("Received message.", request_message=pb_query_request)
 
         try:
-            _validate_message_header(pb_query_request.header)
+            repeat = _validate_message_header(pb_query_request, RequestType.QuerySummary)
         except NsiException as nsi_exc:
             query_response = GenericAcknowledgment(
                 header=to_response_header(pb_query_request.header),
@@ -1028,11 +1104,13 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         from supa import scheduler
 
         log.info("Schedule query summary", job="QuerySummaryJob")
-        _register_request(pb_query_request, RequestType.QuerySummary)
+        if not repeat:
+            _register_request(pb_query_request, RequestType.QuerySummary)
         scheduler.add_job(
             job := QuerySummaryJob(pb_query_request=pb_query_request),
             trigger=job.trigger(),
             id="=".join(["QuerySummaryJob", str(UUID(pb_query_request.header.correlation_id))]),
+            replace_existing=True,
         )
         query_response = GenericAcknowledgment(header=to_response_header(pb_query_request.header))
         log.debug("Sending response.", response_message=query_response)
@@ -1058,13 +1136,14 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         log.info("Query summary sync")
 
         try:
-            _validate_message_header(pb_query_request.header)
+            repeat = _validate_message_header(pb_query_request, RequestType.QuerySummarySync)
         except NsiException as nsi_exc:
             log.info("QuerySummarySync failed.", reason=nsi_exc.text)
             # TODO: should use interface:error, but we re-raise exception instead
             raise nsi_exc
 
-        _register_request(pb_query_request, RequestType.QuerySummarySync)
+        if not repeat:
+            _register_request(pb_query_request, RequestType.QuerySummarySync)
         request = create_query_confirmed_request(pb_query_request)
         log.debug("Sending response.", response_message=request)
         return request
@@ -1091,7 +1170,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         log.debug("Received message.", request_message=pb_query_request)
 
         try:
-            _validate_message_header(pb_query_request.header)
+            repeat = _validate_message_header(pb_query_request, RequestType.QueryRecursive)
         except NsiException as nsi_exc:
             query_response = GenericAcknowledgment(
                 header=to_response_header(pb_query_request.header),
@@ -1103,11 +1182,13 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         from supa import scheduler
 
         log.info("Schedule query recursive", job="QueryRecursiveJob")
-        _register_request(pb_query_request, RequestType.QueryRecursive)
+        if not repeat:
+            _register_request(pb_query_request, RequestType.QueryRecursive)
         scheduler.add_job(
             job := QueryRecursiveJob(pb_query_request=pb_query_request),
             trigger=job.trigger(),
             id="=".join(["QueryRecursiveJob", str(UUID(pb_query_request.header.correlation_id))]),
+            replace_existing=True,
         )
         query_response = GenericAcknowledgment(header=to_response_header(pb_query_request.header))
         log.debug("Sending response.", response_message=query_response)
@@ -1137,7 +1218,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         log.debug("Received message.", request_message=pb_query_notification_request)
 
         try:
-            _validate_message_header(pb_query_notification_request.header)
+            repeat = _validate_message_header(pb_query_notification_request, RequestType.QueryNotification)
         except NsiException as nsi_exc:
             response = GenericAcknowledgment(
                 header=to_response_header(pb_query_notification_request.header),
@@ -1149,11 +1230,13 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         from supa import scheduler
 
         log.info("Schedule query notification", job="QueryNotificationJob")
-        _register_request(pb_query_notification_request, RequestType.QueryNotification)
+        if not repeat:
+            _register_request(pb_query_notification_request, RequestType.QueryNotification)
         scheduler.add_job(
             job := QueryNotificationJob(pb_query_notification_request=pb_query_notification_request),
             trigger=job.trigger(),
             id="=".join(["QueryNotificationJob", str(UUID(pb_query_notification_request.header.correlation_id))]),
+            replace_existing=True,
         )
         response = GenericAcknowledgment(header=to_response_header(pb_query_notification_request.header))
         log.debug("Sending response.", response_message=response)
@@ -1181,13 +1264,14 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         log.info("Query notification sync")
 
         try:
-            _validate_message_header(pb_query_notification_request.header)
+            repeat = _validate_message_header(pb_query_notification_request, RequestType.QueryNotificationSync)
         except NsiException as nsi_exc:
             log.info("QuerySummarySync failed.", reason=nsi_exc.text)
             # TODO: should use interface:error, but we re-raise exception instead
             raise nsi_exc
 
-        _register_request(pb_query_notification_request, RequestType.QueryNotificationSync)
+        if not repeat:
+            _register_request(pb_query_notification_request, RequestType.QueryNotificationSync)
         request = create_query_notification_confirmed_request(pb_query_notification_request)
         log.debug("Sending response.", response_message=request)
         return request
@@ -1216,7 +1300,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         log.debug("Received message.", request_message=pb_query_result_request)
 
         try:
-            _validate_message_header(pb_query_result_request.header)
+            repeat = _validate_message_header(pb_query_result_request, RequestType.QueryResult)
         except NsiException as nsi_exc:
             response = GenericAcknowledgment(
                 header=to_response_header(pb_query_result_request.header),
@@ -1228,11 +1312,13 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         from supa import scheduler
 
         log.info("Schedule query result", job="QueryResultJob")
-        _register_request(pb_query_result_request, RequestType.QueryResult)
+        if not repeat:
+            _register_request(pb_query_result_request, RequestType.QueryResult)
         scheduler.add_job(
             job := QueryResultJob(pb_query_result_request=pb_query_result_request),
             trigger=job.trigger(),
             id="=".join(["QueryResultJob", str(UUID(pb_query_result_request.header.correlation_id))]),
+            replace_existing=True,
         )
         response = GenericAcknowledgment(header=to_response_header(pb_query_result_request.header))
         log.debug("Sending response.", response_message=response)
@@ -1260,13 +1346,14 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
         log.info("Query result sync")
 
         try:
-            _validate_message_header(pb_query_result_request.header)
+            repeat = _validate_message_header(pb_query_result_request, RequestType.QueryResultSync)
         except NsiException as nsi_exc:
             log.info("QuerySummarySync failed.", reason=nsi_exc.text)
             # TODO: should use interface:error, but we re-raise exception instead
             raise nsi_exc
 
-        _register_request(pb_query_result_request, RequestType.QueryResultSync)
+        if not repeat:
+            _register_request(pb_query_result_request, RequestType.QueryResultSync)
         request = create_query_result_confirmed_request(pb_query_result_request)
         log.debug("Sending response.", response_message=request)
         return request

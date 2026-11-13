@@ -1,7 +1,7 @@
 import unittest.mock
 from datetime import datetime, timedelta, timezone
 from json import dumps
-from typing import Any
+from typing import Any, List, Optional
 from uuid import UUID, uuid4
 
 import pytest
@@ -11,17 +11,22 @@ from grpc import ServicerContext
 from sqlalchemy import Column
 
 from supa import const
-from supa.connection.provider.server import ConnectionProviderService
+from supa.connection.provider.server import ConnectionProviderService, _register_request
 from supa.db.model import Reservation
 from supa.grpc_nsi.connection_common_pb2 import Header, Schedule
 from supa.grpc_nsi.connection_provider_pb2 import (
     GenericRequest,
+    QueryNotificationRequest,
     QueryRequest,
+    QueryResultRequest,
     ReservationRequestCriteria,
     ReserveRequest,
 )
 from supa.grpc_nsi.services_pb2 import PointToPointService
+from supa.job.query import QueryNotificationJob, QueryRecursiveJob, QueryResultJob, QuerySummaryJob
+from supa.job.resend import ResendResultJob
 from supa.util.timestamp import EPOCH
+from supa.util.type import RequestType
 
 
 @pytest.fixture()
@@ -171,6 +176,24 @@ def pb_query_request(pb_header: Header, connection_id: Column) -> QueryRequest:
     return pb_query_request
 
 
+@pytest.fixture()
+def pb_query_notification_request(pb_header: Header, connection_id: Column) -> QueryNotificationRequest:
+    """Create protobuf query notification request for connection_id."""
+    pb_request = QueryNotificationRequest()
+    pb_request.header.CopyFrom(pb_header)
+    pb_request.connection_id = str(connection_id)
+    return pb_request
+
+
+@pytest.fixture()
+def pb_query_result_request(pb_header: Header, connection_id: Column) -> QueryResultRequest:
+    """Create protobuf query result request for connection_id."""
+    pb_request = QueryResultRequest()
+    pb_request.header.CopyFrom(pb_header)
+    pb_request.connection_id = str(connection_id)
+    return pb_request
+
+
 def test_reserve_request(pb_reserve_request: ReserveRequest, caplog: Any) -> None:
     """Test the connection provider Reserve happy path returns connection id."""
     service = ConnectionProviderService()
@@ -185,21 +208,46 @@ def test_reserve_request(pb_reserve_request: ReserveRequest, caplog: Any) -> Non
     assert "Schedule reserve timeout" in caplog.text
 
 
-def test_reserve_request_duplicate_correlation_id(pb_reserve_request: ReserveRequest, caplog: Any) -> None:
-    """Test the connection provider Reserve returns MissingParameter when the correlation ID was already seen."""
-    from supa.db.model import Request
-    from supa.db.session import db_session
-    from supa.util.type import RequestType
+def register_request(
+    pb_request: Any, request_type: RequestType, connection_id: UUID, data: Optional[bytes] = None
+) -> None:
+    """Register a request as if it was received before, with ``data`` as its message instead of the request."""
+    if data is None:
+        _register_request(pb_request, request_type, connection_id)
+    else:
+        from supa.db.model import Request
+        from supa.db.session import db_session
 
-    # Pre-register a request with the same correlation ID so the incoming reserve is a duplicate.
-    with db_session() as session:
-        session.add(
-            Request(
-                correlation_id=UUID(pb_reserve_request.header.correlation_id),
-                request_type=RequestType.Reserve,
-                request_data=pb_reserve_request.SerializeToString(),
+        with db_session() as session:
+            session.add(
+                Request(
+                    correlation_id=UUID(pb_request.header.correlation_id),
+                    connection_id=connection_id,
+                    request_type=request_type,
+                    request_data=data,
+                )
             )
-        )
+
+
+@pytest.mark.parametrize(
+    ("stored_type", "stored_data"),
+    [
+        pytest.param(
+            RequestType.Reserve, ReserveRequest(description="another").SerializeToString(), id="other-content"
+        ),
+        pytest.param(RequestType.QuerySummary, None, id="other-request-type"),
+        pytest.param(RequestType.Reserve, b"\xff\xff", id="undecodable"),
+    ],
+)
+def test_reserve_request_correlation_id_of_another_request(
+    stored_type: RequestType,
+    stored_data: Optional[bytes],
+    pb_reserve_request: ReserveRequest,
+    connection_id: UUID,
+    caplog: Any,
+) -> None:
+    """Test the connection provider Reserve returns MissingParameter when the correlation ID is another request's."""
+    register_request(pb_reserve_request, stored_type, connection_id, stored_data)
 
     service = ConnectionProviderService()
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
@@ -210,6 +258,95 @@ def test_reserve_request_duplicate_correlation_id(pb_reserve_request: ReserveReq
     assert reserve_response.service_exception.error_id == "00101"
     assert reserve_response.service_exception.variables[0].type == "correlationId"
     assert "correlation ID must be unique" in caplog.text
+
+
+def test_reserve_request_sent_again_returns_the_same_connection_id(pb_reserve_request: ReserveRequest) -> None:
+    """Test a reserve request that is sent again is acknowledged as before, and not processed again."""
+    service = ConnectionProviderService()
+    mock_context = unittest.mock.create_autospec(spec=ServicerContext)
+    first_response = service.Reserve(pb_reserve_request, mock_context)
+    with unittest.mock.patch("supa.scheduler") as scheduler:
+        second_response = service.Reserve(pb_reserve_request, mock_context)
+    assert first_response.connection_id
+    assert second_response.connection_id == first_response.connection_id
+    assert not second_response.HasField("service_exception")
+    (job,) = [call.args[0] for call in scheduler.add_job.call_args_list]
+    assert isinstance(job, ResendResultJob)
+
+
+def test_reserve_request_sent_again_after_its_end_time_passed(
+    pb_reserve_request_end_time_in_past: ReserveRequest, connection_id: UUID
+) -> None:
+    """Test a repeat is not checked against the schedule again, which may have passed since the original."""
+    register_request(pb_reserve_request_end_time_in_past, RequestType.Reserve, connection_id)
+
+    mock_context = unittest.mock.create_autospec(spec=ServicerContext)
+    with unittest.mock.patch("supa.scheduler"):
+        response = ConnectionProviderService().Reserve(pb_reserve_request_end_time_in_past, mock_context)
+    assert response.connection_id == str(connection_id)
+    assert not response.HasField("service_exception")
+
+
+def test_reserve_request_sent_again_is_compared_field_by_field(
+    pb_reserve_request: ReserveRequest, connection_id: UUID
+) -> None:
+    """Test a stored message that differs in its bytes but not in its content is still the same request."""
+    # Two serializations in a row are one message, with the last value of a field.
+    stored = ReserveRequest(description="first").SerializeToString() + pb_reserve_request.SerializeToString()
+    assert stored != pb_reserve_request.SerializeToString()
+    register_request(pb_reserve_request, RequestType.Reserve, connection_id, data=stored)
+
+    mock_context = unittest.mock.create_autospec(spec=ServicerContext)
+    with unittest.mock.patch("supa.scheduler"):
+        response = ConnectionProviderService().Reserve(pb_reserve_request, mock_context)
+    assert response.connection_id == str(connection_id)
+    assert not response.HasField("service_exception")
+
+
+@pytest.mark.parametrize(
+    ("request_type", "fixture", "expected_jobs"),
+    [
+        pytest.param(RequestType.Reserve, "pb_reserve_request", [ResendResultJob], id="reserve"),
+        pytest.param(RequestType.ReserveCommit, "pb_reserve_commit_request", [ResendResultJob], id="reserve-commit"),
+        pytest.param(RequestType.ReserveAbort, "pb_reserve_abort_request", [ResendResultJob], id="reserve-abort"),
+        pytest.param(RequestType.Provision, "pb_provision_request", [ResendResultJob], id="provision"),
+        pytest.param(RequestType.Release, "pb_release_request", [ResendResultJob], id="release"),
+        pytest.param(RequestType.Terminate, "pb_terminate_request", [ResendResultJob], id="terminate"),
+        pytest.param(RequestType.QuerySummary, "pb_query_request", [QuerySummaryJob], id="query-summary"),
+        pytest.param(RequestType.QueryRecursive, "pb_query_request", [QueryRecursiveJob], id="query-recursive"),
+        pytest.param(
+            RequestType.QueryNotification,
+            "pb_query_notification_request",
+            [QueryNotificationJob],
+            id="query-notification",
+        ),
+        pytest.param(RequestType.QueryResult, "pb_query_result_request", [QueryResultJob], id="query-result"),
+        pytest.param(RequestType.QuerySummarySync, "pb_query_request", [], id="query-summary-sync"),
+        pytest.param(
+            RequestType.QueryNotificationSync, "pb_query_notification_request", [], id="query-notification-sync"
+        ),
+        pytest.param(RequestType.QueryResultSync, "pb_query_result_request", [], id="query-result-sync"),
+    ],
+)
+def test_repeated_request_is_answered_without_being_processed_again(
+    request_type: RequestType,
+    fixture: str,
+    expected_jobs: List[type],
+    connection_id: UUID,
+    request: pytest.FixtureRequest,
+) -> None:
+    """Test a repeat is no error, is not registered again, and has only its result or its query sent again."""
+    pb_request = request.getfixturevalue(fixture)
+    register_request(pb_request, request_type, connection_id)
+
+    mock_context = unittest.mock.create_autospec(spec=ServicerContext)
+    with unittest.mock.patch("supa.scheduler") as scheduler:
+        response = getattr(ConnectionProviderService(), request_type.value)(pb_request, mock_context)
+    assert response.header.correlation_id == pb_request.header.correlation_id
+    assert "service_exception" not in {field.name for field, _ in response.ListFields()}
+    assert [type(call.args[0]) for call in scheduler.add_job.call_args_list] == expected_jobs
+    # a repeat may find the job of the original still scheduled, which it then replaces
+    assert all(call.kwargs["replace_existing"] for call in scheduler.add_job.call_args_list)
 
 
 def test_reserve_request_end_time_before_start_time(
