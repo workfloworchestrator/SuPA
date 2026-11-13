@@ -6,6 +6,7 @@ These tests cover the outbound HTTP helpers that the topology refresh depends on
 ``post``/``get`` functions so no real HTTP traffic is made.
 """
 
+from datetime import datetime
 from itertools import chain, repeat
 from typing import Any, Dict, Generator, List, Optional, Type
 from unittest.mock import MagicMock, patch
@@ -14,11 +15,13 @@ from uuid import UUID
 import pytest
 import structlog
 from pydantic import ValidationError
-from requests.exceptions import HTTPError, JSONDecodeError, ReadTimeout
+from requests.exceptions import ConnectTimeout, HTTPError, JSONDecodeError, ReadTimeout
 
+from supa import settings as supa_settings
 from supa.job.shared import NsiException
 from supa.nrm.backend import STP
 from supa.nrm.backends.wfo import NOTE_TIMEOUT, TOKEN_EXPIRY_MARGIN, Backend, BackendSettings
+from supa.util.timestamp import current_timestamp
 
 
 class ExampleBackend(Backend):
@@ -466,6 +469,62 @@ def test_get_topology_builds_stp_list(backend_class: Type[Backend], domain_model
     assert stp.description == "Test STP"
     assert stp.bandwidth == 1000
     assert stp.enabled is True
+
+
+NO_ANSWER_TO_START = "no answer to the start of a workflow, the process may exist"
+
+
+@pytest.mark.parametrize(
+    ("warm_cache", "post_calls", "warnings"),
+    [
+        pytest.param(False, [make_token_response("t"), ReadTimeout("read timed out")], 1, id="no-answer"),
+        pytest.param(False, [make_token_response("t"), ConnectTimeout("connect timed out")], 0, id="never-sent"),
+        pytest.param(False, [make_token_response("t"), make_response(500)], 0, id="answered-with-an-error"),
+        pytest.param(False, [ReadTimeout("read timed out")], 0, id="token-timed-out"),
+        pytest.param(
+            True,
+            [make_token_response("t"), make_response(401), ReadTimeout("read timed out")],
+            0,
+            id="token-timed-out-after-a-401",
+        ),
+        pytest.param(
+            True,
+            [make_token_response("t"), make_response(401), make_token_response("u"), ReadTimeout("read timed out")],
+            1,
+            id="resent-start-timed-out",
+        ),
+    ],
+)
+def test_start_process_warns_only_when_a_sent_start_gets_no_answer(
+    warm_cache: bool, post_calls: List[Any], warnings: int
+) -> None:
+    """Only a start POST that was sent and timed out may have created a process; a token timeout never says so."""
+    backend = make_backend()
+    with (
+        structlog.testing.capture_logs() as logs,
+        patch("supa.nrm.backends.wfo.post", side_effect=post_calls),
+    ):
+        if warm_cache:
+            backend._retrieve_access_token()
+        with pytest.raises(NsiException):
+            backend._start_process("create_thing", [{"product": "p"}])
+    assert len([log for log in logs if log["event"] == NO_ANSWER_TO_START]) == warnings
+
+
+def test_start_process_warning_names_what_to_look_for() -> None:
+    """The warning carries the workflow, the reporter that becomes ``created_by``, and when the POST went out."""
+    backend = make_backend()
+    before = current_timestamp()
+    with (
+        structlog.testing.capture_logs() as logs,
+        patch("supa.nrm.backends.wfo.post", side_effect=[make_token_response("t"), ReadTimeout("read timed out")]),
+        pytest.raises(NsiException),
+    ):
+        backend._start_process("create_thing", [])
+    after = current_timestamp()
+    (warning,) = [log for log in logs if log["event"] == NO_ANSWER_TO_START]
+    assert (warning["workflow"], warning["reporter"]) == ("create_thing", supa_settings.nsa_host)
+    assert before <= datetime.fromisoformat(warning["posted_at"]) <= after
 
 
 def test_add_note_ends_with_global_reservation_id(connection_id: UUID) -> None:

@@ -76,6 +76,11 @@ still produce a circuit SuPA does not know, and a terminate can still complete a
 `DeactivateFailed`. The log line carries the process id. The `modify_note` wait is capped at
 `NOTE_TIMEOUT` and its failure swallowed.
 
+A start POST that times out waiting for the answer may also have created a process: the orchestrator
+commits it before it answers, with a server-side id and no idempotency key. `_start_process` logs `the
+process may exist` with the workflow, reporter (`created_by`) and POST time. Other lost answers, such
+as a reset connection or a gateway error, are not logged.
+
 ### Network Resource Manager Backends
 
 Pluggable backends in `nrm/backends/` implement `nrm/backend.py:BaseBackend`. Available: `example` (reference), `wfo`, `ciena8190`, `nso`. Selected via `backend` setting in `supa.env`.

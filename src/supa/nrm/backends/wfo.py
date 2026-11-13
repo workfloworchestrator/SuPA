@@ -64,7 +64,7 @@ from pydantic import PositiveFloat
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from requests import Response, get, post
 from requests.auth import HTTPBasicAuth
-from requests.exceptions import RequestException
+from requests.exceptions import ReadTimeout, RequestException
 from structlog.contextvars import bound_contextvars
 from structlog.stdlib import BoundLogger
 
@@ -73,6 +73,7 @@ from supa.connection.error import GenericRmError
 from supa.job.shared import NsiException
 from supa.nrm.backend import STP, BaseBackend
 from supa.util.find import find_file
+from supa.util.timestamp import current_timestamp
 
 GRAPHQL_PAGE_SIZE = 100
 
@@ -274,17 +275,41 @@ class Backend(BaseBackend):
         timeout = (self.backend_settings.connect_timeout, self.backend_settings.read_timeout)
         return self._request_json("cannot get url", url, lambda: self._send_authorised(get, url, timeout=timeout))
 
-    def _post_json(self, url: str, json: Any) -> Any:
-        """Post JSON to an authorised URL and return the JSON body of the response."""
+    def _post_json(self, url: str, json: Any, method: Optional[Callable[..., Response]] = None) -> Any:
+        """Post JSON to an authorised URL and return the JSON body of the response.
+
+        ``method`` takes the place of ``requests.post``, and is called with ``url``, ``headers``, ``json`` and
+        ``timeout``.
+        """
         timeout = (self.backend_settings.connect_timeout, self.backend_settings.write_timeout)
         return self._request_json(
-            "cannot post url", url, lambda: self._send_authorised(post, url, json=json, timeout=timeout)
+            "cannot post url", url, lambda: self._send_authorised(method or post, url, json=json, timeout=timeout)
         )
 
     def _start_process(self, workflow_name: str, json: Any) -> Any:
-        """Start a workflow in the orchestrator and return the new process."""
+        """Start a workflow in the orchestrator and return the new process.
+
+        The orchestrator commits the process before it answers, so a start that times out waiting for the answer
+        may still have created one; that is logged.
+        """
+
+        def post_start(url: str, headers: Dict[str, str], json: Any, timeout: Tuple[float, float]) -> Response:
+            posted_at = current_timestamp()
+            try:
+                return post(url=url, headers=headers, json=json, timeout=timeout)
+            except ReadTimeout:
+                self.log.warning(
+                    "no answer to the start of a workflow, the process may exist",
+                    workflow=workflow_name,
+                    reporter=settings.nsa_host,
+                    posted_at=posted_at.isoformat(),
+                )
+                raise
+
         return self._post_json(
-            f"{self.backend_settings.base_url}/api/processes/{workflow_name}?reporter={settings.nsa_host}", json
+            f"{self.backend_settings.base_url}/api/processes/{workflow_name}?reporter={settings.nsa_host}",
+            json,
+            post_start,
         )
 
     def _create_form(
