@@ -69,6 +69,12 @@ supa.job.query
 .. automodule:: supa.job.query
    :members:
 
+supa.job.resend
+---------------
+
+.. automodule:: supa.job.resend
+   :members:
+
 supa.job.dataplane
 ------------------
 

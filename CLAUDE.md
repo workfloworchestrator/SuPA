@@ -63,6 +63,16 @@ that is no longer on the device as already deleted. Terminate of a `Terminated` 
 `ReservationNonExistent` (00203); an aggregator can read both as "nothing left to terminate", so
 keep them, and their tests in `test_server.py`, as they are.
 
+### Repeated requests
+
+A request that repeats an earlier one, with the same correlation ID, request kind and message (compared
+field by field, `_find_repeat`, NSI CS 2.1 paragraph 7.1.3), is acknowledged as before, not processed again
+and not checked against the schedule again. `ResendResultJob` sends the stored result again once the
+original has one. A repeated query runs again and is registered once, because its reply is not stored. The
+same correlation ID on a different message stays `MissingParameter` (00101). Work that is to be done again,
+such as a second terminate after a failed one, needs a new correlation ID. Identical requests that arrive at
+the same moment can both pass `_find_repeat`; the second then fails to register.
+
 ### Activate contract
 
 Once the NRM holds the circuit, a backend's `activate` must return its id and not raise.
