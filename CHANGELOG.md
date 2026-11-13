@@ -24,6 +24,10 @@ and base-image updates are not listed, except for security fixes.
   and the request is sent once more with a new one. A token response without `expires_in` is not cached.
 - wfo: the wait for the `modify_note` process is capped at 30 s.
 - wfo: the orchestrator's error detail is the reason of every failed request, not only of create.
+- A request that repeats an earlier one (same correlation id, kind and message) is no longer rejected
+  with 00101 (NSI CS 2.1 §7.1.3). It is acknowledged as the original was and not processed again, and
+  the stored result is sent again. A repeated asynchronous query runs again. The same correlation id
+  on a different message is still rejected (#574, fixes #405).
 - The `activate` contract is documented in `BaseBackend.activate`.
 
 ### Fixed
