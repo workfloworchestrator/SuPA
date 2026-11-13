@@ -117,6 +117,9 @@ passes `--build-arg VERSION`, which the `Dockerfile` exports as
 `SETUPTOOLS_SCM_PRETEND_VERSION_FOR_SUPA`. Omitting it fails the build by design. `uv.lock` records
 the project as `(dynamic)` and so does not churn per commit.
 
+`CHANGELOG.md` follows Keep a Changelog. Add notable changes under `[Unreleased]`; before tagging, move
+them under a new `## [x.y.z] - date` heading and update the compare links at the bottom.
+
 ## Dependency cooldown
 
 `exclude-newer = "8 days"` in `pyproject.toml` and `minimumReleaseAge` in `.github/renovate.json`

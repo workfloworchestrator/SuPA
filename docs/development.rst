@@ -111,7 +111,7 @@ Some rules
     - ``flake8``
     - ``pytest -n auto --cov``
     - ``pytest --doctest-module src``
-- Each MR should probably result in an update to ``CHANGES.rst``
+- Each PR should add its notable changes under ``[Unreleased]`` in ``CHANGELOG.md``
 
 Testing on PostgreSQL
 ---------------------
