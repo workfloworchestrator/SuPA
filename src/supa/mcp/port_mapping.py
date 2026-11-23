@@ -37,7 +37,7 @@ class PortResolver:
         self._load(mapping_file)
 
     def _load(self, path: Path) -> None:
-        data = yaml.safe_load(path.read_text())
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
         entries = (data.get("port_mapping") or {}).items()
         self._mapping = {port_id: self._parse_entry(port_id, info, path) for port_id, info in entries}
 
