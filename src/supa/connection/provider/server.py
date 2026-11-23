@@ -23,7 +23,7 @@ from grpc import ServicerContext
 from statemachine.exceptions import TransitionNotAllowed
 from structlog.stdlib import BoundLogger
 
-from supa import settings
+from supa import const, settings
 from supa.connection.error import (
     GenericMessagePayLoadError,
     GenericServiceError,
@@ -706,7 +706,7 @@ class ConnectionProviderService(connection_provider_pb2_grpc.ConnectionProviderS
                         service_exception=to_service_exception(
                             NsiException(
                                 InvalidTransition,
-                                "cannot abort an initial reserve request, abort only allowed on modify",
+                                const.INITIAL_RESERVE_ABORT_TEXT,
                                 {Variable.CONNECTION_ID: str(connection_id)},
                             ),
                             connection_id,

@@ -14,3 +14,6 @@
 
 SERVICE_TYPE = "http://services.ogf.org/nsi/2013/12/descriptions/EVTS.A-GOLE"
 """Currently only one Service Type is supported."""
+
+INITIAL_RESERVE_ABORT_TEXT = "cannot abort an initial reserve request, abort only allowed on modify"
+"""Text of the InvalidTransition error for an abort of a reservation that has only one version."""

@@ -27,7 +27,7 @@ from sqlalchemy.orm import aliased, joinedload, scoped_session
 from statemachine.exceptions import TransitionNotAllowed
 from structlog.stdlib import BoundLogger
 
-from supa import settings
+from supa import const, settings
 from supa.connection import requester
 from supa.connection.error import (
     CapacityUnavailable,
@@ -692,7 +692,7 @@ class ReserveAbortJob(Job):
                 self.log.error("cannot abort an initial reserve request, should not have reached this code")
                 nsi_exception = NsiException(
                     InvalidTransition,
-                    "cannot abort an initial reserve request, abort only allowed on modify",
+                    const.INITIAL_RESERVE_ABORT_TEXT,
                     {Variable.CONNECTION_ID: str(self.connection_id)},
                 )
             if nsi_exception:  # reserve abort failed
