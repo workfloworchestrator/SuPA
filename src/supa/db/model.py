@@ -61,7 +61,7 @@ should help navigating the Python code a lot better.
 
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 from sqlalchemy import (
     CheckConstraint,
@@ -78,7 +78,7 @@ from sqlalchemy.dialects import sqlite
 from sqlalchemy.engine import Dialect
 from sqlalchemy.exc import DontWrapMixin
 from sqlalchemy.ext.orderinglist import ordering_list
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, object_session, relationship
+from sqlalchemy.orm import DeclarativeBase, InstanceState, Mapped, mapped_column, object_session, relationship
 
 from supa.connection.fsm import (
     DataPlaneStateMachine,
@@ -138,11 +138,8 @@ class ReprBase:
 
     def __repr__(self) -> str:
         """Return string that represents a SQLAlchemy ORM model."""
-        inst_state = inspect(self)
-        attr_vals = [
-            f"{attr.key}={getattr(self, attr.key)}"
-            for attr in inst_state.mapper.column_attrs  # type: ignore[union-attr]
-        ]
+        inst_state = cast("InstanceState[Any]", inspect(self))
+        attr_vals = [f"{attr.key}={getattr(self, attr.key)}" for attr in inst_state.mapper.column_attrs]
         return f"{self.__class__.__name__}({', '.join(attr_vals)})"
 
     def __str__(self) -> str:
