@@ -12,6 +12,11 @@ and base-image updates are not listed, except for security fixes.
 - Supported Python versions are 3.13 to 3.15. Python 3.12 is no longer supported.
 - The MCP port mapping file is read as UTF-8 on every Python version, as Python 3.15 does by default.
 
+### Fixed
+
+- A reserve abort job sends an InvalidTransition error, not a confirmation, for a reservation with one
+  version. The server already refuses such a request, so this was not reachable through it.
+
 ## [0.6.6] - 2026-11-13
 
 ### Added

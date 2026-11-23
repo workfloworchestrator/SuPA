@@ -33,6 +33,7 @@ from supa.connection.error import (
     CapacityUnavailable,
     GenericInternalError,
     InvalidLabelFormat,
+    InvalidTransition,
     NoServiceplanePathFound,
     StpUnavailable,
     UnknownStp,
@@ -685,25 +686,30 @@ class ReserveAbortJob(Job):
             reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
             connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
             rsm = ReservationStateMachine(reservation, state_field="reservation_state")
-            if nsi_exception:  # reserve abort on backend failed
+            # only allowed to abort a reserve modify request, e.q. there is more than one criteria version
+            if nsi_exception is None and len(reservation.p2p_criteria_list) <= 1:
+                # the server should have prevented that this code is reached
+                self.log.error("cannot abort an initial reserve request, should not have reached this code")
+                nsi_exception = NsiException(
+                    InvalidTransition,
+                    "cannot abort an initial reserve request, abort only allowed on modify",
+                    {Variable.CONNECTION_ID: str(self.connection_id)},
+                )
+            if nsi_exception:  # reserve abort failed
                 self.log.info("Reserve abort failed.", reason=str(nsi_exception))
                 error_request = to_error_request(to_header(reservation), nsi_exception, self.connection_id)
             else:  # reserve abort on backend successful
                 confirmed_request = to_generic_confirmed_request(reservation)
                 reservation.reservation_timeout = False  # would probably be better to add reservation state to fsm
-                # only allowed to abort a reserve modify request, e.q. there is more than one criteria version
-                if len(reservation.p2p_criteria_list) > 1:
-                    # 1. set connection.bandwidth to previous bandwidth
-                    connection.bandwidth = reservation.p2p_criteria_list[-2].bandwidth
-                    # 2. remove most recent version of criteria
-                    session.delete(reservation.p2p_criteria_list[-1])
-                    # 3. remove most recent version of schedule
-                    session.delete(reservation.schedules[-1])
-                    # 4. decrement reservation version with one
-                    reservation.version -= 1
-                    rsm.reserve_abort_confirmed()
-                else:  # the server should have prevented that this code is reached
-                    self.log.error("cannot abort an initial reserve request, should not have reached this code")
+                # 1. set connection.bandwidth to previous bandwidth
+                connection.bandwidth = reservation.p2p_criteria_list[-2].bandwidth
+                # 2. remove most recent version of criteria
+                session.delete(reservation.p2p_criteria_list[-1])
+                # 3. remove most recent version of schedule
+                session.delete(reservation.schedules[-1])
+                # 4. decrement reservation version with one
+                reservation.version -= 1
+                rsm.reserve_abort_confirmed()
                 if circuit_id:
                     connection.circuit_id = circuit_id
 

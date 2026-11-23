@@ -464,12 +464,14 @@ def test_reserve_abort_job_initial_reserve_request(
     get_stub: None,
     caplog: Any,
 ) -> None:
-    """Test ReserveAbortJob to log an error and leave the criteria alone when there is only one version.
+    """Test ReserveAbortJob to answer with an Error and leave the reservation alone when there is only one version.
 
     The server refuses to schedule an abort of an initial reserve request, so the job should not get here.
     """
     ReserveAbortJob(connection_id).__call__()
     assert "cannot abort an initial reserve request" in caplog.text
+    assert state_machine.is_reserve_aborting(connection_id)
+    assert error_ids_of_results(connection_id) == ["00201"]
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
         assert len(reservation.p2p_criteria_list) == 1
