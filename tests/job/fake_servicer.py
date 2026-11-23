@@ -144,7 +144,7 @@ class Servicer(ConnectionRequesterServicer):
 
     def ReserveAbortConfirmed(self, request: GenericConfirmedRequest, context: Any) -> GenericAcknowledgment:
         """Fake ReserveAbortConfirmed to return mocked GenericAcknowledgment."""
-        return GenericConfirmedRequest(header=request.header)
+        return GenericAcknowledgment(header=request.header)
 
     def ReserveTimeout(self, request: ReserveTimeoutRequest, context: Any) -> GenericAcknowledgment:
         """Fake ReserveTimeout to return mocked GenericAcknowledgment."""
@@ -245,6 +245,9 @@ class Servicer(ConnectionRequesterServicer):
                 test_hit_count += 1
                 assert request.service_exception.error_id == "00800"
                 assert "Terminate failed in NRM" in request.service_exception.text
+            # test_reserve_abort_job_backend_failure() and test_reserve_abort_job_initial_reserve_request()
+            if reservation.reservation_state == ReservationStateMachine.ReserveAborting.value:
+                test_hit_count += 1  # these tests check the error id themselves
         assert test_hit_count == 1
 
         return GenericAcknowledgment(header=request.header)

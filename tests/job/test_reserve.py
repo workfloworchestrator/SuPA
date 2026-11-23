@@ -1,13 +1,17 @@
 from datetime import timedelta
 from typing import Any, Generator
+from unittest.mock import MagicMock
 from uuid import UUID
 
 import pytest
 
 import tests.shared.state_machine as state_machine
-from supa.db.model import Connection, Reservation
+from supa.connection.error import GenericRmError
+from supa.db.model import Connection, Reservation, Result
 from supa.db.session import db_session
+from supa.grpc_nsi.connection_requester_pb2 import ErrorRequest
 from supa.job.reserve import ReserveAbortJob, ReserveCommitJob, ReserveJob, ReserveTimeoutJob, _select_vlans
+from supa.job.shared import NsiException
 from supa.util.timestamp import current_timestamp
 from supa.util.vlan import VlanRanges
 
@@ -444,6 +448,79 @@ def test_reserve_abort_job_reserve_abort_confirmed(
         assert reservation.version == 0
         assert connection_from_db.bandwidth == reservation.p2p_criteria.bandwidth
         assert connection_from_db.bandwidth == 10
+
+
+def error_ids_of_results(connection_id: UUID) -> list[str]:
+    """Return the NSI error ids of the Error results that were registered for the connection."""
+    with db_session() as session:
+        results = session.query(Result).filter(Result.connection_id == connection_id, Result.result_type == "Error")
+        return [ErrorRequest.FromString(result.result_data).service_exception.error_id for result in results]
+
+
+def test_reserve_abort_job_initial_reserve_request(
+    connection_id: UUID,
+    connection: None,
+    reserve_aborting: None,
+    get_stub: None,
+    caplog: Any,
+) -> None:
+    """Test ReserveAbortJob to log an error and leave the criteria alone when there is only one version.
+
+    The server refuses to schedule an abort of an initial reserve request, so the job should not get here.
+    """
+    ReserveAbortJob(connection_id).__call__()
+    assert "cannot abort an initial reserve request" in caplog.text
+    with db_session() as session:
+        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
+        assert len(reservation.p2p_criteria_list) == 1
+        assert reservation.version == 0
+
+
+@pytest.mark.parametrize(
+    ("error", "error_id"),
+    [
+        pytest.param(NsiException(GenericRmError, "Reserve abort failed in NRM"), "00800", id="nsi-exception"),
+        pytest.param(RuntimeError("unexpected"), "00500", id="unexpected-exception"),
+    ],
+)
+def test_reserve_abort_job_backend_failure(
+    connection_id: UUID,
+    connection_id_modified: None,
+    connection: None,
+    reserve_aborting: None,
+    get_stub: None,
+    error: Exception,
+    error_id: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test ReserveAbortJob to answer with an Error and to leave the reservation as it was when the backend fails."""
+    monkeypatch.setattr("supa.nrm.backend.BaseBackend.reserve_abort", MagicMock(side_effect=error))
+
+    ReserveAbortJob(connection_id).__call__()
+    assert state_machine.is_reserve_aborting(connection_id)
+    assert error_ids_of_results(connection_id) == [error_id]
+    with db_session() as session:
+        reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
+        assert len(reservation.p2p_criteria_list) == 2
+        assert reservation.version == 1
+
+
+def test_reserve_abort_job_stores_the_circuit_id_of_the_backend(
+    connection_id: UUID,
+    connection_id_modified: None,
+    connection: None,
+    reserve_aborting: None,
+    get_stub: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test ReserveAbortJob to store the circuit id that the backend returns."""
+    monkeypatch.setattr("supa.nrm.backend.BaseBackend.reserve_abort", MagicMock(return_value="circuit-1"))
+
+    ReserveAbortJob(connection_id).__call__()
+    assert state_machine.is_reserve_start(connection_id)
+    with db_session() as session:
+        connection_from_db = session.query(Connection).filter(Connection.connection_id == connection_id).one()
+        assert connection_from_db.circuit_id == "circuit-1"
 
 
 def test_reserve_abort_job_recover(connection_id: UUID, reserve_aborting: None, get_stub: None, caplog: Any) -> None:

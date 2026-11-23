@@ -3,11 +3,13 @@ import time
 from concurrent import futures
 from datetime import datetime, timedelta, timezone
 from typing import Generator
+from unittest.mock import MagicMock, create_autospec, patch
 from uuid import UUID, uuid4
 
 import grpc
 import pytest
 from apscheduler.jobstores.base import JobLookupError
+from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy import Column, create_engine, make_url, text
 from sqlalchemy.orm import aliased
 
@@ -117,6 +119,25 @@ def add_stp_ids(init: Generator) -> None:
                 enabled=True,
             )
         )
+
+
+@pytest.fixture(scope="session")
+def mocked_scheduler() -> MagicMock:
+    """Create the mock once, as an autospec per test adds seconds to the run."""
+    mock: MagicMock = create_autospec(BackgroundScheduler, instance=True)
+    return mock
+
+
+@pytest.fixture(autouse=True)
+def scheduler(mocked_scheduler: MagicMock) -> Generator[MagicMock, None, None]:
+    """Replace the scheduler, so that no job runs on a thread while the fixtures delete its reservation.
+
+    Read ``scheduler.add_job.call_args_list`` to see what was scheduled. ``tests/functional`` uses the real one.
+    """
+    mocked_scheduler.reset_mock()
+    mocked_scheduler.get_job.return_value = None
+    with patch("supa.scheduler", mocked_scheduler):
+        yield mocked_scheduler
 
 
 @pytest.fixture()

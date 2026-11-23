@@ -25,6 +25,7 @@ from supa.grpc_nsi.connection_provider_pb2 import (
 from supa.grpc_nsi.services_pb2 import PointToPointService
 from supa.job.query import QueryNotificationJob, QueryRecursiveJob, QueryResultJob, QuerySummaryJob
 from supa.job.resend import ResendResultJob
+from supa.job.reserve import ReserveAbortJob
 from supa.util.timestamp import EPOCH
 from supa.util.type import RequestType
 
@@ -260,17 +261,24 @@ def test_reserve_request_correlation_id_of_another_request(
     assert "correlation ID must be unique" in caplog.text
 
 
-def test_reserve_request_sent_again_returns_the_same_connection_id(pb_reserve_request: ReserveRequest) -> None:
+def scheduled_jobs(scheduler: unittest.mock.MagicMock, job_type: type = object) -> List[Any]:
+    """Return the jobs that were added to the mocked scheduler, only those of ``job_type`` if given."""
+    return [job for call in scheduler.add_job.call_args_list if isinstance(job := call.args[0], job_type)]
+
+
+def test_reserve_request_sent_again_returns_the_same_connection_id(
+    pb_reserve_request: ReserveRequest, scheduler: unittest.mock.MagicMock
+) -> None:
     """Test a reserve request that is sent again is acknowledged as before, and not processed again."""
     service = ConnectionProviderService()
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
     first_response = service.Reserve(pb_reserve_request, mock_context)
-    with unittest.mock.patch("supa.scheduler") as scheduler:
-        second_response = service.Reserve(pb_reserve_request, mock_context)
+    scheduler.add_job.reset_mock()
+    second_response = service.Reserve(pb_reserve_request, mock_context)
     assert first_response.connection_id
     assert second_response.connection_id == first_response.connection_id
     assert not second_response.HasField("service_exception")
-    (job,) = [call.args[0] for call in scheduler.add_job.call_args_list]
+    (job,) = scheduled_jobs(scheduler)
     assert isinstance(job, ResendResultJob)
 
 
@@ -281,8 +289,7 @@ def test_reserve_request_sent_again_after_its_end_time_passed(
     register_request(pb_reserve_request_end_time_in_past, RequestType.Reserve, connection_id)
 
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
-    with unittest.mock.patch("supa.scheduler"):
-        response = ConnectionProviderService().Reserve(pb_reserve_request_end_time_in_past, mock_context)
+    response = ConnectionProviderService().Reserve(pb_reserve_request_end_time_in_past, mock_context)
     assert response.connection_id == str(connection_id)
     assert not response.HasField("service_exception")
 
@@ -297,8 +304,7 @@ def test_reserve_request_sent_again_is_compared_field_by_field(
     register_request(pb_reserve_request, RequestType.Reserve, connection_id, data=stored)
 
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
-    with unittest.mock.patch("supa.scheduler"):
-        response = ConnectionProviderService().Reserve(pb_reserve_request, mock_context)
+    response = ConnectionProviderService().Reserve(pb_reserve_request, mock_context)
     assert response.connection_id == str(connection_id)
     assert not response.HasField("service_exception")
 
@@ -333,6 +339,7 @@ def test_repeated_request_is_answered_without_being_processed_again(
     fixture: str,
     expected_jobs: List[type],
     connection_id: UUID,
+    scheduler: unittest.mock.MagicMock,
     request: pytest.FixtureRequest,
 ) -> None:
     """Test a repeat is no error, is not registered again, and has only its result or its query sent again."""
@@ -340,11 +347,10 @@ def test_repeated_request_is_answered_without_being_processed_again(
     register_request(pb_request, request_type, connection_id)
 
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
-    with unittest.mock.patch("supa.scheduler") as scheduler:
-        response = getattr(ConnectionProviderService(), request_type.value)(pb_request, mock_context)
+    response = getattr(ConnectionProviderService(), request_type.value)(pb_request, mock_context)
     assert response.header.correlation_id == pb_request.header.correlation_id
     assert "service_exception" not in {field.name for field, _ in response.ListFields()}
-    assert [type(call.args[0]) for call in scheduler.add_job.call_args_list] == expected_jobs
+    assert [type(job) for job in scheduled_jobs(scheduler)] == expected_jobs
     # a repeat may find the job of the original still scheduled, which it then replaces
     assert all(call.kwargs["replace_existing"] for call in scheduler.add_job.call_args_list)
 
@@ -569,6 +575,7 @@ def test_reserve_abort(
     connection: None,
     pb_reserve_abort_request: GenericRequest,
     reserve_held: None,
+    scheduler: unittest.mock.MagicMock,
     caplog: Any,
 ) -> None:
     """Test the connection provider ReserveAbort happy path."""
@@ -579,6 +586,8 @@ def test_reserve_abort(
     assert not reserve_abort_response.header.reply_to
     assert not reserve_abort_response.HasField("service_exception")
     assert "Schedule reserve abort" in caplog.text
+    (job,) = scheduled_jobs(scheduler, ReserveAbortJob)
+    assert job.connection_id == connection_id
 
 
 def test_reserve_abort_random_connection_id(pb_reserve_abort_request: GenericRequest, caplog: Any) -> None:
@@ -865,15 +874,11 @@ def test_terminate_retries_a_reservation_still_terminating(
     terminating: None,
     job_scheduled: bool,
     expected_log: str,
+    scheduler: unittest.mock.MagicMock,
     caplog: Any,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A terminate that failed in the NRM leaves the reservation Terminating, and a new terminate retries it once."""
-    from supa import scheduler
-
-    monkeypatch.setattr(scheduler, "get_job", lambda _job_id: object() if job_scheduled else None)
-    added: list[str] = []
-    monkeypatch.setattr(scheduler, "add_job", lambda _job, trigger, id: added.append(id))  # noqa: A006
+    scheduler.get_job.return_value = object() if job_scheduled else None
     service = ConnectionProviderService()
     mock_context = unittest.mock.create_autospec(spec=ServicerContext)
 
@@ -882,7 +887,8 @@ def test_terminate_retries_a_reservation_still_terminating(
     assert not terminate_response.HasField("service_exception")
     assert "Retry terminate of a reservation still terminating" in caplog.text
     assert expected_log in caplog.text
-    assert added == ([] if job_scheduled else [f"TerminateJob={pb_terminate_request.connection_id}"])
+    scheduled_ids = [job.job_id for job in scheduled_jobs(scheduler)]
+    assert scheduled_ids == ([] if job_scheduled else [f"TerminateJob={pb_terminate_request.connection_id}"])
 
 
 def test_terminate_invalid_transition(pb_terminate_request: GenericRequest, terminated: None, caplog: Any) -> None:
