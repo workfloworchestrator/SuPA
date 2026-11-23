@@ -261,9 +261,9 @@ def test_reserve_request_correlation_id_of_another_request(
     assert "correlation ID must be unique" in caplog.text
 
 
-def scheduled_jobs(scheduler: unittest.mock.MagicMock, job_type: type = object) -> List[Any]:
-    """Return the jobs that were added to the mocked scheduler, only those of ``job_type`` if given."""
-    return [job for call in scheduler.add_job.call_args_list if isinstance(job := call.args[0], job_type)]
+def scheduled_jobs(scheduler: unittest.mock.MagicMock) -> List[Any]:
+    """Return the jobs that were added to the mocked scheduler."""
+    return [call.args[0] for call in scheduler.add_job.call_args_list]
 
 
 def test_reserve_request_sent_again_returns_the_same_connection_id(
@@ -586,7 +586,8 @@ def test_reserve_abort(
     assert not reserve_abort_response.header.reply_to
     assert not reserve_abort_response.HasField("service_exception")
     assert "Schedule reserve abort" in caplog.text
-    (job,) = scheduled_jobs(scheduler, ReserveAbortJob)
+    (job,) = scheduled_jobs(scheduler)
+    assert isinstance(job, ReserveAbortJob)
     assert job.connection_id == connection_id
 
 

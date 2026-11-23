@@ -6,6 +6,7 @@ import tests.shared.state_machine as state_machine
 from supa import settings
 from supa.job.lifecycle import HealthCheckJob, TerminateJob
 from supa.util.timestamp import current_timestamp
+from tests.shared.result import result_types
 
 
 def test_terminate_job_auto_start(
@@ -13,7 +14,6 @@ def test_terminate_job_auto_start(
     connection: None,
     terminating: None,
     auto_start: None,
-    auto_start_job: None,
     get_stub: None,
     caplog: Any,
 ) -> None:
@@ -57,8 +57,6 @@ def test_terminate_job_failed_twice(
 ) -> None:
     """Test TerminateJob that fails again after recovery to replace the result of its earlier run."""
     from supa.connection.error import GenericRmError
-    from supa.db.model import Result
-    from supa.db.session import db_session
     from supa.job.shared import NsiException
     from supa.nrm.backend import BaseBackend
 
@@ -70,9 +68,7 @@ def test_terminate_job_failed_twice(
     TerminateJob(connection_id).__call__()
     TerminateJob(connection_id).__call__()
     assert state_machine.is_terminating(connection_id)
-    with db_session() as session:
-        results = session.query(Result).filter(Result.connection_id == connection_id).all()
-        assert [result.result_type for result in results] == ["Error"]
+    assert result_types(connection_id) == ["Error"]
 
 
 def test_terminate_job_retry_after_failure_terminates(
@@ -80,8 +76,6 @@ def test_terminate_job_retry_after_failure_terminates(
 ) -> None:
     """A TerminateJob that failed in the NRM leaves the reservation Terminating; a retry that succeeds terminates it."""
     from supa.connection.error import GenericRmError
-    from supa.db.model import Result
-    from supa.db.session import db_session
     from supa.job.shared import NsiException
     from supa.nrm.backend import BaseBackend
 
@@ -97,10 +91,8 @@ def test_terminate_job_retry_after_failure_terminates(
     assert state_machine.is_terminating(connection_id)
     TerminateJob(connection_id).__call__()
     assert state_machine.is_terminated(connection_id)
-    with db_session() as session:
-        results = session.query(Result).filter(Result.connection_id == connection_id).all()
-        # The retry answers the same request, so its result replaces the earlier Error.
-        assert [result.result_type for result in results] == ["TerminateConfirmed"]
+    # The retry answers the same request, so its result replaces the earlier Error.
+    assert result_types(connection_id) == ["TerminateConfirmed"]
 
 
 def test_terminate_job_recover(connection_id: UUID, terminating: None, get_stub: None, caplog: Any) -> None:

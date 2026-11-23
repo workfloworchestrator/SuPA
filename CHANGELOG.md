@@ -14,8 +14,9 @@ and base-image updates are not listed, except for security fixes.
 
 ### Fixed
 
-- A reserve abort job sends an InvalidTransition error, not a confirmation, for a reservation with one
-  version. The server already refuses such a request, so this was not reachable through it.
+- A reserve abort job sends an InvalidTransition error, not a confirmation, and does not abort in the NRM,
+  for a reservation with one version. The server already refuses such a request, so this was not reachable
+  through it.
 
 ## [0.6.6] - 2026-11-13
 

@@ -75,17 +75,12 @@ class TestStopMcp:
 class TestStartMcp:
     """Tests for start_mcp."""
 
-    def test_schedules_one_shot_supa_mcp_job(self) -> None:
+    def test_schedules_one_shot_supa_mcp_job(self, scheduler: MagicMock) -> None:
         """start_mcp schedules a 'supa-mcp' date job that invokes _serve."""
-        fake_scheduler = MagicMock()
-        with (
-            patch("supa.scheduler", fake_scheduler),
-            patch("uvicorn.Server", return_value=MagicMock()),
-            patch("uvicorn.Config"),
-        ):
+        with patch("uvicorn.Server", return_value=MagicMock()), patch("uvicorn.Config"):
             mcp_server.start_mcp()
-        fake_scheduler.add_job.assert_called_once()
-        kwargs = fake_scheduler.add_job.call_args.kwargs
+        scheduler.add_job.assert_called_once()
+        kwargs = scheduler.add_job.call_args.kwargs
         assert kwargs["id"] == "supa-mcp"
         assert kwargs["trigger"] == "date"
         assert kwargs["replace_existing"] is True
@@ -94,11 +89,7 @@ class TestStartMcp:
     def test_populates_module_level_uvicorn_server(self) -> None:
         """start_mcp must set _uvicorn_server so stop_mcp can later find it."""
         fake_server = MagicMock()
-        with (
-            patch("supa.scheduler"),
-            patch("uvicorn.Server", return_value=fake_server),
-            patch("uvicorn.Config"),
-        ):
+        with patch("uvicorn.Server", return_value=fake_server), patch("uvicorn.Config"):
             mcp_server.start_mcp()
         assert mcp_server._uvicorn_server is fake_server
 
@@ -114,11 +105,7 @@ class TestStartMcp:
     )
     def test_uvicorn_config_kwargs(self, sentinel_bind_settings: None, kwarg: str, expected: object) -> None:
         """uvicorn.Config is configured from settings, with SuPA's own logging left in place."""
-        with (
-            patch("supa.scheduler"),
-            patch("uvicorn.Server", return_value=MagicMock()),
-            patch("uvicorn.Config") as fake_config,
-        ):
+        with patch("uvicorn.Server", return_value=MagicMock()), patch("uvicorn.Config") as fake_config:
             mcp_server.start_mcp()
         assert fake_config.call_args.kwargs[kwarg] == expected
 
@@ -129,11 +116,7 @@ class TestStartMcp:
         which answers 421 to every Host header it does not recognise. Building the app for a host
         other than the one uvicorn binds therefore rejects all remote clients.
         """
-        with (
-            patch("supa.scheduler"),
-            patch("uvicorn.Server", return_value=MagicMock()),
-            patch("uvicorn.Config") as fake_config,
-        ):
+        with patch("uvicorn.Server", return_value=MagicMock()), patch("uvicorn.Config") as fake_config:
             mcp_server.start_mcp()
         app = fake_config.call_args.args[0]
 
@@ -149,11 +132,7 @@ class TestStartMcp:
         original_level = access_logger.level
         try:
             access_logger.setLevel(logging.NOTSET)
-            with (
-                patch("supa.scheduler"),
-                patch("uvicorn.Server", return_value=MagicMock()),
-                patch("uvicorn.Config"),
-            ):
+            with patch("uvicorn.Server", return_value=MagicMock()), patch("uvicorn.Config"):
                 mcp_server.start_mcp()
             assert access_logger.level == logging.WARNING
         finally:

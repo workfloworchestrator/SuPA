@@ -1,5 +1,4 @@
 import os
-import time
 from concurrent import futures
 from datetime import datetime, timedelta, timezone
 from typing import Generator
@@ -8,7 +7,6 @@ from uuid import UUID, uuid4
 
 import grpc
 import pytest
-from apscheduler.jobstores.base import JobLookupError
 from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy import Column, create_engine, make_url, text
 from sqlalchemy.orm import aliased
@@ -22,8 +20,6 @@ from supa.connection.fsm import (
 )
 from supa.db.model import Connection, P2PCriteria, Request, Reservation, Schedule, Topology
 from supa.grpc_nsi import connection_provider_pb2_grpc
-from supa.job.dataplane import AutoEndJob, AutoStartJob
-from supa.job.reserve import ReserveTimeoutJob
 from supa.util.timestamp import NO_END_DATE, current_timestamp
 from supa.util.type import RequestType
 
@@ -68,8 +64,9 @@ def init(tmp_path_factory: pytest.TempPathFactory, thread_pool_executor: futures
 
     yield
 
-    # better to check if all jobs are finished, for now we just sleep on it
-    time.sleep(1)
+    from supa import scheduler
+
+    scheduler.shutdown(wait=True)  # waits for the jobs that are still running
 
 
 @pytest.fixture(autouse=True, scope="session")
@@ -281,14 +278,6 @@ def connection_modified(connection_id: Column, connection: None) -> None:
         connection_from_db.bandwidth = 20
 
 
-@pytest.fixture()
-def reserve_timeout_job(connection_id: Column) -> None:
-    """Schedule a ReserveTimeoutJob for connection_id."""
-    from supa import scheduler
-
-    scheduler.add_job(job := ReserveTimeoutJob(connection_id), trigger=job.trigger(), id=job.job_id)
-
-
 @pytest.fixture
 def src_stp_id_equals_dst_stp_id(connection_id: Column) -> None:
     """Set dst_stp_id of reservation identified by connection_id to src_stp_id."""
@@ -407,24 +396,13 @@ def reserve_checking(connection_id: Column) -> None:
 
 
 @pytest.fixture()
-def reserve_held(connection_id: Column) -> Generator:
+def reserve_held(connection_id: Column) -> None:
     """Set reserve state machine of reservation identified by connection_id to state ReserveHeld."""
     from supa.db.session import db_session
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
         reservation.reservation_state = ReservationStateMachine.ReserveHeld.value
-
-    from supa import scheduler
-
-    job_handle = scheduler.add_job(job := ReserveTimeoutJob(connection_id), trigger=job.trigger(), id=job.job_id)
-
-    yield None
-
-    try:
-        job_handle.remove()
-    except JobLookupError:
-        pass  # job already removed from job store
 
 
 @pytest.fixture
@@ -568,54 +546,13 @@ def auto_start(connection_id: Column) -> None:
 
 
 @pytest.fixture
-def auto_start_job(connection_id: Column) -> Generator:
-    """Run AutoStartJob for connection_id."""
-    from supa import scheduler
-
-    job_handle = scheduler.add_job(job := AutoStartJob(connection_id), trigger=job.trigger(), id=job.job_id)
-
-    yield None
-
-    try:
-        job_handle.remove()
-    except JobLookupError:
-        pass  # job already removed from job store
-
-
-@pytest.fixture
-def auto_end(connection_id: Column) -> Generator:
+def auto_end(connection_id: Column) -> None:
     """Set data plane state machine of reservation identified by connection_id to state AutoEnd."""
     from supa.db.session import db_session
 
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
         reservation.data_plane_state = DataPlaneStateMachine.AutoEnd.value
-
-    from supa import scheduler
-
-    job_handle = scheduler.add_job(job := AutoEndJob(connection_id), trigger=job.trigger(), id=job.job_id)
-
-    yield None
-
-    try:
-        job_handle.remove()
-    except JobLookupError:
-        pass  # job already removed from job store
-
-
-@pytest.fixture
-def auto_end_job(connection_id: Column) -> Generator:
-    """Run AutoEndtJob for connection_id."""
-    from supa import scheduler
-
-    job_handle = scheduler.add_job(job := AutoEndJob(connection_id), trigger=job.trigger(), id=job.job_id)
-
-    yield None
-
-    try:
-        job_handle.remove()
-    except JobLookupError:
-        pass  # job already removed from job store
 
 
 @pytest.fixture

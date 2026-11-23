@@ -659,6 +659,7 @@ class ReserveAbortJob(Job):
         a ReserveAbortConfirmed message will be sent to the NSA/AG.
         If the reservation state machine is not in the correct state for a ReserveAbort
         an NSI error is returned leaving the state machine unchanged.
+        The same goes for a reservation with only one version, which is answered without calling the backend.
         """
         self.log.info("Reserve abort reservation")
 
@@ -671,30 +672,31 @@ class ReserveAbortJob(Job):
         with db_session() as session:
             connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
             backend_args = connection_to_dict(connection)
-        try:
-            circuit_id = backend.reserve_abort(**backend_args)
-        except NsiException as nsi_exc:
-            nsi_exception = nsi_exc
-        except Exception as exc:
-            self.log.exception("Unexpected error occurred.", reason=str(exc))
+            # only allowed to abort a reserve modify request, e.q. there is more than one criteria version
+            is_modify = len(connection.reservation.p2p_criteria_list) > 1
+        if not is_modify:  # the server should have prevented that this code is reached
+            self.log.error("cannot abort an initial reserve request, should not have reached this code")
             nsi_exception = NsiException(
-                GenericInternalError, str(exc), {Variable.CONNECTION_ID: str(self.connection_id)}
+                InvalidTransition,
+                const.INITIAL_RESERVE_ABORT_TEXT,
+                {Variable.CONNECTION_ID: str(self.connection_id)},
             )
+        else:
+            try:
+                circuit_id = backend.reserve_abort(**backend_args)
+            except NsiException as nsi_exc:
+                nsi_exception = nsi_exc
+            except Exception as exc:
+                self.log.exception("Unexpected error occurred.", reason=str(exc))
+                nsi_exception = NsiException(
+                    GenericInternalError, str(exc), {Variable.CONNECTION_ID: str(self.connection_id)}
+                )
 
         # update reservation and connection state in the database
         with db_session() as session:
             reservation = session.query(Reservation).filter(Reservation.connection_id == self.connection_id).one()
             connection = session.query(Connection).filter(Connection.connection_id == self.connection_id).one()
             rsm = ReservationStateMachine(reservation, state_field="reservation_state")
-            # only allowed to abort a reserve modify request, e.q. there is more than one criteria version
-            if nsi_exception is None and len(reservation.p2p_criteria_list) <= 1:
-                # the server should have prevented that this code is reached
-                self.log.error("cannot abort an initial reserve request, should not have reached this code")
-                nsi_exception = NsiException(
-                    InvalidTransition,
-                    const.INITIAL_RESERVE_ABORT_TEXT,
-                    {Variable.CONNECTION_ID: str(self.connection_id)},
-                )
             if nsi_exception:  # reserve abort failed
                 self.log.info("Reserve abort failed.", reason=str(nsi_exception))
                 error_request = to_error_request(to_header(reservation), nsi_exception, self.connection_id)

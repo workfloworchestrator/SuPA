@@ -7,13 +7,13 @@ import pytest
 
 import tests.shared.state_machine as state_machine
 from supa.connection.error import GenericRmError
-from supa.db.model import Connection, Reservation, Result
+from supa.db.model import Connection, Reservation
 from supa.db.session import db_session
-from supa.grpc_nsi.connection_requester_pb2 import ErrorRequest
 from supa.job.reserve import ReserveAbortJob, ReserveCommitJob, ReserveJob, ReserveTimeoutJob, _select_vlans
 from supa.job.shared import NsiException
 from supa.util.timestamp import current_timestamp
 from supa.util.vlan import VlanRanges
+from tests.shared.result import error_ids
 
 
 def test_reserve_job_reserve_confirmed(connection_id: UUID, reserve_checking: None, get_stub: None) -> None:
@@ -26,7 +26,6 @@ def test_reserve_job_reserve_confirmed(connection_id: UUID, reserve_checking: No
 def test_reserve_job_reserve_failed_src_stp_id_equals_dst_stp_id(
     connection_id: UUID,
     reserve_checking: None,
-    reserve_timeout_job: None,
     src_stp_id_equals_dst_stp_id: None,
     get_stub: None,
     caplog: Any,
@@ -41,7 +40,6 @@ def test_reserve_job_reserve_failed_src_stp_id_equals_dst_stp_id(
 def test_reserve_job_reserve_failed_unknown_stp_id(
     connection_id: UUID,
     reserve_checking: None,
-    reserve_timeout_job: None,
     unknown_stp_id: None,
     get_stub: None,
     caplog: Any,
@@ -56,7 +54,6 @@ def test_reserve_job_reserve_failed_unknown_stp_id(
 def test_reserve_job_reserve_failed_disabled_stp_id(
     connection_id: UUID,
     reserve_checking: None,
-    reserve_timeout_job: None,
     disabled_stp: Generator,
     get_stub: None,
     caplog: Any,
@@ -71,7 +68,6 @@ def test_reserve_job_reserve_failed_disabled_stp_id(
 def test_reserve_job_reserve_failed_unknown_domain_stp_id(
     connection_id: UUID,
     reserve_checking: None,
-    reserve_timeout_job: None,
     unknown_domain_stp_id: None,
     get_stub: None,
     caplog: Any,
@@ -86,7 +82,6 @@ def test_reserve_job_reserve_failed_unknown_domain_stp_id(
 def test_reserve_job_reserve_failed_unknown_topology_stp_id(
     connection_id: UUID,
     reserve_checking: None,
-    reserve_timeout_job: None,
     unknown_topology_stp_id: None,
     get_stub: None,
     caplog: Any,
@@ -101,7 +96,6 @@ def test_reserve_job_reserve_failed_unknown_topology_stp_id(
 def test_reserve_job_reserve_failed_empty_vlans_stp_id(
     connection_id: UUID,
     reserve_checking: None,
-    reserve_timeout_job: None,
     empty_vlans_stp_id: None,
     get_stub: None,
     caplog: Any,
@@ -116,7 +110,6 @@ def test_reserve_job_reserve_failed_empty_vlans_stp_id(
 def test_reserve_job_reserve_failed_to_much_bandwidth(
     connection_id: UUID,
     reserve_checking: None,
-    reserve_timeout_job: None,
     to_much_bandwidth: None,
     get_stub: None,
     caplog: Any,
@@ -131,7 +124,6 @@ def test_reserve_job_reserve_failed_to_much_bandwidth(
 def test_reserve_job_reserve_failed_no_matching_vlan(
     connection_id: UUID,
     reserve_checking: None,
-    reserve_timeout_job: None,
     no_matching_vlan: None,
     get_stub: None,
     caplog: Any,
@@ -146,7 +138,6 @@ def test_reserve_job_reserve_failed_no_matching_vlan(
 def test_reserve_job_reserve_failed_all_vlans_in_use(
     connection_id: UUID,
     reserve_checking: None,
-    reserve_timeout_job: None,
     all_vlans_in_use: None,
     get_stub: None,
     caplog: Any,
@@ -234,9 +225,7 @@ def test_select_vlans(src_vlans: str, dst_vlans: str, allowed: set[tuple[int, in
     assert _select_vlans(VlanRanges(src_vlans), VlanRanges(dst_vlans)) in allowed
 
 
-def test_reserve_job_selects_same_vlan(
-    connection_id: UUID, reserve_checking: None, reserve_timeout_job: None, get_stub: None
-) -> None:
+def test_reserve_job_selects_same_vlan(connection_id: UUID, reserve_checking: None, get_stub: None) -> None:
     """ReserveJob selects the same VLAN on both STPs when both request a range."""
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
@@ -309,7 +298,6 @@ def test_reserve_commit_modified_start_time(
     connection: None,
     reserve_committing: None,
     modified_start_time: None,
-    auto_start_job: None,
     get_stub: None,
     caplog: Any,
 ) -> None:
@@ -329,7 +317,6 @@ def test_reserve_commit_modified_no_end_time(
     connection: None,
     reserve_committing: None,
     modified_no_end_time: None,
-    auto_end_job: None,
     get_stub: None,
     caplog: Any,
 ) -> None:
@@ -450,28 +437,26 @@ def test_reserve_abort_job_reserve_abort_confirmed(
         assert connection_from_db.bandwidth == 10
 
 
-def error_ids_of_results(connection_id: UUID) -> list[str]:
-    """Return the NSI error ids of the Error results that were registered for the connection."""
-    with db_session() as session:
-        results = session.query(Result).filter(Result.connection_id == connection_id, Result.result_type == "Error")
-        return [ErrorRequest.FromString(result.result_data).service_exception.error_id for result in results]
-
-
 def test_reserve_abort_job_initial_reserve_request(
     connection_id: UUID,
     connection: None,
     reserve_aborting: None,
     get_stub: None,
     caplog: Any,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Test ReserveAbortJob to answer with an Error and leave the reservation alone when there is only one version.
+    """Test ReserveAbortJob to answer with an Error, without calling the backend, when there is only one version.
 
     The server refuses to schedule an abort of an initial reserve request, so the job should not get here.
     """
+    reserve_abort = MagicMock()
+    monkeypatch.setattr("supa.nrm.backend.BaseBackend.reserve_abort", reserve_abort)
+
     ReserveAbortJob(connection_id).__call__()
+    reserve_abort.assert_not_called()
     assert "cannot abort an initial reserve request" in caplog.text
     assert state_machine.is_reserve_aborting(connection_id)
-    assert error_ids_of_results(connection_id) == ["00201"]
+    assert error_ids(connection_id) == ["00201"]
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
         assert len(reservation.p2p_criteria_list) == 1
@@ -500,7 +485,7 @@ def test_reserve_abort_job_backend_failure(
 
     ReserveAbortJob(connection_id).__call__()
     assert state_machine.is_reserve_aborting(connection_id)
-    assert error_ids_of_results(connection_id) == [error_id]
+    assert error_ids(connection_id) == [error_id]
     with db_session() as session:
         reservation = session.query(Reservation).filter(Reservation.connection_id == connection_id).one()
         assert len(reservation.p2p_criteria_list) == 2

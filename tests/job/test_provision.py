@@ -103,7 +103,6 @@ def test_release_job_release_confirmed_auto_start(
     connection: None,
     releasing: None,
     auto_start: None,
-    auto_start_job: None,
     get_stub: None,
     caplog: Any,
 ) -> None:
