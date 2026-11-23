@@ -99,7 +99,7 @@ def edited_configs(backend: Backend) -> List[str]:
 def test_init_reads_env_file(tmp_path: Path) -> None:
     """``__init__`` reads the device settings from ``ciena8190.env``."""
     env_file = tmp_path / "ciena8190.env"
-    env_file.write_text("host=device.test\nport=830\n")
+    env_file.write_text("host=device.test\nport=830\n", encoding="utf-8")
     with patch("supa.nrm.backends.ciena8190.find_file", return_value=env_file):
         backend = Backend()
     assert (backend._settings.host, backend._settings.port) == ("device.test", 830)

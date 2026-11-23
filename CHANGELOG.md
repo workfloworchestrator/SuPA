@@ -7,6 +7,11 @@ and base-image updates are not listed, except for security fixes.
 
 ## [Unreleased]
 
+### Changed
+
+- Supported Python versions are 3.13 to 3.15. Python 3.12 is no longer supported.
+- The MCP port mapping file is read as UTF-8 on every Python version, as Python 3.15 does by default.
+
 ## [0.6.6] - 2026-11-13
 
 ### Added

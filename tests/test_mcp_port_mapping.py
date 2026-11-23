@@ -21,7 +21,7 @@ def mapping_yaml(tmp_path: Path) -> Path:
             interface: "et-0/0/2"
     """)
     f = tmp_path / "port_mapping.yaml"
-    f.write_text(content)
+    f.write_text(content, encoding="utf-8")
     return f
 
 
@@ -63,6 +63,6 @@ def test_missing_file_raises(tmp_path: Path) -> None:
 def test_malformed_entry_raises(tmp_path: Path, entry: str) -> None:
     """An entry missing device/interface (or not a mapping) raises with the port_id."""
     f = tmp_path / "port_mapping.yaml"
-    f.write_text(f"port_mapping:\n  {entry}\n")
+    f.write_text(f"port_mapping:\n  {entry}\n", encoding="utf-8")
     with pytest.raises(ValueError, match="port-a1"):
         PortResolver(f)

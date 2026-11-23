@@ -220,7 +220,7 @@ class TestGetCircuitEndpointsQuery:
         mock_session = MagicMock()
         mock_session.query.return_value.filter.return_value.one_or_none.return_value = connection
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False, encoding="utf-8") as f:
             f.write(
                 textwrap.dedent("""\
                 port_mapping:

@@ -18,7 +18,7 @@ There are several methods to install and run the application:
 
 .. note::
 
-    SuPA has been tested with Python version 3.11 upto and including 3.14.
+    SuPA has been tested with Python version 3.13 upto and including 3.15.
     Compatibility with earlier Python versions will brake in the future or is already broken.
     Compatibility with later Python versions is untested.
 
@@ -43,7 +43,7 @@ for example version 0.3.4::
 
 There are multiple ways to add an virtual Python environment, and you can choose
 whatever suits you best. This example uses the standard ``venv`` module and assumes
-that Python version 3.12 is already installed using your local package manager::
+that Python version 3.13 is already installed using your local package manager::
 
     python3.13 -m venv venv
     source venv/bin/activate
