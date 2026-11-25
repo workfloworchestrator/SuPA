@@ -27,7 +27,7 @@ dependencies = [
   "click==8.5.1",
   "pydantic-settings==2.16.3",
   "python-statemachine==3.2.2",
-  "sqlalchemy==2.1.8",
+  "sqlalchemy==2.1.9",
   "apscheduler==3.11.3",
   "tabulate==0.10.0",
   "more-itertools==11.2.1",
