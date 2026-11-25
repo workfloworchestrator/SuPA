@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1@sha256:572cebbc2b15e6f84c077742952674889cb63cd5e9b80abdffcbe587b6f19183
 #
 # Build stage
-FROM ghcr.io/astral-sh/uv:python3.14-alpine@sha256:cf4d33eb056b454a922b80e3594c0621ac56e83e118ec4e7415c58ae65466ede AS build
+FROM ghcr.io/astral-sh/uv:python3.14-alpine@sha256:179094b1d334e618d67378ecbe2a4e94cb58493d787a1cc4d41881c48140f533 AS build
 ARG VERSION
 ENV SETUPTOOLS_SCM_PRETEND_VERSION_FOR_SUPA=${VERSION}
 WORKDIR /app
@@ -10,7 +10,7 @@ COPY src src
 RUN uv build --no-cache --wheel --out-dir dist
 
 # Final stage
-FROM ghcr.io/astral-sh/uv:python3.14-alpine@sha256:cf4d33eb056b454a922b80e3594c0621ac56e83e118ec4e7415c58ae65466ede
+FROM ghcr.io/astral-sh/uv:python3.14-alpine@sha256:179094b1d334e618d67378ecbe2a4e94cb58493d787a1cc4d41881c48140f533
 # Drops emSign ECC Root CA - G3 (ca-certificates 20261020); remove once the base image has it.
 RUN apk upgrade --no-cache ca-certificates ca-certificates-bundle
 ENV DATABASE_DIR=/usr/local/var/db
